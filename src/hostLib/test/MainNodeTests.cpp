@@ -155,10 +155,18 @@ class MainNodeTest : public ::testing::Test
         std::shared_ptr<PrioritizedTxScheduler> mPrioritizedTxScheduler;
         DreamcastMainNodeOverride mDreamcastMainNode;
 
-        virtual void SetUp()
-        {}
+        void SetUp() override
+        {
+            EXPECT_CALL(mMutex, lock).Times(AnyNumber());
+            EXPECT_CALL(mMutex, unlock).Times(AnyNumber());
+            EXPECT_CALL(mMutex, tryLock).Times(AnyNumber()).WillRepeatedly(Return(1));
 
-        virtual void TearDown()
+            EXPECT_CALL(mMutex2, lock).Times(AnyNumber());
+            EXPECT_CALL(mMutex2, unlock).Times(AnyNumber());
+            EXPECT_CALL(mMutex2, tryLock).Times(AnyNumber()).WillRepeatedly(Return(1));
+        }
+
+        void TearDown() override
         {}
 };
 
@@ -280,19 +288,14 @@ TEST_F(MainNodeTest, peripheralDisconnect)
     std::shared_ptr<MockDreamcastPeripheral> mockedDreamcastPeripheral =
         std::make_shared<MockDreamcastPeripheral>(0x20, 0, mDreamcastMainNode.getEndpointTxScheduler(), mPlayerData.playerIndex);
     mDreamcastMainNode.getPeripherals().push_back(mockedDreamcastPeripheral);
-    // This is a bad way to do it, but I need mCurrentTx in TransmissionTimeliner to be set to something
+    // Update write queue
     EXPECT_CALL(mMapleBus, mockWrite(_, _, _)).Times(AnyNumber()).WillRepeatedly(Return(true));
-    mDreamcastMainNode.getEndpointTxScheduler()->add(0, &mDreamcastMainNode, 123, (uint32_t*)nullptr, 0, true);
-    mDreamcastMainNode.getEndpointTxScheduler()->add(0, &mDreamcastMainNode, 123, (uint32_t*)nullptr, 0, true);
-    mDreamcastMainNode.getEndpointTxScheduler()->add(0, &mDreamcastMainNode, 123, (uint32_t*)nullptr, 0, true);
-    mDreamcastMainNode.getEndpointTxScheduler()->add(0, &mDreamcastMainNode, 123, (uint32_t*)nullptr, 0, true);
-    mDreamcastMainNode.getEndpointTxScheduler()->add(0, &mDreamcastMainNode, 123, (uint32_t*)nullptr, 0, true);
-    mDreamcastMainNode.getEndpointTxScheduler()->add(0, &mDreamcastMainNode, 123, (uint32_t*)nullptr, 0, true);
-    mDreamcastMainNode.getEndpointTxScheduler()->add(0, &mDreamcastMainNode, 123, (uint32_t*)nullptr, 0, true);
-    mDreamcastMainNode.getEndpointTxScheduler()->add(0, &mDreamcastMainNode, 123, (uint32_t*)nullptr, 0, true);
-    mDreamcastMainNode.getEndpointTxScheduler()->add(0, &mDreamcastMainNode, 123, (uint32_t*)nullptr, 0, true);
-    mDreamcastMainNode.getEndpointTxScheduler()->add(0, &mDreamcastMainNode, 123, (uint32_t*)nullptr, 0, true);
-    mDreamcastMainNode.getTransmissionTimeliner().writeTask(0);
+    for (uint32_t i = 0; i < DreamcastMainNode::MAX_FAILURE_DISCONNECT_COUNT; ++i)
+    {
+        mDreamcastMainNode.getEndpointTxScheduler()->add(0, &mDreamcastMainNode, 123, (uint32_t*)nullptr, 0, true);
+    }
+    // Begins the first write
+    mDreamcastMainNode.task(0);
 
     // --- MOCKING ---
     // The task will process events, and it will return read failure
@@ -308,35 +311,22 @@ TEST_F(MainNodeTest, peripheralDisconnect)
     EXPECT_CALL(*mDreamcastMainNode.mMockedSubNodes[3], mainPeripheralDisconnected()).Times(1);
     EXPECT_CALL(*mDreamcastMainNode.mMockedSubNodes[4], mainPeripheralDisconnected()).Times(1);
     // All sub node's task functions will be called with the current time
-    EXPECT_CALL(*mDreamcastMainNode.mMockedSubNodes[0], task).Times(10);
-    EXPECT_CALL(*mDreamcastMainNode.mMockedSubNodes[1], task).Times(10);
-    EXPECT_CALL(*mDreamcastMainNode.mMockedSubNodes[2], task).Times(10);
-    EXPECT_CALL(*mDreamcastMainNode.mMockedSubNodes[3], task).Times(10);
-    EXPECT_CALL(*mDreamcastMainNode.mMockedSubNodes[4], task).Times(10);
+    EXPECT_CALL(*mDreamcastMainNode.mMockedSubNodes[0], task).Times(DreamcastMainNode::MAX_FAILURE_DISCONNECT_COUNT);
+    EXPECT_CALL(*mDreamcastMainNode.mMockedSubNodes[1], task).Times(DreamcastMainNode::MAX_FAILURE_DISCONNECT_COUNT);
+    EXPECT_CALL(*mDreamcastMainNode.mMockedSubNodes[2], task).Times(DreamcastMainNode::MAX_FAILURE_DISCONNECT_COUNT);
+    EXPECT_CALL(*mDreamcastMainNode.mMockedSubNodes[3], task).Times(DreamcastMainNode::MAX_FAILURE_DISCONNECT_COUNT);
+    EXPECT_CALL(*mDreamcastMainNode.mMockedSubNodes[4], task).Times(DreamcastMainNode::MAX_FAILURE_DISCONNECT_COUNT);
     // The peripheral will get to run task 10 times before it disconnects on the 11th failure
-    EXPECT_CALL(*mockedDreamcastPeripheral, task(1000000)).Times(1);
-    EXPECT_CALL(*mockedDreamcastPeripheral, task(1000001)).Times(1);
-    EXPECT_CALL(*mockedDreamcastPeripheral, task(1000002)).Times(1);
-    EXPECT_CALL(*mockedDreamcastPeripheral, task(1000003)).Times(1);
-    EXPECT_CALL(*mockedDreamcastPeripheral, task(1000004)).Times(1);
-    EXPECT_CALL(*mockedDreamcastPeripheral, task(1000005)).Times(1);
-    EXPECT_CALL(*mockedDreamcastPeripheral, task(1000006)).Times(1);
-    EXPECT_CALL(*mockedDreamcastPeripheral, task(1000007)).Times(1);
-    EXPECT_CALL(*mockedDreamcastPeripheral, task(1000008)).Times(1);
-    EXPECT_CALL(*mockedDreamcastPeripheral, task(1000009)).Times(0);
+    EXPECT_CALL(*mockedDreamcastPeripheral, task).Times(DreamcastMainNode::MAX_FAILURE_DISCONNECT_COUNT - 1);
+    EXPECT_CALL(*mockedDreamcastPeripheral, task(9999999)).Times(0);
 
     // --- TEST EXECUTION ---
-    mDreamcastMainNode.task(1000000);
-    mDreamcastMainNode.task(1000001);
-    mDreamcastMainNode.task(1000002);
-    mDreamcastMainNode.task(1000003);
-    mDreamcastMainNode.task(1000004);
-    mDreamcastMainNode.task(1000005);
-    mDreamcastMainNode.task(1000006);
-    mDreamcastMainNode.task(1000007);
-    mDreamcastMainNode.task(1000008);
+    for (uint32_t i = 0; i < DreamcastMainNode::MAX_FAILURE_DISCONNECT_COUNT - 1; ++i)
+    {
+        mDreamcastMainNode.task(1000000 + i);
+    }
     // Disconnection happens on 10th failure
-    mDreamcastMainNode.task(1000009);
+    mDreamcastMainNode.task(9999999);
 
     // --- EXPECTATIONS ---
     // All peripherals removed
