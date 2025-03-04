@@ -77,8 +77,7 @@ DreamcastVibration::DreamcastVibration(uint8_t addr,
                                        std::shared_ptr<EndpointTxSchedulerInterface> scheduler,
                                        PlayerData playerData) :
     DreamcastPeripheral("vibration", addr, fd, scheduler, playerData.playerIndex),
-    mTransmissionId(0),
-    mFirst(true)
+    mTransmissionId(0)
 {
 }
 
@@ -87,13 +86,6 @@ DreamcastVibration::~DreamcastVibration()
 
 void DreamcastVibration::task(uint64_t currentTimeUs)
 {
-    if (mFirst)
-    {
-        mFirst = false;
-
-        // Send some vibrations on connection
-        send(currentTimeUs, 5, 0, 0, 250);
-    }
 }
 
 void DreamcastVibration::txStarted(std::shared_ptr<const Transmission> tx)

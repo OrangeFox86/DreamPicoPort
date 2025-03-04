@@ -92,7 +92,7 @@ class DreamcastMainNode : public DreamcastNode
         //! Number of microseconds in between each info request when no peripheral is detected
         static const uint32_t US_PER_CHECK = 16000;
         //! Number of communication failures before main peripheral is disconnected
-        static const uint32_t MAX_FAILURE_DISCONNECT_COUNT = 3;
+        static const uint32_t MAX_FAILURE_DISCONNECT_COUNT = 10;
 
     protected:
         //! The sub nodes under this node

@@ -10,7 +10,7 @@ target_link_libraries(host-4p
     pico_multicore
     hal-MapleBus
     hal-System
-    hal-Usb-Client-Hid
+    hal-Usb-Client
     pico_stdio_usb
     hostLib
 )
@@ -34,7 +34,7 @@ target_link_libraries(host-2p
     pico_multicore
     hal-MapleBus
     hal-System
-    hal-Usb-Client-Hid
+    hal-Usb-Client
     pico_stdio_usb
     hostLib
 )
@@ -58,7 +58,7 @@ target_link_libraries(host-1p
     pico_multicore
     hal-MapleBus
     hal-System
-    hal-Usb-Client-Hid
+    hal-Usb-Client
     pico_stdio_usb
     hostLib
 )

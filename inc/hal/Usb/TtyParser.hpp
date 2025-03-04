@@ -35,8 +35,13 @@ public:
     virtual ~TtyParser() {}
     //! Adds a command parser to my list of parsers - must be done before any other function called
     virtual void addCommandParser(std::shared_ptr<CommandParser> parser) = 0;
+    //! Called from the process receiving characters on the TTY
+    virtual void addChars(const char* chars, uint32_t len) = 0;
     //! Called from the process handling maple bus execution
     virtual void process() = 0;
+    //! When this character is seen, then binary data will proceed
+    //! For binary commands, 2-byte size followed by payload then final \n character
+    static const char BINARY_START_CHAR = CommandParser::BINARY_START_CHAR;
 };
 
-TtyParser* usb_cdc_create_parser(MutexInterface* m, char helpChar);
+void usb_cdc_set_parser(TtyParser* parser);

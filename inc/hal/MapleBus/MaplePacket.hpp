@@ -171,26 +171,20 @@ struct MaplePacket
     //! Constructor 2 (default) - initializes with invalid packet
     inline MaplePacket() :
         MaplePacket(Frame::defaultFrame(), NULL, 0)
-    {
-        updateFrameLength();
-    }
+    {}
 
     //! Constructor 3 - initializes with empty payload
     //! @param[in] frame  Frame data to initialize
     inline MaplePacket(Frame frame) :
         MaplePacket(frame, NULL, 0)
-    {
-        updateFrameLength();
-    }
+    {}
 
     //! Constructor 4 - initializes with frame and 1 payload word
     //! @param[in] frame  Frame data to initialize
     //! @param[in] payload  The single payload word to set
     inline MaplePacket(Frame frame, uint32_t payload) :
         MaplePacket(frame, &payload, 1)
-    {
-        updateFrameLength();
-    }
+    {}
 
     //! Constructor 5
     //! @param[in] words  All words to set
@@ -200,6 +194,13 @@ struct MaplePacket
             len > 0 ? Frame::fromWord(*words) : Frame::defaultFrame(),
             words + 1,
             len > 0 ? len - 1 : 0)
+    {}
+
+    //! Constructor 6 - initializes from payload and moved vector
+    //! @param[in] payload  The payload
+    inline MaplePacket(Frame frame, std::vector<uint32_t>&& words) :
+        frame(frame),
+        payload(std::move(words))
     {
         updateFrameLength();
     }

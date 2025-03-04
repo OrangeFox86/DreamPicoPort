@@ -21,7 +21,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "UsbCdcTtyParser.hpp"
+#include "SerialStreamParser.hpp"
 #include "hal/System/LockGuard.hpp"
 
 #include <limits>
@@ -29,27 +29,29 @@
 #include <algorithm>
 #include <stdio.h>
 
-const char* UsbCdcTtyParser::WHITESPACE_CHARS = "\r\n\t ";
-const char* UsbCdcTtyParser::INPUT_EOL_CHARS = "\r\n";
-const char UsbCdcTtyParser::RX_EOL_CHAR = '\n';
-const char* UsbCdcTtyParser::BACKSPACE_CHARS = "\x08\x7F";
+const char* SerialStreamParser::WHITESPACE_CHARS = "\r\n\t ";
+const char* SerialStreamParser::INPUT_EOL_CHARS = "\r\n";
+const char* SerialStreamParser::BACKSPACE_CHARS = "\x08\x7F";
 
-UsbCdcTtyParser::UsbCdcTtyParser(MutexInterface& m, char helpChar) :
+SerialStreamParser::SerialStreamParser(MutexInterface& m, char helpChar) :
     mParserRx(),
+    mEndMarkers(),
     mLastIsEol(false),
     mParserMutex(m),
-    mCommandReady(false),
     mHelpChar(helpChar),
     mParsers(),
-    mOverflowDetected(false)
+    mOverflowDetected(false),
+    mNumBinaryParsed(-1),
+    mStoredBinarySize(0),
+    mNumBinaryLeft(0)
 {}
 
-void UsbCdcTtyParser::addCommandParser(std::shared_ptr<CommandParser> parser)
+void SerialStreamParser::addCommandParser(std::shared_ptr<CommandParser> parser)
 {
     mParsers.push_back(parser);
 }
 
-void UsbCdcTtyParser::addChars(const char* chars, uint32_t len)
+void SerialStreamParser::addChars(const char* chars, uint32_t len)
 {
     // Entire function is locked
     LockGuard lockGuard(mParserMutex);
@@ -70,24 +72,64 @@ void UsbCdcTtyParser::addChars(const char* chars, uint32_t len)
             mOverflowDetected = true;
         }
 
-        if (mOverflowDetected)
+        if (mNumBinaryParsed >= 0)
+        {
+            ++mNumBinaryParsed;
+            --mNumBinaryLeft;
+
+            if (mNumBinaryParsed == 1)
+            {
+                mStoredBinarySize = (*chars) << 8;
+            }
+            else if (mNumBinaryParsed == 2)
+            {
+                mStoredBinarySize |= (*chars);
+                mNumBinaryLeft = mStoredBinarySize;
+            }
+
+            if (mNumBinaryLeft == 0)
+            {
+                // Go back to reading ASCII
+                mNumBinaryParsed  = -1;
+            }
+
+            if (!mOverflowDetected)
+            {
+                mParserRx.push_back(*chars);
+            }
+        }
+        else if ((*chars) == BINARY_START_CHAR)
+        {
+            mNumBinaryParsed = 0;
+            mStoredBinarySize = 0;
+            mNumBinaryLeft = 2; // read at least 2 characters for size
+
+            if (!mOverflowDetected)
+            {
+                mParserRx.push_back(*chars);
+            }
+
+            mLastIsEol = false;
+        }
+        else if (mOverflowDetected)
         {
             if (strchr(INPUT_EOL_CHARS, *chars) != NULL)
             {
                 printf("Error: Command input overflow %lu\n", (long unsigned int)mParserRx.size());
                 // Remove only command that overflowed
-                std::vector<char>::reverse_iterator lastEnd =
-                    std::find(mParserRx.rbegin(), mParserRx.rend(), RX_EOL_CHAR);
-                if (lastEnd == mParserRx.rend())
+                if (mEndMarkers.empty())
                 {
                     mParserRx.clear();
                 }
                 else
                 {
-                    // We still captured a full command, so at least leave that for processing
-                    mParserRx.erase((lastEnd + 1).base(), mParserRx.end());
+                    // We still captured one or more full commands, so at least leave that for processing
+                    std::size_t pos = mEndMarkers.back();
+                    std::vector<char>::iterator lastEnd = mParserRx.begin() + pos;
+                    mParserRx.erase(lastEnd + 1, mParserRx.end());
                 }
                 mOverflowDetected = false;
+                mLastIsEol = true;
             }
             else
             {
@@ -107,8 +149,8 @@ void UsbCdcTtyParser::addChars(const char* chars, uint32_t len)
         {
             if (!mLastIsEol)
             {
-                mCommandReady = true;
-                mParserRx.push_back(RX_EOL_CHAR);
+                mEndMarkers.push_back(mParserRx.size());
+                mParserRx.push_back('\0');
                 mLastIsEol = true;
             }
         }
@@ -120,29 +162,20 @@ void UsbCdcTtyParser::addChars(const char* chars, uint32_t len)
     }
 }
 
-void UsbCdcTtyParser::process()
+void SerialStreamParser::process()
 {
     // Only do something if a command is ready
-    if (mCommandReady)
+    if (!mEndMarkers.empty())
     {
         // Begin lock guard context
         LockGuard lockGuard(mParserMutex);
 
         // End of command is at the new line character
-        std::vector<char>::iterator eol =
-            std::find(mParserRx.begin(), mParserRx.end(), RX_EOL_CHAR);
-
-        if (eol == mParserRx.end()
-            || std::find(eol + 1, mParserRx.end(), RX_EOL_CHAR) == mParserRx.end())
-        {
-            // No further commands found
-            mCommandReady = false;
-        }
+        std::size_t pos = mEndMarkers.front();
+        std::vector<char>::iterator eol = mParserRx.begin() + pos;
 
         if (eol != mParserRx.end())
         {
-            // Just in case it gets parsed as a string, changed EOL to NULL
-            *eol = '\0';
             // Move past whitespace characters
             const char* ptr = &mParserRx[0];
             uint32_t len = eol - mParserRx.begin();
@@ -192,7 +225,22 @@ void UsbCdcTtyParser::process()
             }
             // Else: empty string - do nothing
 
+            mEndMarkers.pop_front();
             mParserRx.erase(mParserRx.begin(), eol + 1);
+            for (std::size_t& s : mEndMarkers)
+            {
+                s -= (pos + 1);
+            }
         }
     } // End lock guard context
+}
+
+std::size_t SerialStreamParser::numBufferedChars()
+{
+    return mParserRx.size();
+}
+
+std::size_t SerialStreamParser::numBufferedCmds()
+{
+    return mEndMarkers.size();
 }

@@ -23,33 +23,18 @@
 
 #pragma once
 
-#include <stdint.h>
-#include <vector>
-#include <memory>
+#include <hal/Usb/CommandParser.hpp>
 
-#include "hal/System/MutexInterface.hpp"
+#include <gtest/gtest.h>
+#include <gmock/gmock.h>
 
-// Command structure: [whitespace]<command-char>[command]<\n>
-
-//! Command parser for processing commands from a TTY stream
-class CommandParser
+class MockCommandParser : public CommandParser
 {
 public:
-    virtual ~CommandParser() {}
+    MockCommandParser() = default;
+    virtual ~MockCommandParser() = default;
 
-    //! @returns the string of command characters this parser handles
-    virtual const char* getCommandChars() = 0;
-
-    //! Called when newline reached; submit command and reset
-    virtual void submit(const char* chars, uint32_t len) = 0;
-
-    //! Prints help message for this command
-    virtual void printHelp() = 0;
-
-    //! When this character is seen, then binary data will proceed
-    //! For binary commands, 2-byte size followed by payload then final \n character
-    static const char BINARY_START_CHAR = 0x05;
+    MOCK_METHOD(const char*, getCommandChars, (), (override));
+    MOCK_METHOD(void, submit, (const char* chars, uint32_t len), (override));
+    MOCK_METHOD(void, printHelp, (), (override));
 };
-
-void usb_cdc_write(const char *buf, int length);
-void usb_cdc_set_echo(bool on);
