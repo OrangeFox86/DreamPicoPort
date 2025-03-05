@@ -1,5 +1,6 @@
 #include "FlycastCommandParser.hpp"
 #include "hal/MapleBus/MaplePacket.hpp"
+#include "hal/System/LockGuard.hpp"
 
 #include <stdio.h>
 #include <cctype>
@@ -33,103 +34,110 @@ static void send_response(char response)
     usb_cdc_write(&response, 1);
 }
 
-// Simple definition of a transmitter which just echos status and received data
-class FlycastEchoTransmitter : public Transmitter
+
+FlycastEchoTransmitter::FlycastEchoTransmitter(MutexInterface& m) : mMutex(m) {}
+
+void FlycastEchoTransmitter::txStarted(std::shared_ptr<const Transmission> tx)
+{}
+
+void FlycastEchoTransmitter::txFailed(
+    bool writeFailed,
+    bool readFailed,
+    std::shared_ptr<const Transmission> tx)
 {
-public:
-    virtual void txStarted(std::shared_ptr<const Transmission> tx) final
-    {}
+    LockGuard lock(mMutex);
 
-    virtual void txFailed(bool writeFailed,
-                          bool readFailed,
-                          std::shared_ptr<const Transmission> tx) final
+    if (writeFailed)
     {
-        std::string err;
-        if (writeFailed)
-        {
-            send_response("*failed write\n");
-        }
-        else
-        {
-            send_response("*failed read\n");
-        }
+        send_response("*failed write\n");
     }
-
-    virtual void txComplete(std::shared_ptr<const MaplePacket> packet,
-                            std::shared_ptr<const Transmission> tx) final
+    else
     {
-        char buf[64];
-        snprintf(buf, 64,
-            "%02hhX %02hhX %02hhX %02hhX",
-            packet->frame.command,
-            packet->frame.recipientAddr,
-            packet->frame.senderAddr,
-            packet->frame.length);
+        send_response("*failed read\n");
+    }
+}
 
+void FlycastEchoTransmitter::txComplete(
+    std::shared_ptr<const MaplePacket> packet,
+    std::shared_ptr<const Transmission> tx)
+{
+    LockGuard lock(mMutex);
+
+    char buf[64];
+    snprintf(buf, 64,
+        "%02hhX %02hhX %02hhX %02hhX",
+        packet->frame.command,
+        packet->frame.recipientAddr,
+        packet->frame.senderAddr,
+        packet->frame.length);
+
+    send_response(buf);
+
+    for (uint32_t p : packet->payload)
+    {
+        snprintf(buf, 64, " %08lX", p);
         send_response(buf);
-
-        for (uint32_t p : packet->payload)
-        {
-            snprintf(buf, 64, " %08lX", p);
-            send_response(buf);
-        }
-
-        send_response("\n");
     }
-} flycastEchoTransmitter;
 
-class FlycastBinaryEchoTransmitter : public Transmitter
+    send_response("\n");
+}
+
+FlycastBinaryEchoTransmitter::FlycastBinaryEchoTransmitter(MutexInterface& m) : mMutex(m) {}
+
+void FlycastBinaryEchoTransmitter::txStarted(std::shared_ptr<const Transmission> tx)
+{}
+
+void FlycastBinaryEchoTransmitter::txFailed(
+    bool writeFailed,
+    bool readFailed,
+    std::shared_ptr<const Transmission> tx)
 {
-public:
-    virtual void txStarted(std::shared_ptr<const Transmission> tx) final
-    {}
+    LockGuard lock(mMutex);
 
-    virtual void txFailed(bool writeFailed,
-                          bool readFailed,
-                          std::shared_ptr<const Transmission> tx) final
+    if (writeFailed)
     {
-        std::string err;
-        if (writeFailed)
-        {
-            send_response("*failed write\n");
-        }
-        else
-        {
-            send_response("*failed read\n");
-        }
+        send_response("*failed write\n");
     }
-
-    virtual void txComplete(std::shared_ptr<const MaplePacket> packet,
-                            std::shared_ptr<const Transmission> tx) final
+    else
     {
-        send_response(CommandParser::BINARY_START_CHAR);
-        uint16_t len = 4 + (packet->payload.size() * 4);
-        send_response(static_cast<uint8_t>(len >> 8));
-        send_response(static_cast<uint8_t>(len & 0xFF));
-        uint8_t frame[4] = {
-            packet->frame.command,
-            packet->frame.recipientAddr,
-            packet->frame.senderAddr,
-            packet->frame.length
+        send_response("*failed read\n");
+    }
+}
+
+void FlycastBinaryEchoTransmitter::txComplete(
+    std::shared_ptr<const MaplePacket> packet,
+    std::shared_ptr<const Transmission> tx)
+{
+    LockGuard lock(mMutex);
+
+    send_response(CommandParser::BINARY_START_CHAR);
+    uint16_t len = 4 + (packet->payload.size() * 4);
+    send_response(static_cast<uint8_t>(len >> 8));
+    send_response(static_cast<uint8_t>(len & 0xFF));
+    uint8_t frame[4] = {
+        packet->frame.command,
+        packet->frame.recipientAddr,
+        packet->frame.senderAddr,
+        packet->frame.length
+    };
+    send_response(reinterpret_cast<char*>(frame), 4);
+
+    for (uint32_t p : packet->payload)
+    {
+        uint8_t word[4] = {
+            static_cast<uint8_t>(p >> 24),
+            static_cast<uint8_t>((p >> 16) & 0xFF),
+            static_cast<uint8_t>((p >> 8) & 0xFF),
+            static_cast<uint8_t>(p & 0xFF)
         };
-        send_response(reinterpret_cast<char*>(frame), 4);
-
-        for (uint32_t p : packet->payload)
-        {
-            uint8_t word[4] = {
-                static_cast<uint8_t>(p >> 24),
-                static_cast<uint8_t>((p >> 16) & 0xFF),
-                static_cast<uint8_t>((p >> 8) & 0xFF),
-                static_cast<uint8_t>(p & 0xFF)
-            };
-            send_response(reinterpret_cast<char*>(word), 4);
-        }
-
-        send_response('\n');
+        send_response(reinterpret_cast<char*>(word), 4);
     }
-} flycastBinaryEchoTransmitter;
+
+    send_response('\n');
+}
 
 FlycastCommandParser::FlycastCommandParser(
+    MutexInterface& m,
     SystemIdentification& identification,
     std::shared_ptr<PrioritizedTxScheduler>* schedulers,
     const uint8_t* senderAddresses,
@@ -137,13 +145,17 @@ FlycastCommandParser::FlycastCommandParser(
     const std::vector<std::shared_ptr<PlayerData>>& playerData,
     const std::vector<std::shared_ptr<DreamcastMainNode>>& nodes
 ) :
+    mMutex(m),
     mIdentification(identification),
     mSchedulers(schedulers),
     mSenderAddresses(senderAddresses),
     mNumSenders(numSenders),
     mPlayerData(playerData),
     nodes(nodes)
-{}
+{
+    mFlycastEchoTransmitter = std::make_unique<FlycastEchoTransmitter>(mMutex);
+    mFlycastBinaryEchoTransmitter = std::make_unique<FlycastBinaryEchoTransmitter>(mMutex);
+}
 
 const char* FlycastCommandParser::getCommandChars()
 {
@@ -241,6 +253,8 @@ void FlycastCommandParser::submit(const char* chars, uint32_t len)
                     }
                 }
 
+                LockGuard lock(mMutex);
+
                 // Reset screen data
                 if (idx < 0)
                 {
@@ -270,6 +284,8 @@ void FlycastCommandParser::submit(const char* chars, uint32_t len)
             // XP [0-4] [0-4] to change displayed port character
             case 'P':
             {
+                LockGuard lock(mMutex);
+
                 // Remove P
                 ++iter;
                 int idxin = -1;
@@ -293,6 +309,8 @@ void FlycastCommandParser::submit(const char* chars, uint32_t len)
             // XS to return serial
             case 'S':
             {
+                LockGuard lock(mMutex);
+
                 char buffer[mIdentification.getSerialSize() + 1] = {0};
                 mIdentification.getSerial(buffer, sizeof(buffer) - 1);
                 buffer[sizeof(buffer) - 1] = '\0';
@@ -304,6 +322,8 @@ void FlycastCommandParser::submit(const char* chars, uint32_t len)
             // X?0, X?1, X?2, or X?3 will print summary for the given node index
             case '?':
             {
+                LockGuard lock(mMutex);
+
                 // Remove question mark
                 ++iter;
                 int idx = -1;
@@ -319,6 +339,7 @@ void FlycastCommandParser::submit(const char* chars, uint32_t len)
 
                 if (idx >= 0 && static_cast<std::size_t>(idx) < nodes.size())
                 {
+                    // NOTE: This won't be printed in-sync with mutex
                     nodes[idx]->printSummary();
                 }
                 else
@@ -331,6 +352,7 @@ void FlycastCommandParser::submit(const char* chars, uint32_t len)
             // XV to return interface version
             case 'V':
             {
+                LockGuard lock(mMutex);
                 send_response(INTERFACE_VERSION);
                 send_response('\n');
             }
@@ -351,6 +373,8 @@ void FlycastCommandParser::submit(const char* chars, uint32_t len)
                         on = -1;
                     }
                 }
+
+                LockGuard lock(mMutex);
 
                 if (on == 1)
                 {
@@ -505,11 +529,11 @@ void FlycastCommandParser::submit(const char* chars, uint32_t len)
                 Transmitter* t;
                 if (binaryParsed)
                 {
-                    t = &flycastBinaryEchoTransmitter;
+                    t = mFlycastBinaryEchoTransmitter.get();
                 }
                 else
                 {
-                    t = &flycastEchoTransmitter;
+                    t = mFlycastEchoTransmitter.get();
                 }
 
                 mSchedulers[idx]->add(
@@ -521,16 +545,19 @@ void FlycastCommandParser::submit(const char* chars, uint32_t len)
             }
             else
             {
+                LockGuard lock(mMutex);
                 send_response("*failed invalid sender\n");
             }
         }
         else
         {
+            LockGuard lock(mMutex);
             send_response("*failed packet invalid\n");
         }
     }
     else
     {
+        LockGuard lock(mMutex);
         send_response("*failed missing data\n");
     }
 }
