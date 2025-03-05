@@ -106,16 +106,9 @@ void core1()
         std::make_shared<MaplePassthroughCommandParser>(
             &schedulers[0], MAPLE_HOST_ADDRESSES, numDevices));
     PicoIdentification picoIdentification;
-    Mutex flycastCommandParserMutex;
     ttyParser->addCommandParser(
         std::make_shared<FlycastCommandParser>(
-            flycastCommandParserMutex,
-            picoIdentification,
-            &schedulers[0],
-            MAPLE_HOST_ADDRESSES,
-            numDevices,
-            playerData,
-            dreamcastMainNodes));
+            picoIdentification, &schedulers[0], MAPLE_HOST_ADDRESSES, numDevices, playerData, dreamcastMainNodes));
 
     while(true)
     {
