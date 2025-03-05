@@ -51,7 +51,7 @@ public:
                             std::shared_ptr<const Transmission> tx) final
     {
         std::string response;
-        response.reserve(12 + packet->payload.size() * 9);
+        response.reserve(11 + (packet->payload.size() * 9) + 1);
 
         char buf[64];
         snprintf(buf, 64,
@@ -68,6 +68,8 @@ public:
             snprintf(buf, 64, " %08lX", p);
             response += buf;
         }
+
+        response += '\n';
 
         send_response(response);
     }
