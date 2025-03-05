@@ -47,6 +47,8 @@
 #include <vector>
 #include <memory>
 #include <bitset>
+#include <list>
+#include <array>
 
 //! Base class for an addressable node on a Maple Bus
 class DreamcastNode : public Transmitter
@@ -86,6 +88,17 @@ class DreamcastNode : public Transmitter
                     (long unsigned int)periph->getFunctionDefinition());
             }
             printf("}");
+        }
+
+        //! @return summary of peripherals on this node
+        std::list<std::array<uint32_t, 2>> getPeripherals()
+        {
+            std::list<std::array<uint32_t, 2>> summary;
+            for (const std::shared_ptr<DreamcastPeripheral>& periph : mPeripherals)
+            {
+                summary.push_back({{periph->getFunctionCode(), periph->getFunctionDefinition()}});
+            }
+            return summary;
         }
 
     protected:

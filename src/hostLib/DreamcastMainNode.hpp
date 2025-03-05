@@ -31,6 +31,7 @@
 
 #include <memory>
 #include <vector>
+#include <functional>
 
 //! Handles communication for the main Dreamcast node for a single bus. In other words, this
 //! facilitates communication to test for and identify a main peripheral such as a controller and
@@ -72,6 +73,10 @@ class DreamcastMainNode : public DreamcastNode
         //! Prints summary of all devices
         void printSummary();
 
+        //! Register a callback to be called within Maple core context when summary is obtained
+        //! @param[in] callback  The callback to call when the information is obtained
+        void requestSummary(const std::function<void(const std::list<std::list<std::array<uint32_t, 2>>>&)>& callback);
+
     private:
         //! Execute and process read task from the timeliner
         //! @param[in] currentTimeUs  The current time in microseconds
@@ -105,4 +110,6 @@ class DreamcastMainNode : public DreamcastNode
         uint32_t mCommFailCount;
         //! Print summary on next cycle when true
         bool mPrintSummary;
+        //! The callback to execute when set to relay the summary
+        std::function<void(const std::list<std::list<std::array<uint32_t, 2>>>&)> mSummaryCallback;
 };

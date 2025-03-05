@@ -116,6 +116,12 @@ void DreamcastMainNode::printSummary()
     mPrintSummary = true;
 }
 
+void DreamcastMainNode::requestSummary(
+    const std::function<void(const std::list<std::list<std::array<uint32_t, 2>>>&)>& callback)
+{
+    mSummaryCallback = callback;
+}
+
 void DreamcastMainNode::readTask(uint64_t currentTimeUs)
 {
     TransmissionTimeliner::ReadStatus readStatus = mTransmissionTimeliner.readTask(currentTimeUs);
@@ -226,7 +232,7 @@ void DreamcastMainNode::runDependentTasks(uint64_t currentTimeUs)
         }
     }
 
-    // Summary is printed here for safety
+    // Summary is printed here for multi-core safety/serialization
     if (mPrintSummary)
     {
         mPrintSummary = false;
@@ -241,6 +247,33 @@ void DreamcastMainNode::runDependentTasks(uint64_t currentTimeUs)
             (*iter)->printPeripherals();
         }
         printf("\n");
+    }
+
+    // Summary is retrieved here for multi-core safety/serialization
+    if (mSummaryCallback)
+    {
+        std::list<std::list<std::array<uint32_t, 2>>> summary;
+
+        bool add = false;
+        for (std::vector<std::shared_ptr<DreamcastSubNode>>::reverse_iterator iter = mSubNodes.rbegin();
+            iter != mSubNodes.rend();
+            ++iter)
+        {
+            std::list<std::array<uint32_t, 2>> p = (*iter)->getPeripherals();
+            if (add || !p.empty())
+            {
+                summary.push_front(std::move(p));
+                add = true;
+            }
+        }
+
+        summary.push_front(getPeripherals());
+
+        std::function<void(const std::list<std::list<std::array<uint32_t, 2>>>&)> callback;
+
+        mSummaryCallback.swap(callback);
+
+        callback(summary);
     }
 }
 

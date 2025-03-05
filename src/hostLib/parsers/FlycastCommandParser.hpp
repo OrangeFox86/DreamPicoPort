@@ -10,6 +10,9 @@
 #include "DreamcastMainNode.hpp"
 
 #include <memory>
+#include <list>
+#include <array>
+#include <functional>
 
 // Command structure: [whitespace]<command-char>[command]<\n>
 
@@ -77,6 +80,9 @@ public:
     virtual void printHelp() final;
 
 private:
+    void summaryCallback(const std::list<std::list<std::array<uint32_t, 2>>>& summary);
+
+private:
     static const char* INTERFACE_VERSION;
     MutexInterface& mMutex;
     SystemIdentification& mIdentification;
@@ -87,4 +93,5 @@ private:
     std::vector<std::shared_ptr<DreamcastMainNode>> nodes;
     std::unique_ptr<FlycastEchoTransmitter> mFlycastEchoTransmitter;
     std::unique_ptr<FlycastBinaryEchoTransmitter> mFlycastBinaryEchoTransmitter;
+    std::function<void(const std::list<std::list<std::array<uint32_t, 2>>>& summary)> mSummaryCallback;
 };

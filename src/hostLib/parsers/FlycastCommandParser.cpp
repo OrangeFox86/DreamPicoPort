@@ -151,7 +151,8 @@ FlycastCommandParser::FlycastCommandParser(
     mSenderAddresses(senderAddresses),
     mNumSenders(numSenders),
     mPlayerData(playerData),
-    nodes(nodes)
+    nodes(nodes),
+    mSummaryCallback(std::bind(&FlycastCommandParser::summaryCallback, this, std::placeholders::_1))
 {
     mFlycastEchoTransmitter = std::make_unique<FlycastEchoTransmitter>(mMutex);
     mFlycastBinaryEchoTransmitter = std::make_unique<FlycastBinaryEchoTransmitter>(mMutex);
@@ -340,7 +341,7 @@ void FlycastCommandParser::submit(const char* chars, uint32_t len)
                 if (idx >= 0 && static_cast<std::size_t>(idx) < nodes.size())
                 {
                     // NOTE: This won't be printed in-sync with mutex
-                    nodes[idx]->printSummary();
+                    nodes[idx]->requestSummary(mSummaryCallback);
                 }
                 else
                 {
@@ -565,4 +566,51 @@ void FlycastCommandParser::submit(const char* chars, uint32_t len)
 void FlycastCommandParser::printHelp()
 {
     send_response("X: commands from a flycast emulator\n");
+}
+
+void FlycastCommandParser::summaryCallback(const std::list<std::list<std::array<uint32_t, 2>>>& summary)
+{
+    std::string summaryString;
+    summaryString.reserve(512);
+
+    bool firstI = true;
+    for (const auto& i : summary)
+    {
+        if (!firstI)
+        {
+            summaryString += ',';
+        }
+
+        summaryString += '{';
+
+        bool firstJ = true;
+        for (const auto& j : i)
+        {
+            if (!firstJ)
+            {
+                summaryString += ',';
+            }
+
+            summaryString += '{';
+
+            char buffer[10];
+            snprintf(buffer, sizeof(buffer), "%08lX,", j[0]);
+            summaryString += buffer;
+            snprintf(buffer, sizeof(buffer), "%08lX", j[1]);
+            summaryString += buffer;
+
+            summaryString += '}';
+
+            firstJ = false;
+        }
+
+        summaryString += '}';
+
+        firstI = false;
+    }
+
+    summaryString += '\n';
+
+    LockGuard lock(mMutex);
+    send_response(summaryString);
 }
