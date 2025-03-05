@@ -13,6 +13,8 @@
 
 const char* FlycastCommandParser::INTERFACE_VERSION = "1.00";
 
+// send_response() must be called once and only once for each received command.
+// The response must end with a newline character.
 static void send_response(const std::string& response)
 {
     usb_cdc_write(response.c_str(), response.size());
@@ -21,16 +23,6 @@ static void send_response(const std::string& response)
 static void send_response(const char* response)
 {
     usb_cdc_write(response, strlen(response));
-}
-
-static void send_response(const char* response, int length)
-{
-    usb_cdc_write(response, length);
-}
-
-static void send_response(char response)
-{
-    usb_cdc_write(&response, 1);
 }
 
 // Simple definition of a transmitter which just echos status and received data
@@ -58,6 +50,9 @@ public:
     virtual void txComplete(std::shared_ptr<const MaplePacket> packet,
                             std::shared_ptr<const Transmission> tx) final
     {
+        std::string response;
+        response.reserve(12 + packet->payload.size() * 9);
+
         char buf[64];
         snprintf(buf, 64,
             "%02hhX %02hhX %02hhX %02hhX",
@@ -66,15 +61,15 @@ public:
             packet->frame.senderAddr,
             packet->frame.length);
 
-        send_response(buf);
+        response += buf;
 
         for (uint32_t p : packet->payload)
         {
             snprintf(buf, 64, " %08lX", p);
-            send_response(buf);
+            response += buf;
         }
 
-        send_response("\n");
+        send_response(response);
     }
 } flycastEchoTransmitter;
 
@@ -102,32 +97,78 @@ public:
     virtual void txComplete(std::shared_ptr<const MaplePacket> packet,
                             std::shared_ptr<const Transmission> tx) final
     {
-        send_response(CommandParser::BINARY_START_CHAR);
         uint16_t len = 4 + (packet->payload.size() * 4);
-        send_response(static_cast<uint8_t>(len >> 8));
-        send_response(static_cast<uint8_t>(len & 0xFF));
-        uint8_t frame[4] = {
-            packet->frame.command,
-            packet->frame.recipientAddr,
-            packet->frame.senderAddr,
-            packet->frame.length
-        };
-        send_response(reinterpret_cast<char*>(frame), 4);
+
+        std::string response;
+        response.reserve(3 + len + 1);
+
+        response += CommandParser::BINARY_START_CHAR;
+        response += static_cast<char>(len >> 8);
+        response += static_cast<char>(len & 0xFF);
+        response += static_cast<char>(packet->frame.command);
+        response += static_cast<char>(packet->frame.recipientAddr);
+        response += static_cast<char>(packet->frame.senderAddr);
+        response += static_cast<char>(packet->frame.length);
 
         for (uint32_t p : packet->payload)
         {
-            uint8_t word[4] = {
-                static_cast<uint8_t>(p >> 24),
-                static_cast<uint8_t>((p >> 16) & 0xFF),
-                static_cast<uint8_t>((p >> 8) & 0xFF),
-                static_cast<uint8_t>(p & 0xFF)
-            };
-            send_response(reinterpret_cast<char*>(word), 4);
+            response += static_cast<char>(p >> 24);
+            response += static_cast<char>((p >> 16) & 0xFF);
+            response += static_cast<char>((p >> 8) & 0xFF);
+            response += static_cast<char>(p & 0xFF);
         }
 
-        send_response('\n');
+        response += '\n';
+
+        send_response(response);
     }
 } flycastBinaryEchoTransmitter;
+
+void summaryCallback(const std::list<std::list<std::array<uint32_t, 2>>>& summary)
+{
+    std::string summaryString;
+    summaryString.reserve(512);
+
+    bool firstI = true;
+    for (const auto& i : summary)
+    {
+        if (!firstI)
+        {
+            summaryString += ',';
+        }
+
+        summaryString += '{';
+
+        bool firstJ = true;
+        for (const auto& j : i)
+        {
+            if (!firstJ)
+            {
+                summaryString += ',';
+            }
+
+            summaryString += '{';
+
+            char buffer[10];
+            snprintf(buffer, sizeof(buffer), "%08lX,", j[0]);
+            summaryString += buffer;
+            snprintf(buffer, sizeof(buffer), "%08lX", j[1]);
+            summaryString += buffer;
+
+            summaryString += '}';
+
+            firstJ = false;
+        }
+
+        summaryString += '}';
+
+        firstI = false;
+    }
+
+    summaryString += '\n';
+
+    send_response(summaryString);
+}
 
 FlycastCommandParser::FlycastCommandParser(
     SystemIdentification& identification,
@@ -293,11 +334,11 @@ void FlycastCommandParser::submit(const char* chars, uint32_t len)
             // XS to return serial
             case 'S':
             {
-                char buffer[mIdentification.getSerialSize() + 1] = {0};
-                mIdentification.getSerial(buffer, sizeof(buffer) - 1);
+                char buffer[mIdentification.getSerialSize() + 2] = {0};
+                mIdentification.getSerial(buffer, sizeof(buffer) - 2);
+                buffer[sizeof(buffer) - 2] = '\n';
                 buffer[sizeof(buffer) - 1] = '\0';
                 send_response(buffer);
-                send_response("\n");
             }
             return;
 
@@ -319,7 +360,7 @@ void FlycastCommandParser::submit(const char* chars, uint32_t len)
 
                 if (idx >= 0 && static_cast<std::size_t>(idx) < nodes.size())
                 {
-                    nodes[idx]->printSummary();
+                    nodes[idx]->requestSummary(summaryCallback);
                 }
                 else
                 {
@@ -331,8 +372,9 @@ void FlycastCommandParser::submit(const char* chars, uint32_t len)
             // XV to return interface version
             case 'V':
             {
-                send_response(INTERFACE_VERSION);
-                send_response('\n');
+                std::string versionStr(INTERFACE_VERSION);
+                versionStr += '\n';
+                send_response(versionStr);
             }
             return;
 
