@@ -323,8 +323,6 @@ void FlycastCommandParser::submit(const char* chars, uint32_t len)
             // X?0, X?1, X?2, or X?3 will print summary for the given node index
             case '?':
             {
-                LockGuard lock(mMutex);
-
                 // Remove question mark
                 ++iter;
                 int idx = -1;
@@ -340,11 +338,12 @@ void FlycastCommandParser::submit(const char* chars, uint32_t len)
 
                 if (idx >= 0 && static_cast<std::size_t>(idx) < nodes.size())
                 {
-                    // NOTE: This won't be printed in-sync with mutex
+                    // NOTE: Mutex will be taken in the callback
                     nodes[idx]->requestSummary(mSummaryCallback);
                 }
                 else
                 {
+                    LockGuard lock(mMutex);
                     send_response("NULL\n");
                 }
             }
@@ -527,6 +526,15 @@ void FlycastCommandParser::submit(const char* chars, uint32_t len)
 
             if (idx >= 0)
             {
+                if (packet.frame.command == 0x0C &&
+                    packet.frame.length == 0x32 &&
+                    packet.payload[0] == DEVICE_FN_LCD &&
+                    packet.payload[1] == 0)
+                {
+                    // Save screen data
+                    mPlayerData[idx]->screenData.setData(&packet.payload[2], 0, 0x30, false);
+                }
+
                 Transmitter* t;
                 if (binaryParsed)
                 {

@@ -74,14 +74,17 @@ ScreenData::ScreenData(MutexInterface& mutex, uint32_t defaultScreenNum) :
     resetToDefault();
 }
 
-void ScreenData::setData(const uint32_t* data, uint32_t startIndex, uint32_t numWords)
+void ScreenData::setData(const uint32_t* data, uint32_t startIndex, uint32_t numWords, bool update)
 {
     assert(startIndex + numWords <= sizeof(mScreenData));
     LockGuard lockGuard(mMutex);
     if (lockGuard.isLocked())
     {
         std::memcpy(mScreenData + startIndex, data, numWords * sizeof(uint32_t));
-        mNewDataAvailable = true;
+        if (update)
+        {
+            mNewDataAvailable = true;
+        }
     }
     else
     {
