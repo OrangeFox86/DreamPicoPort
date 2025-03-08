@@ -62,7 +62,7 @@ class MockedDreamcastSubNode : public DreamcastSubNode
 
         MOCK_METHOD(void, mainPeripheralDisconnected, (), (override));
 
-        MOCK_METHOD(void, setConnected, (bool connected, uint64_t currentTimeUs), (override));
+        MOCK_METHOD(bool, setConnected, (bool connected, uint64_t currentTimeUs), (override));
 
         void setConnected(bool connected)
         {
