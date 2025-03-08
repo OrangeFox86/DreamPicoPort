@@ -586,10 +586,8 @@ void FlycastCommandParser::summaryCallback(const std::list<std::list<std::array<
     {
         if (!firstI)
         {
-            summaryString += ',';
+            summaryString += ';';
         }
-
-        summaryString += '{';
 
         bool firstJ = true;
         for (const auto& j : i)
@@ -611,8 +609,6 @@ void FlycastCommandParser::summaryCallback(const std::list<std::list<std::array<
 
             firstJ = false;
         }
-
-        summaryString += '}';
 
         firstI = false;
     }
