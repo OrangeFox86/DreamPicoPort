@@ -46,6 +46,8 @@ class UsbGamepadDreamcastControllerObserver : public DreamcastControllerObserver
         virtual void setSecondaryControllerCondition(
             const SecondaryControllerCondition& secondaryControllerCondition) final;
 
+        virtual void setChangeCondition(bool changeSignal) override final;
+
         //! Called when controller connected
         virtual void controllerConnected() final;
 

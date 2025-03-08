@@ -93,11 +93,16 @@ class DreamcastMainNode : public DreamcastNode
         //! Adds an auto reload info request to the transmission schedule
         void addInfoRequestToSchedule(uint64_t currentTimeUs = 0);
 
+        //! Called when one or more peripherals have been added or removed
+        void peripheralChangeEvent(uint64_t currentTimeUs);
+
     public:
         //! Number of microseconds in between each info request when no peripheral is detected
         static const uint32_t US_PER_CHECK = 16000;
         //! Number of communication failures before main peripheral is disconnected
         static const uint32_t MAX_FAILURE_DISCONNECT_COUNT = 10;
+        //! Number of milliseconds that a connect signal is asserted
+        static const uint32_t CONNECT_EVENT_SIGNAL_TIME_MS = 25;
 
     protected:
         //! The sub nodes under this node
@@ -112,4 +117,8 @@ class DreamcastMainNode : public DreamcastNode
         bool mPrintSummary;
         //! The callback to execute when set to relay the summary
         std::function<void(const std::list<std::list<std::array<uint32_t, 2>>>&)> mSummaryCallback;
+        //! Set to true when connected signal should be sent on next task
+        bool mSendConnectedSignal;
+        //! The time at which the change signal should be released
+        uint64_t mChangeReleaseTime;
 };

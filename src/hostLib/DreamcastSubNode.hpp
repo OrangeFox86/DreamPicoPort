@@ -62,7 +62,8 @@ class DreamcastSubNode : public DreamcastNode
         virtual void mainPeripheralDisconnected();
 
         //! Called from the main node to update the connection state of peripherals on this sub node
-        virtual void setConnected(bool connected, uint64_t currentTimeUs = 0);
+        //! @return true iff state has changed
+        virtual bool setConnected(bool connected, uint64_t currentTimeUs = 0);
 
     protected:
         //! Number of microseconds in between each info request when no peripheral is detected

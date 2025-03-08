@@ -96,7 +96,7 @@ void DreamcastSubNode::mainPeripheralDisconnected()
     setConnected(false);
 }
 
-void DreamcastSubNode::setConnected(bool connected, uint64_t currentTimeUs)
+bool DreamcastSubNode::setConnected(bool connected, uint64_t currentTimeUs)
 {
     if (mConnected != connected)
     {
@@ -127,5 +127,9 @@ void DreamcastSubNode::setConnected(bool connected, uint64_t currentTimeUs)
                         mPlayerData.playerIndex + 1,
                         DreamcastPeripheral::subPeripheralIndex(mAddr) + 1);
         }
+
+        return true;
     }
+
+    return false;
 }
