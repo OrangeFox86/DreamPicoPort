@@ -301,12 +301,12 @@ char const *string_desc_arr[] =
 {
     (const char[]) {0x09, 0x04}, // 0: is supported language is English (0x0409)
     "OrangeFox86",               // 1: Manufacturer
-    "DreamPicoPort",                 // 2: Product
+    "DreamPicoPort",             // 2: Product
     NULL,                        // 3: Serial (special case; get pico serial)
-    "DreamPicoPort A",               // 4: Gamepad 1
-    "DreamPicoPort B",               // 5: Gamepad 2
-    "DreamPicoPort C",               // 6: Gamepad 3
-    "DreamPicoPort D",               // 7: Gamepad 4
+    "DreamPicoPort A",           // 4: Gamepad 1
+    "DreamPicoPort B",           // 5: Gamepad 2
+    "DreamPicoPort C",           // 6: Gamepad 3
+    "DreamPicoPort D",           // 7: Gamepad 4
     "MSC",                       // 8: Mass Storage Class
     "CDC",                       // 9: Communication Device Class
 };

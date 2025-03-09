@@ -44,6 +44,10 @@ class DreamcastControllerObserver
         virtual void setSecondaryControllerCondition(
             const SecondaryControllerCondition& secondaryControllerCondition) = 0;
 
+        //! Sets the change condition signal
+        //! @param[in] changeSignal  Send true then false about 25 ms later on change
+        virtual void setChangeCondition(bool changeSignal) = 0;
+
         //! Called when controller connected
         virtual void controllerConnected() = 0;
 

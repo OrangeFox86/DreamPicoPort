@@ -39,18 +39,28 @@
 #include "class/hid/hid_device.h"
 #include "class/cdc/cdc_device.h"
 
-#include "UsbCdcTtyParser.hpp"
+#include <hal/Usb/TtyParser.hpp>
 
+static bool echoOn = true;
+static TtyParser* ttyParser = nullptr;
 
-UsbCdcTtyParser* ttyParser = nullptr;
-
-TtyParser* usb_cdc_create_parser(MutexInterface* m, char helpChar)
+void usb_cdc_set_parser(TtyParser* parser)
 {
-    if (ttyParser == nullptr)
-    {
-        ttyParser = new UsbCdcTtyParser(*m, helpChar);
-    }
-    return ttyParser;
+    ttyParser = parser;
+}
+
+void usb_cdc_set_echo(bool on)
+{
+    echoOn = on;
+}
+
+void usb_cdc_write(const char *buf, int length)
+{
+#if CFG_TUD_CDC
+    tud_cdc_write(buf, length);
+    tud_task();
+    tud_cdc_write_flush();
+#endif
 }
 
 
@@ -160,8 +170,11 @@ void cdc_task()
 
             if (count > 0)
             {
-                // Echo back (no crlf processing since calling directly)
-                stdio_usb_out_chars2(buf, count);
+                if (echoOn)
+                {
+                    // Echo back (no crlf processing since calling directly)
+                    stdio_usb_out_chars2(buf, count);
+                }
                 // Add to parser
                 ttyParser->addChars(buf, count);
             }

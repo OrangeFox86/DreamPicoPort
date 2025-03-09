@@ -116,8 +116,6 @@ class DreamcastVibration : public DreamcastPeripheral
     private:
         //! The transmission ID of the last scheduled vibration condition
         uint32_t mTransmissionId;
-        //! Initialized to true and set to false on first task execution
-        bool mFirst;
         //! Lookup table used to maximize pulsation frequency for a given duration
         static const uint32_t MAX_DURATION_MS_LOOKUP[NUM_FREQ_VALUES];
 };

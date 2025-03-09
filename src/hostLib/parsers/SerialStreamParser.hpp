@@ -25,6 +25,7 @@
 
 #include <stdint.h>
 #include <vector>
+#include <list>
 #include <memory>
 #include <atomic>
 
@@ -35,17 +36,21 @@
 // Command structure: [whitespace]<command-char>[command]<\n>
 
 //! Command parser for processing commands from a TTY stream
-class UsbCdcTtyParser : public TtyParser
+class SerialStreamParser : public TtyParser
 {
 public:
     //! Constructor
-    UsbCdcTtyParser(MutexInterface& m, char helpChar);
+    SerialStreamParser(MutexInterface& m, char helpChar);
     //! Adds a command parser to my list of parsers - must be done before any other function called
-    virtual void addCommandParser(std::shared_ptr<CommandParser> parser) final;
+    virtual void addCommandParser(std::shared_ptr<CommandParser> parser) override final;
     //! Called from the process receiving characters on the TTY
-    void addChars(const char* chars, uint32_t len);
+    void addChars(const char* chars, uint32_t len) override final;
     //! Called from the process handling maple bus execution
     virtual void process() final;
+    //! @return the number of characters stored in the local buffer
+    std::size_t numBufferedChars();
+    //! @return the number of full commands stored in the local buffer
+    std::size_t numBufferedCmds();
 
 private:
     //! Max of 2 KB of memory to use for tty RX queue
@@ -54,22 +59,31 @@ private:
     static const char* WHITESPACE_CHARS;
     //! String of characters that are considered end of line characters
     static const char* INPUT_EOL_CHARS;
-    //! The singular character that is replaced in the RX list as the EOL char
-    static const char RX_EOL_CHAR;
     //! String of characters that are treated as a backspace
     static const char* BACKSPACE_CHARS;
+    //! When this character is seen, then binary data will proceed
+    //! For binary commands, 2-byte size followed by payload then final \n character
+    static const char BINARY_START_CHAR = CommandParser::BINARY_START_CHAR;
+
     //! Receive queue
     std::vector<char> mParserRx;
+    //! The markers to end characters in mParserRx
+    std::list<std::size_t> mEndMarkers;
     //! Flag that is set to true if the last read character is an EOL (used to ignore further EOL)
     bool mLastIsEol;
     //! Mutex used to serialize addChars and process
     MutexInterface& mParserMutex;
-    //! Flag when end of line detected on add
-    std::atomic<bool> mCommandReady;
     //! The command character which prints help for all commands
     const char mHelpChar;
     //! Parsers that may handle data
     std::vector<std::shared_ptr<CommandParser>> mParsers;
     //! true when overflow in mParserRx
     bool mOverflowDetected;
+
+    //! Total number of binary data bytes read to this point or -1 while not parsing
+    int32_t mNumBinaryParsed;
+    //! Separate storage area to read the first 2 bytes of binary data stream
+    uint16_t mStoredBinarySize;
+    //! Number of binary bytes left to parse
+    uint16_t mNumBinaryLeft;
 };

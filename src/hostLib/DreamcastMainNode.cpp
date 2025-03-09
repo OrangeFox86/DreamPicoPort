@@ -42,7 +42,9 @@ DreamcastMainNode::DreamcastMainNode(MapleBusInterface& bus,
     mTransmissionTimeliner(bus, prioritizedTxScheduler),
     mScheduleId(-1),
     mCommFailCount(0),
-    mPrintSummary(false)
+    mPrintSummary(false),
+    mSendConnectedSignal(false),
+    mChangeReleaseTime(0)
 {
     addInfoRequestToSchedule();
     mSubNodes.reserve(DreamcastPeripheral::MAX_SUB_PERIPHERALS);
@@ -83,6 +85,8 @@ void DreamcastMainNode::txComplete(std::shared_ptr<const MaplePacket> packet,
                 debugPrintPeripherals();
                 DEBUG_PRINT(")\n");
 
+                mSendConnectedSignal = true;
+
                 // Reset failure count
                 mCommFailCount = 0;
             }
@@ -99,6 +103,7 @@ void DreamcastMainNode::txComplete(std::shared_ptr<const MaplePacket> packet,
 
 void DreamcastMainNode::disconnectMainPeripheral(uint64_t currentTimeUs)
 {
+    peripheralChangeEvent(currentTimeUs);
     mPeripherals.clear();
     mEndpointTxScheduler->cancelByRecipient(getRecipientAddress());
     for (std::vector<std::shared_ptr<DreamcastSubNode>>::iterator iter = mSubNodes.begin();
@@ -114,6 +119,12 @@ void DreamcastMainNode::disconnectMainPeripheral(uint64_t currentTimeUs)
 void DreamcastMainNode::printSummary()
 {
     mPrintSummary = true;
+}
+
+void DreamcastMainNode::requestSummary(
+    const std::function<void(const std::list<std::list<std::array<uint32_t, 2>>>&)>& callback)
+{
+    mSummaryCallback = callback;
 }
 
 void DreamcastMainNode::readTask(uint64_t currentTimeUs)
@@ -138,6 +149,7 @@ void DreamcastMainNode::readTask(uint64_t currentTimeUs)
 
             if (sendAddr & mAddr)
             {
+                bool changeDetected = false;
                 // This was meant for the main node or one of the main node's peripherals
                 // Use the sender address to determine what sub peripherals are connected
                 for (std::vector<std::shared_ptr<DreamcastSubNode>>::iterator iter = mSubNodes.begin();
@@ -148,7 +160,15 @@ void DreamcastMainNode::readTask(uint64_t currentTimeUs)
                     //   verified that this message was destined for the main node
 
                     uint8_t mask = (*iter)->getAddr();
-                    (*iter)->setConnected((sendAddr & mask) != 0, currentTimeUs);
+                    if ((*iter)->setConnected((sendAddr & mask) != 0, currentTimeUs))
+                    {
+                        changeDetected = true;
+                    }
+                }
+
+                if (changeDetected)
+                {
+                    peripheralChangeEvent(currentTimeUs);
                 }
             }
         }
@@ -187,13 +207,21 @@ void DreamcastMainNode::readTask(uint64_t currentTimeUs)
             // A transmission failure on a main node must cause peripheral disconnect
             if (mPeripherals.size() > 0)
             {
-                // * This will delete all peripherals for this player - this is why the callback for
-                //   the transmitter is NOT subsequently called
-
                 disconnectMainPeripheral(currentTimeUs);
             }
             mCommFailCount = 0;
         }
+    }
+
+    if (mSendConnectedSignal)
+    {
+        peripheralChangeEvent(currentTimeUs);
+        mSendConnectedSignal = false;
+    }
+    else if (currentTimeUs >= mChangeReleaseTime)
+    {
+        mPlayerData.gamepad.setChangeCondition(false);
+        mChangeReleaseTime = 0;
     }
 }
 
@@ -226,7 +254,7 @@ void DreamcastMainNode::runDependentTasks(uint64_t currentTimeUs)
         }
     }
 
-    // Summary is printed here for safety
+    // Summary is printed here for multi-core safety/serialization
     if (mPrintSummary)
     {
         mPrintSummary = false;
@@ -241,6 +269,33 @@ void DreamcastMainNode::runDependentTasks(uint64_t currentTimeUs)
             (*iter)->printPeripherals();
         }
         printf("\n");
+    }
+
+    // Summary is retrieved here for multi-core safety/serialization
+    if (mSummaryCallback)
+    {
+        std::list<std::list<std::array<uint32_t, 2>>> summary;
+
+        bool add = false;
+        for (std::vector<std::shared_ptr<DreamcastSubNode>>::reverse_iterator iter = mSubNodes.rbegin();
+            iter != mSubNodes.rend();
+            ++iter)
+        {
+            std::list<std::array<uint32_t, 2>> p = (*iter)->getPeripherals();
+            if (add || !p.empty())
+            {
+                summary.push_front(std::move(p));
+                add = true;
+            }
+        }
+
+        summary.push_front(getPeripherals());
+
+        std::function<void(const std::list<std::list<std::array<uint32_t, 2>>>&)> callback;
+
+        mSummaryCallback.swap(callback);
+
+        callback(summary);
     }
 }
 
@@ -284,4 +339,10 @@ void DreamcastMainNode::addInfoRequestToSchedule(uint64_t currentTimeUs)
         true,
         EXPECTED_DEVICE_INFO_PAYLOAD_WORDS,
         US_PER_CHECK);
+}
+
+void DreamcastMainNode::peripheralChangeEvent(uint64_t currentTimeUs)
+{
+    mPlayerData.gamepad.setChangeCondition(true);
+    mChangeReleaseTime = currentTimeUs + (CONNECT_EVENT_SIGNAL_TIME_MS * 1000);
 }

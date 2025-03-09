@@ -39,7 +39,12 @@ class ScreenData
         //! @param[in] data  Screen words to set
         //! @param[in] startIndex  Starting screen word index (left to right, top to bottom)
         //! @param[in] numWords  Number of words to write
-        void setData(const uint32_t* data, uint32_t startIndex=0, uint32_t numWords=NUM_SCREEN_WORDS);
+        //! @param[in] update  True to mark the screen data as updated
+        void setData(
+            const uint32_t* data,
+            uint32_t startIndex=0,
+            uint32_t numWords=NUM_SCREEN_WORDS,
+            bool update=true);
 
         //! Sets the current screen to one of the 4 defaults
         //! @param[in] defaultScreenNum  The default screen number to set the screen to

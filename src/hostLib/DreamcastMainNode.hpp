@@ -31,6 +31,7 @@
 
 #include <memory>
 #include <vector>
+#include <functional>
 
 //! Handles communication for the main Dreamcast node for a single bus. In other words, this
 //! facilitates communication to test for and identify a main peripheral such as a controller and
@@ -72,6 +73,10 @@ class DreamcastMainNode : public DreamcastNode
         //! Prints summary of all devices
         void printSummary();
 
+        //! Register a callback to be called within Maple core context when summary is obtained
+        //! @param[in] callback  The callback to call when the information is obtained
+        void requestSummary(const std::function<void(const std::list<std::list<std::array<uint32_t, 2>>>&)>& callback);
+
     private:
         //! Execute and process read task from the timeliner
         //! @param[in] currentTimeUs  The current time in microseconds
@@ -88,11 +93,16 @@ class DreamcastMainNode : public DreamcastNode
         //! Adds an auto reload info request to the transmission schedule
         void addInfoRequestToSchedule(uint64_t currentTimeUs = 0);
 
+        //! Called when one or more peripherals have been added or removed
+        void peripheralChangeEvent(uint64_t currentTimeUs);
+
     public:
         //! Number of microseconds in between each info request when no peripheral is detected
         static const uint32_t US_PER_CHECK = 16000;
         //! Number of communication failures before main peripheral is disconnected
-        static const uint32_t MAX_FAILURE_DISCONNECT_COUNT = 3;
+        static const uint32_t MAX_FAILURE_DISCONNECT_COUNT = 10;
+        //! Number of milliseconds that a connect signal is asserted
+        static const uint32_t CONNECT_EVENT_SIGNAL_TIME_MS = 25;
 
     protected:
         //! The sub nodes under this node
@@ -105,4 +115,10 @@ class DreamcastMainNode : public DreamcastNode
         uint32_t mCommFailCount;
         //! Print summary on next cycle when true
         bool mPrintSummary;
+        //! The callback to execute when set to relay the summary
+        std::function<void(const std::list<std::list<std::array<uint32_t, 2>>>&)> mSummaryCallback;
+        //! Set to true when connected signal should be sent on next task
+        bool mSendConnectedSignal;
+        //! The time at which the change signal should be released
+        uint64_t mChangeReleaseTime;
 };

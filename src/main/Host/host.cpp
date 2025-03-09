@@ -38,6 +38,7 @@
 #include "Mutex.hpp"
 #include "Clock.hpp"
 #include "PicoIdentification.cpp"
+#include "SerialStreamParser.hpp"
 
 #include "hal/System/LockGuard.hpp"
 #include "hal/MapleBus/MapleBusInterface.hpp"
@@ -99,14 +100,22 @@ void core1()
 
     // Initialize CDC to Maple Bus interfaces
     Mutex ttyParserMutex;
-    TtyParser* ttyParser = usb_cdc_create_parser(&ttyParserMutex, 'h');
+    SerialStreamParser* ttyParser = new SerialStreamParser(ttyParserMutex, 'h');
+    usb_cdc_set_parser(ttyParser);
     ttyParser->addCommandParser(
         std::make_shared<MaplePassthroughCommandParser>(
             &schedulers[0], MAPLE_HOST_ADDRESSES, numDevices));
     PicoIdentification picoIdentification;
+    Mutex flycastCommandParserMutex;
     ttyParser->addCommandParser(
         std::make_shared<FlycastCommandParser>(
-            picoIdentification, &schedulers[0], MAPLE_HOST_ADDRESSES, numDevices, playerData, dreamcastMainNodes));
+            flycastCommandParserMutex,
+            picoIdentification,
+            &schedulers[0],
+            MAPLE_HOST_ADDRESSES,
+            numDevices,
+            playerData,
+            dreamcastMainNodes));
 
     while(true)
     {

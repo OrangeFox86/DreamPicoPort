@@ -74,6 +74,12 @@ void UsbGamepadDreamcastControllerObserver::setSecondaryControllerCondition(
     //mUsbController.send();
 }
 
+void UsbGamepadDreamcastControllerObserver::setChangeCondition(bool changeSignal)
+{
+    mUsbController.setButton(UsbGamepad::BUTTON20, changeSignal);
+    mUsbController.send();
+}
+
 void UsbGamepadDreamcastControllerObserver::controllerConnected()
 {
     mUsbController.updateControllerConnected(true);
