@@ -60,19 +60,19 @@
 #define MAPLE_INTER_WORD_READ_TIMEOUT_US 300
 
 // The pin which sets IO direction for each player (-1 to disable)
-#define P1_DIR_PIN 6
-#define P2_DIR_PIN 7
-#define P3_DIR_PIN 26
-#define P4_DIR_PIN 27
+#define P1_DIR_PIN 17
+#define P2_DIR_PIN 18
+#define P3_DIR_PIN 19
+#define P4_DIR_PIN 20
 
 // True if DIR pin is HIGH for output and LOW for input; false if opposite
 #define DIR_OUT_HIGH true
 
 // The start pin of the two-pin bus for each player
-#define P1_BUS_START_PIN 10
-#define P2_BUS_START_PIN 12
-#define P3_BUS_START_PIN 18
-#define P4_BUS_START_PIN 20
+#define P1_BUS_START_PIN 2
+#define P2_BUS_START_PIN 4
+#define P3_BUS_START_PIN 6
+#define P4_BUS_START_PIN 8
 
 // LED pin number for USB activity or -1 to disable
 // When USB connected:
