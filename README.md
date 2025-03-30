@@ -2,7 +2,7 @@
 
 Using a Raspberry Pi Pico, DreamPicoPort enables USB interfacing with a Dreamcast or its controllers and peripherals, functioning in either host mode or client mode as depicted below.
 
-Looking for instructions on how to use this with flycast? [Bring me to it!](https://github.com/OrangeFox86/DreamPicoPort?tab=readme-ov-file#connecting-the-hardware-for-host-mode)
+Looking for instructions on how to use this with flycast? [Bring me to it!](https://github.com/OrangeFox86/DreamPicoPort/wiki/Installation-Guide#for-host-mode)
 
 | Host Mode | Client Mode |
 | -------- | ------- |
@@ -22,84 +22,7 @@ Proceed at your own risk! I am not liable for any damage that may occur due to t
 
 # Quick Installation Guide
 
-## Connecting the Hardware for Host Mode
-
-Host mode allows you to connect up to 4 Dreamcast controllers to a PC over USB. This is compatible with the [flycast](https://github.com/flyinghead/flycast) emulator which will communicate with an attached VMU's screen and jump pack. See [this wiki article](https://github.com/TheArcadeStriker/flycast-wiki/wiki/DreamcastControllerUSB-support) for help on how to setup flycast for use with this project.
-
-<p align="center">
-  <img src="images/schematic.png?raw=true" alt="Schematic"/>
-</p>
-
-Refer to the [Isolation Circuitry](#isolation-circuitry) and [Dreamcast Controller Pinout](#dreamcast-controller-pinout) below.
-
-## Connecting the Hardware for Client Mode
-
-Client mode emulates a single controller for use with a Dreamcast. This was added in as an extra feature for this project mainly to demonstrate that the MapleBus library may be used in either direction. Currently this mode only supports a single DualShock4 controller plugged into the USB port at bootup (hot-plug not supported, micro-USB OTG cable required).
-
-<p align="center">
-  <img src="images/client-schematic.png?raw=true" alt="Client-Schematic"/>
-</p>
-
-Refer to the [Isolation Circuitry](#isolation-circuitry) and [Dreamcast Controller Pinout](#dreamcast-controller-pinout) below.
-
-## Isolation Circuitry
-
-Select the appropriate isolation circuitry for your needs.
-
-### Option 1
-
-![Isolation Circuity Option 1](images/Isolation_Circuitry_Option_1.png)
-
-Select the highest tolerable resistance for each resistor (usually around 100 ohms, but **you may need to go as low as 50 ohms to support an Arcade Stick**). This implementation is simple but has the following drawbacks.
-- There isn't a resistance low enough which the interface can tolerate and high enough that would prevent damage to the RP2040 if more than one line (total) experienced a fault for an extended amount of time
-- The RP2040 doesn't have over-voltage tolerant inputs, so accidental shorting to the 5V line will cause damage
-- Hot-swapping should be avoided
-
-### Option 2
-
-![Isolation Circuity Option 2](images/Isolation_Circuitry_Option_2.png)
-
-This option completely isolates the Maple Bus I/O from the RP2040 at the expense of being more complex and less accessible to DIYers. I highly recommend this or something like this for any commercial application. Select a 2-bit bus transceiver which satisfies the following.
-- Must support at least 50 mA on each output
-- Must NOT have latched outputs
-
-The chip number `74LVC2T45DC` made by Texas Instruments or Nexperia satisfies these requirements (found on digikey.com or mouser.com).
-
-## Dreamcast Controller Pinout
-
-For reference, the following is the pinout for the Dreamcast controller port. Take note that many other sources found online refer to one of the ground pins as a connection sense, but the Dreamcast controller port module has both of these ground pins hard wired together. As such, this project's host mode operation doesn't rely on any such hardware sense line. Instead, the detection of a connected device is performed by polling the bus until a response is received, just as a real Dreamcast would.
-
-<p align="center">
-  <img src="images/Dreamcast_Port.png?raw=true" alt="Dreamcast Port"/>
-</p>
-
-## Selecting the Appropriate Binary
-
-Each [release](https://github.com/OrangeFox86/DreamPicoPort/releases) will contain multiple uf2 files as described below. Please note that the LED will not be functional if any of the W variants of the hardware is used.
-
-- **host-1p.uf2**: Host mode configuration, only `P1` active (compatible with pico, pico-w, and RP2040-Zero)
-- **host-2p.uf2**: Host mode configuration, `P1` and `P2` active (compatible with pico, pico-w, and RP2040-Zero)
-- **host-4p.uf2**: Host mode configuration, `P1`, `P2`, `P3`, and `P4` active (compatible with pico and pico-w)
-- **zero_host-4p.uf2**: Host mode configuration similar to the above, but `P3` outputs are moved to gpio 2 & 3, and `P4` outputs are moved to gpio 4 & 5 (compatible with RP2040-Zero)
-- **pico2_host-1p.uf2**: Host mode configuration, only `P1` active (compatible with pico2 and pico2-w)
-- **pico2_host-2p.uf2**: Host mode configuration, `P1` and `P2` active (compatible with pico2 and pico2-w)
-- **pico2_host-4p.uf2**: Host mode configuration, `P1`, `P2`, `P3`, and `P4` active (compatible with pico2 and pico2-w)
-- **client-with-usb-host.uf2**: Client mode configuration supporting a single Dualshock4 controller connected to the USB port (compatible with pico, pico-w, and RP2040-Zero)
-- **pico2_client-with-usb-host.uf2**: Client mode configuration supporting a single Dualshock4 controller connected to the USB port (compatible with pico2 and pico2-w)
-
-## Loading the UF2 Binary
-
-Hold the BOOTSEL button on the Pico while plugging the USB connection into your PC. A drive with a FAT partition labeled RPI-RP2 should pop up on your system. Open this drive, and then copy the desired uf2 file for either host or client operation here. The Pico should then automatically load the binary into flash and run it. For more information, refer to the official [Raspberry Pi Pico documentation](https://www.raspberrypi.com/documentation/microcontrollers/raspberry-pi-pico.html#documentation).
-
-## Helpful Tips
-
-### Host Mode Tips
-
-- The LED on the W variants of the Pico board will not work with this project. On the standard Pico and Pico2 boards, the LED may be used for quick status - when connected to USB, it should remain on when no button is pressed on any controller and turn off once a button is pressed.
-- The included file `formatted_storage.bin` may be used to delete and format a VMU attached to a controller when this project is used in host mode. For example, rename this file vmu0.bin and copy to DC-Memory drive when a VMU is inserted into the upper slot of Player 1's controller.
-- A serial device shows up on the PC once attached - open serial terminal (BAUD and other settings don't matter), type `h`, and then press enter to see available instructions.
-
----
+These instructions have been move to [the wiki](https://github.com/OrangeFox86/DreamPicoPort/wiki/Installation-Guide).
 
 # Build Instructions (for Linux and Windows)
 
