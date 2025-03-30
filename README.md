@@ -75,12 +75,12 @@ For reference, the following is the pinout for the Dreamcast controller port. Ta
 
 ## Selecting the Appropriate Binary
 
-Each [release](https://github.com/OrangeFox86/DreamPicoPort/releases) will contain multiple uf2 files. Currently, there are 4 flavors of these binaries for each of the Pico Version 1 (RP2040) and Pico Version 2 (RP2350) boards and 1 flavor specifically for the Pico Zero. The W variants of the hardware may also be used, but the status LED will not be functional.
+Each [release](https://github.com/OrangeFox86/DreamPicoPort/releases) will contain multiple uf2 files. Currently, there are 4 flavors of these binaries for each of the Pico Version 1 (RP2040) and Pico Version 2 (RP2350) boards and 1 flavor specifically for the RP2040-Zero. The W variants of the hardware may also be used, but the status LED will not be functional.
 
 - ***host-1p.uf2**: Host mode configuration, only `P1` active
 - ***host-2p.uf2**: Host mode configuration, `P1` and `P2` active
 - ***host-4p.uf2**: Host mode configuration, `P1`, `P2`, `P3`, and `P4` active
-- ***zero_host-4p.uf2**: Host mode configurationSimilar to above, but `P3` outputs are moved to gpio 2 & 3, and `P4` outputs are moved to gpio 4 & 5
+- ***zero_host-4p.uf2**: Host mode configuration similar to the above, but `P3` outputs are moved to gpio 2 & 3, and `P4` outputs are moved to gpio 4 & 5 for more easy assembly using the RP2040-Zero board
 - ***client-with-usb-host.uf2**: Client mode configuration supporting a single Dualshock4 controller connected to the USB port
 
 ## Loading the UF2 Binary
