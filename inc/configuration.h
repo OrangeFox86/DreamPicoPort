@@ -60,19 +60,37 @@
 #define MAPLE_INTER_WORD_READ_TIMEOUT_US 300
 
 // The pin which sets IO direction for each player (-1 to disable)
-#define P1_DIR_PIN 6
-#define P2_DIR_PIN 7
-#define P3_DIR_PIN 26
-#define P4_DIR_PIN 27
+#ifndef P1_DIR_PIN
+    #define P1_DIR_PIN 6
+#endif
+#ifndef P2_DIR_PIN
+    #define P2_DIR_PIN 7
+#endif
+#ifndef P3_DIR_PIN
+    #define P3_DIR_PIN 26
+#endif
+#ifndef P4_DIR_PIN
+    #define P4_DIR_PIN 27
+#endif
 
 // True if DIR pin is HIGH for output and LOW for input; false if opposite
-#define DIR_OUT_HIGH true
+#ifndef DIR_OUT_HIGH
+    #define DIR_OUT_HIGH true
+#endif
 
 // The start pin of the two-pin bus for each player
-#define P1_BUS_START_PIN 10
-#define P2_BUS_START_PIN 12
-#define P3_BUS_START_PIN 18
-#define P4_BUS_START_PIN 20
+#ifndef P1_BUS_START_PIN
+    #define P1_BUS_START_PIN 10
+#endif
+#ifndef P2_BUS_START_PIN
+    #define P2_BUS_START_PIN 12
+#endif
+#ifndef P3_BUS_START_PIN
+    #define P3_BUS_START_PIN 18
+#endif
+#ifndef P4_BUS_START_PIN
+    #define P4_BUS_START_PIN 20
+#endif
 
 // LED pin number for USB activity or -1 to disable
 // When USB connected:
@@ -82,10 +100,14 @@
 // When USB disconnected:
 //   Default: OFF
 //   When controller key pressed: Flashing quick
-#define USB_LED_PIN 25
+#ifndef USB_LED_PIN
+    #define USB_LED_PIN 25
+#endif
 
 // LED pin number for simple USB activity or -1 to disable
 // ON when USB connected; OFF when disconnected
-#define SIMPLE_USB_LED_PIN -1
+#ifndef SIMPLE_USB_LED_PIN
+    #define SIMPLE_USB_LED_PIN -1
+#endif
 
 #endif // __CONFIGURATION_H__
