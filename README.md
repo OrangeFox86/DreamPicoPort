@@ -71,11 +71,11 @@ This project may be opened in vscode. In vscode, the default shortcut `ctrl+shif
 
 The Maple Bus is a serial communications protocol which Dreamcast uses to communicate with controllers and other peripherals. Refer to documentation [here](https://dreamcast.wiki/Maple_bus) for general information about the Maple Bus.
 
-## Why the RP2040 is a Game Changer for Emulating Communication Protocols
+## Why the RP2040/RP2350 are Game Changers for Emulating Communication Protocols
 
-To emulate a bespoke communication protocol such as the Maple Bus on an MCU, one would usually either need to add extra hardware or bit bang the interface. This is not true with the RP2040 and its PIO. Think of it as several extra small processors on the side using a special machine language purpose-built for handling I/O. This means communication can be offloaded to the PIO and only check on them after an interrupt is activated or a timeout has elapsed. Check out [maple_in.pio](src/hal/MapleBus/maple_in.pio) and [maple_out.pio](src/hal/MapleBus/maple_out.pio) to see the PIO code.
+To emulate a bespoke communication protocol such as the Maple Bus on an MCU, one would usually either need to add extra hardware or bit bang the interface. This is not true with the RP2040/RP2350 and their PIO. Think of it as several extra small processors on the side using a special machine language purpose-built for handling I/O. This means communication can be offloaded to the PIO and only check on them after an interrupt is activated or a timeout has elapsed. Check out [maple_in.pio](src/hal/MapleBus/maple_in.pio) and [maple_out.pio](src/hal/MapleBus/maple_out.pio) to see the PIO code.
 
-Luckily, the RP2040 comes with 2 PIO blocks each with 4 separate state machines. This means that the RP2040 can easily emulate 4 separate controller interfaces, each at full speed!
+Luckily, the RP2040/RP2350 come with 2 PIO blocks each with 4 separate state machines. This means that the RP2040/RP2350 can easily emulate 4 separate controller interfaces, each at full speed!
 
 ## Interfacing with the PIO State Machines
 
