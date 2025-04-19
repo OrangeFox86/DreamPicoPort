@@ -189,6 +189,7 @@ https://github.com/OrangeFox86/DreamPicoPort</text>
 <text x="23.876" y="18.796" size="0.6096" layer="21" font="custom" fontFamily="Arial Black" rot="R90">BAT</text>
 <hole x="27.784" y="21.717" drill="2.4"/>
 <hole x="2.384" y="21.717" drill="2.4"/>
+<text x="2.4" y="73.8" size="1.016" layer="22" rot="MR270">Rev 0.2</text>
 </plain>
 <libraries>
 <library name="2025-03-28_15-27-25_Library">
