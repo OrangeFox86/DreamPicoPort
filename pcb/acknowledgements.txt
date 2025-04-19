@@ -1,0 +1,4 @@
+The following projects/sites were used for part libraries
+https://github.com/Lobo-T/RPI-Pico-Eagle-lib
+https://github.com/sparkfun/SparkFun-Eagle-Libraries
+https://www.digikey.com/
