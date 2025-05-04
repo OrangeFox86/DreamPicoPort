@@ -1,0 +1,24 @@
+{
+    "Header": {
+        "Comment": "All values are metric (mm)",
+        "CreationDate": "2025-04-19T15:23:02Z",
+        "GenerationSoftware": {
+            "Application": "Fusion Electronics",
+            "Vendor": "Autodesk",
+            "Version": "9.7.0"
+        },
+        "Part": "Single"
+    },
+    "Overall": {
+        "BoardThickness": 1.57,
+        "LayerNumber": 2,
+        "Name": {
+            "ProjectId": "DreamPicoPortSchem v65"
+        },
+        "Owner": "jmsmith86 jmsmith86 <jmsmith86@gmail.com>",
+        "Size": {
+            "X": 30,
+            "Y": 75
+        }
+    }
+}
