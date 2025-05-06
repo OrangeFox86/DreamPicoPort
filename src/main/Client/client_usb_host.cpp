@@ -47,6 +47,7 @@
 #include "DreamcastVibration.hpp"
 #include "DreamcastScreen.hpp"
 #include "DreamcastTimer.hpp"
+#include "DreamcastLightgun.hpp"
 
 #include "led.hpp"
 
@@ -112,27 +113,48 @@ void core0()
     // Create the bus for client-mode operation
     std::shared_ptr<MapleBusInterface> bus = create_maple_bus(P1_BUS_START_PIN, P1_DIR_PIN, DIR_OUT_HIGH);
 
-    // Main peripheral (address of 0x20) with 1 function: controller
+    // Main peripheral (address of 0x20) with 2 functions: controller and lightgun
     client::DreamcastMainPeripheral mainPeripheral(
         bus,
         0x20,
-        0xFF,
-        0x00,
-        "Dreamcast Controller",
+        0x01,
+        0x01,
+        "Dreamcast Gun",
         "Version 1.010,1998/09/28,315-6211-AB   ,Analog Module : The 4th Edition.5/8  +DF",
-        43.0,
-        50.0);
+        22.0,
+        30.0);
+    client::DreamcastController::EnabledControls enabledControls = {
+            .enLeftD = true,
+            .enRightD = false,
+            .enLeftA = false,
+            .enRightA = false,
+            .enL = false,
+            .enR = false,
+            .enStart = true,
+            .enA = true,
+            .enB = true,
+            .enC = false,
+            .enD = false,
+            .enX = false,
+            .enY = false,
+            .enZ = false
+    };
     std::shared_ptr<client::DreamcastController> controller =
-        std::make_shared<client::DreamcastController>();
+        std::make_shared<client::DreamcastController>(enabledControls);
     set_gamepad_host(controller.get());
     mainPeripheral.addFunction(controller);
+
+    std::shared_ptr<client::DreamcastLightgun> lightgun =
+        std::make_shared<client::DreamcastLightgun>();
+    mainPeripheral.addFunction(lightgun);
+
 
     // First sub peripheral (address of 0x01) with 1 function: memory
     std::shared_ptr<client::DreamcastPeripheral> subPeripheral1 =
         std::make_shared<client::DreamcastPeripheral>(
             0x01,
-            0xFF,
-            0x00,
+            0x01,
+            0x01,
             "Visual Memory",
             "Version 1.005,1999/04/15,315-6208-03,SEGA Visual Memory System BIOS",
             12.4,
@@ -150,21 +172,21 @@ void core0()
 
     mainPeripheral.addSubPeripheral(subPeripheral1);
 
-    // Second sub peripheral (address of 0x02) with 1 function: vibration
-    std::shared_ptr<client::DreamcastPeripheral> subPeripheral2 =
-        std::make_shared<client::DreamcastPeripheral>(
-            0x02,
-            0xFF,
-            0x00,
-            "Puru Puru Pack",
-            "Version 1.000,1998/11/10,315-6211-AH   ,Vibration Motor:1 , Fm:4 - 30Hz ,Pow:7",
-            20.0,
-            160.0);
-    std::shared_ptr<client::DreamcastVibration> dreamcastVibration =
-        std::make_shared<client::DreamcastVibration>();
-    dreamcastVibration->setObserver(get_usb_vibration_observer());
-    subPeripheral2->addFunction(dreamcastVibration);
-    mainPeripheral.addSubPeripheral(subPeripheral2);
+    // // Second sub peripheral (address of 0x02) with 1 function: vibration
+    // std::shared_ptr<client::DreamcastPeripheral> subPeripheral2 =
+    //     std::make_shared<client::DreamcastPeripheral>(
+    //         0x02,
+    //         0xFF,
+    //         0x00,
+    //         "Puru Puru Pack",
+    //         "Version 1.000,1998/11/10,315-6211-AH   ,Vibration Motor:1 , Fm:4 - 30Hz ,Pow:7",
+    //         20.0,
+    //         160.0);
+    // std::shared_ptr<client::DreamcastVibration> dreamcastVibration =
+    //     std::make_shared<client::DreamcastVibration>();
+    // dreamcastVibration->setObserver(get_usb_vibration_observer());
+    // subPeripheral2->addFunction(dreamcastVibration);
+    // mainPeripheral.addSubPeripheral(subPeripheral2);
 
     multicore_launch_core1(core1);
 

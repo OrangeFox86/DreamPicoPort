@@ -22,12 +22,22 @@
 ; SOFTWARE.
 
 .program maple_in
+; 9th toggle causes overflow event (either 4 or 8 expected)
+.define OVERFLOW_TOGGLE_NUM 9
+
+check_for_eight_toggles:
+set x, (OVERFLOW_TOGGLE_NUM - 8) ; 8 toggles will mean lightgun beam detect
+public wait_start_jmp_instruction:
+jmp x!=y wait_start
+public lightgun_irq:
+irq wait 0 rel ; The rest of this will have to be handled externally
 
 ; Wait for start sequence
-wait_start:
+public wait_start:
 
-mov y, ~NULL ; This sets y to 0xFFFFFFFF
+set y, OVERFLOW_TOGGLE_NUM ; on the 9th count toggle, give up
 
+; This loop waits for B to go LOW while jumping out once A is HIGH
 b_toggle_loop:
 jmp pin check_toggle_count ; Once A goes HIGH, check how much B toggled
 ; `mov x, pins` wouldn't work because I just want the first 2 pins
@@ -39,12 +49,16 @@ jmp x-- b_toggle_loop ; keep waiting if B is high
 wait 1 pin 1 ; wait for B to go back HIGH
 jmp pin wait_start ; if A went HIGH before B, try again
 jmp y-- b_toggle_loop ; toggle detected; decrement do another wait
-; The above should normally jump unless the count overloaded
+
+; If reached here, y decremented to 0 - wait for A to go high before falling through
+; (will eventually make it to wait_start by continuing from here)
+wait 1 pin 0
 
 check_toggle_count:
-mov y, ~y ; This converts the negative count to a positive count
-set x, 4 ; We are looking for 4 B toggles
-jmp x!=y wait_start ; If 4 B toggles haven't been detected, continue waiting
+set x, (OVERFLOW_TOGGLE_NUM - 4) ; Looking for 4 B toggles
+public lightgun_jmp_instruction:
+; WARNING - this instruction is optionally replaced with instruction at wait_start_jmp_instruction in c++ code below
+jmp x!=y check_for_eight_toggles ; If 4 B toggles haven't been detected, check for lightgun sequence
 ; else: fall through
 
 
@@ -97,9 +111,14 @@ in pins 1
 ; wait for A to be high
 wait 1 pin 0
 
+; used to create a macro which is defined as the size of this program
+public size:
+
 .wrap
 
+
 % c-sdk {
+#include <string.h>
 #include "hardware/gpio.h"
 #include "hardware/pio.h"
 #include "PioProgram.hpp"
@@ -109,8 +128,8 @@ wait 1 pin 0
 class MapleInStateMachine
 {
     public:
-        inline MapleInStateMachine(uint pin_a) :
-            mProgram(getMapleInProgram()),
+        inline MapleInStateMachine(uint pin_a, bool lightgun_en) :
+            mProgram(getMapleInProgram(lightgun_en)),
             mPinA(pin_a),
             mPinB(pin_a + 1),
             mMaskAB(3 << pin_a),
@@ -146,7 +165,7 @@ class MapleInStateMachine
             pio_sm_clear_fifos(mProgram.mPio, mSmIdx);
             pio_sm_restart(mProgram.mPio, mSmIdx);
             pio_sm_clkdiv_restart(mProgram.mPio, mSmIdx);
-            pio_sm_exec(mProgram.mPio, mSmIdx, pio_encode_jmp(mProgram.mProgramOffset));
+            pio_sm_exec(mProgram.mPio, mSmIdx, pio_encode_jmp(mProgram.mProgramOffset + maple_in_offset_wait_start));
             // Pin direction starts as input
             pio_sm_set_consecutive_pindirs(mProgram.mPio, mSmIdx, mPinA, 2, false);
 
@@ -178,11 +197,41 @@ class MapleInStateMachine
             gpio_set_function(mPinB, GPIO_FUNC_SIO);
         }
 
-    private:
-        inline static const PioProgram& getMapleInProgram()
+        inline uint8_t isLightgunIrq()
         {
-            static const PioProgram program(MAPLE_IN_PIO, &maple_in_program);
-            return program;
+            // This is an "irq wait" instruction, so program should be stalled there when ISR checks
+            return (pio_sm_get_pc(mProgram.mPio, mSmIdx) == (mProgram.mProgramOffset + maple_in_offset_lightgun_irq + 1));
+        }
+
+    private:
+        inline static const PioProgram& getMapleInProgram(bool withLightgunDetect=false)
+        {
+            if (withLightgunDetect)
+            {
+                static const PioProgram withLightgunProgram(MAPLE_IN_PIO, &maple_in_program);
+                return withLightgunProgram;
+            }
+            else
+            {
+                static bool isSet = false;
+                static uint16_t instructions[maple_in_offset_size] = {};
+                if (!isSet)
+                {
+                    isSet = true;
+                    memcpy(instructions, maple_in_program_instructions, sizeof(instructions));
+                    // Replace the jump instruction which enters the check with the one that exits the check.
+                    // This effectively removes the lightgun check.
+                    instructions[maple_in_offset_lightgun_jmp_instruction] =
+                        instructions[maple_in_offset_wait_start_jmp_instruction];
+                }
+                static const struct pio_program maple_in_program_sans_lightgun = {
+                    .instructions = instructions,
+                    .length = maple_in_program.length,
+                    .origin = maple_in_program.origin,
+                };
+                static const PioProgram withoutLightgunProgram(MAPLE_IN_PIO, &maple_in_program_sans_lightgun);
+                return withoutLightgunProgram;
+            }
         }
 
     public:

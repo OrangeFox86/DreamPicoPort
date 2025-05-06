@@ -26,6 +26,7 @@
 
 #include <memory>
 #include <limits>
+#include <atomic>
 #include "hal/MapleBus/MapleBusInterface.hpp"
 #include "pico/stdlib.h"
 #include "hardware/structs/systick.h"
@@ -42,11 +43,23 @@
 class MapleBus : public MapleBusInterface
 {
     public:
+        //! Enumerates the type of screen used for lightgun computations
+        enum class ScanType : int
+        {
+            NTSC = 0
+        };
+
         //! Maple Bus constructor
         //! @param[in] pinA  GPIO index for pin A. The very next GPIO will be designated as pin B.
         //! @param[in] dirPin  GPIO pin which selects direction (-1 to disable)
         //! @param[in] dirOutHigh  True if dirPin should be high on write; false for low on write
-        MapleBus(uint32_t pinA, int32_t dirPin = -1, bool dirOutHigh = true);
+        //! @param[in] lightgunOutputPin  Pin number for lightgun output (-1 to disable)
+        //! @param[in] lightgunAssertHigh  True for HIGH; false for LOW when asserting lightgun
+        MapleBus(uint32_t pinA,
+                 int32_t dirPin = -1,
+                 bool dirOutHigh = true,
+                 int lightgunOutputPin = 2,
+                 bool lightgunAssertHigh = false);
 
         //! Writes a packet to the maple bus
         //! @post processEvents() must periodically be called to check status
@@ -85,6 +98,16 @@ class MapleBus : public MapleBusInterface
         //! @returns true iff the bus is currently busy reading or writing.
         inline bool isBusy() { return mCurrentPhase != Phase::IDLE; }
 
+        //! Sets the offset of the lightgun position computation
+        //! @param[in] ns  Number of nanoseconds to offset
+        void setLightgunOffsetNs(int32_t ns);
+
+        //! Sets the lightgun target to be sent next
+        //! @param[in] scanType  The type of screen used
+        //! @param[in] x  The x position from 0 to 639
+        //! @param[in] y  The y position from 0 to 479
+        void setLightgunTarget(ScanType scanType, uint32_t x, uint32_t y);
+
     private:
         //! Ensures that the bus is open
         bool lineCheck();
@@ -92,6 +115,9 @@ class MapleBus : public MapleBusInterface
         //! Set direction
         //! @param[in] output  True for output from this device or false for input to this device
         void setDirection(bool output);
+
+        //! Send the lightgun sample now
+        bool sendLightgunSample(uint32_t systickStart, uint32_t systickEnd);
 
         //! Adds bytes to a CRC
         //! @param[in] source  Source array to read from
@@ -133,6 +159,15 @@ class MapleBus : public MapleBusInterface
         const int32_t mDirPin;
         //! True to set dir pin high on write and low on read; false for opposite
         const bool mDirOutHigh;
+        //! Lightgun output pin or -1 if not defined
+        const int32_t mLightgunOutputPin;
+        const uint32_t mLightgunOutputMask;
+        const uint32_t mLightgunAssertionMask;
+        int32_t mLightgunOffset;
+        std::atomic<uint32_t> mLightgunSample;
+
+        //! True to set dir pin high on write and low on read; false for opposite
+        const bool mLightgunAssertHigh;
         //! Pin A GPIO mask for this bus
         const uint32_t mMaskA;
         //! Pin B GPIO mask for this bus
