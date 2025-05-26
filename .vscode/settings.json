@@ -71,7 +71,8 @@
         "concepts": "cpp",
         "netfwd": "cpp",
         "numbers": "cpp",
-        "shared_mutex": "cpp"
+        "shared_mutex": "cpp",
+        "configuration.h": "c"
     },
     "cmake.configureOnOpen": false
 }

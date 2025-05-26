@@ -177,13 +177,19 @@ uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance)
 // Configuration Descriptor
 //--------------------------------------------------------------------+
 
-#if USB_CDC_ENABLED
-    #define DEBUG_CONFIG_LEN TUD_CDC_DESC_LEN
+#if USB_MSC_ENABLED
+    #define MSC_DESC_LEN TUD_MSC_DESC_LEN
 #else
-    #define DEBUG_CONFIG_LEN 0
+    #define MSC_DESC_LEN 0
 #endif
 
-#define GET_CONFIG_LEN(numGamepads) (TUD_CONFIG_DESC_LEN + (numGamepads * TUD_HID_DESC_LEN) + DEBUG_CONFIG_LEN + TUD_MSC_DESC_LEN)
+#if USB_CDC_ENABLED
+    #define CDC_DESC_LEN TUD_CDC_DESC_LEN
+#else
+    #define CDC_DESC_LEN 0
+#endif
+
+#define GET_CONFIG_LEN(numGamepads) (TUD_CONFIG_DESC_LEN + (numGamepads * TUD_HID_DESC_LEN) + CDC_DESC_LEN + MSC_DESC_LEN)
 
 // Endpoint definitions (must all be unique)
 #define EPIN_GAMEPAD1   (0x84)
@@ -240,7 +246,9 @@ uint8_t desc_configuration[] =
     // * Storage Device Descriptor                                             *
     // *************************************************************************
 
+#if USB_MSC_ENABLED
     MSC_DESCRIPTOR(MAX_NUMBER_OF_USB_GAMEPADS),
+#endif
 
     // *************************************************************************
     // * Communication Device Descriptor  (for debug messaging)                *
@@ -275,11 +283,13 @@ uint8_t const *tud_descriptor_configuration_cb(uint8_t index) {
         offset += sizeof(gpConfig);
     }
 
+#if USB_MSC_ENABLED
     uint8_t mscConfig[] = {
         MSC_DESCRIPTOR(numberOfGamepads)
     };
     memcpy(&desc_configuration[offset], mscConfig, sizeof(mscConfig));
     offset += sizeof(mscConfig);
+#endif
 
 #if USB_CDC_ENABLED
     uint8_t cdcConfig[] = {
