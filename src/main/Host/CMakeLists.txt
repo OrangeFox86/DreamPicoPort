@@ -4,6 +4,11 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 
 file(GLOB HOST_SRC "${CMAKE_CURRENT_SOURCE_DIR}/host*.c*")
 
+if (${PICO_BOARD} STREQUAL "pico2")
+  # Increase the CPU frequency to 150MHz for the pico2 board
+  add_definitions(-DCPU_FREQ_KHZ=150000)
+endif()
+
 #
 # host-4p
 #
