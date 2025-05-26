@@ -31,8 +31,13 @@
 // true to enable USB CDC (serial) interface to directly control the maple bus
 #define USB_CDC_ENABLED true
 
+// true to enable USB MSC (mass storage) interface to read/write VMU files
+#define USB_MSC_ENABLED true
+
 // Adjust the CPU clock frequency here (133 MHz is maximum documented stable frequency)
-#define CPU_FREQ_KHZ 133000
+#ifndef CPU_FREQ_KHZ
+    #define CPU_FREQ_KHZ 133000
+#endif
 
 // The minimum amount of time we check for an open line before taking control of it
 // Set to 0 to completely disable this check

@@ -38,9 +38,23 @@
 // For mass storage device
 #define ITF_NUM_MSC (4)
 
+#if USB_MSC_ENABLED
+    #define NUM_ITF_MSC (1)
+#else
+    #define NUM_ITF_MSC (0)
+#endif
+
+// For serial device
 #define ITF_NUM_CDC (5)
-#define ITF_NUM_CDC_DATA (6)
-#define ITF_COUNT(numGamepads) (numGamepads + 3)
+#define ITF_NUM_CDC_DATA (6) // Implied, not directly used
+
+#if USB_CDC_ENABLED
+    #define NUM_ITF_CDC (2)
+#else
+    #define NUM_ITF_CDC (0)
+#endif
+
+#define ITF_COUNT(numGamepads) (numGamepads + NUM_ITF_CDC + NUM_ITF_MSC)
 
 //! Minumum analog value defined in USB HID descriptors
 static const int8_t MIN_ANALOG_VALUE = -127;
