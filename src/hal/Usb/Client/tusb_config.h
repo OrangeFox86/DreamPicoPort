@@ -82,11 +82,16 @@ extern "C" {
 #define CFG_TUD_MSC             1 // MSC always defined, even when not used
 #define CFG_TUD_HID             MAX_NUMBER_OF_USB_GAMEPADS
 #define CFG_TUD_MIDI            0
-#define CFG_TUD_VENDOR          0
+#define CFG_TUD_VENDOR          1
 
 // CDC FIFO size of TX and RX
 #define CFG_TUD_CDC_RX_BUFSIZE   2100
 #define CFG_TUD_CDC_TX_BUFSIZE   2100
+
+// Vendor FIFO size of TX and RX
+// If zero: vendor endpoints will not be buffered
+#define CFG_TUD_VENDOR_RX_BUFSIZE 64
+#define CFG_TUD_VENDOR_TX_BUFSIZE 64
 
 // CDC Endpoint transfer buffer size, more is faster
 #define CFG_TUD_CDC_EP_BUFSIZE   64

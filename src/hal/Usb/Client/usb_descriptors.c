@@ -123,18 +123,21 @@ tusb_desc_device_t const desc_device =
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
     .bcdUSB             = 0x0200,
-    .bDeviceClass       = 0x00,
-    .bDeviceSubClass    = 0x00,
-    .bDeviceProtocol    = 0x00,
+
+    // Use Interface Association Descriptor (IAD) for CDC
+    // As required by USB Specs IAD's subclass must be common class (2) and protocol must be IAD (1)
+    .bDeviceClass       = TUSB_CLASS_MISC,
+    .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
+    .bDeviceProtocol    = MISC_PROTOCOL_IAD,
     .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
 
     // VID 1209 comes from https://pid.codes/
     // PID 2F07 is a subassignment granted through github
     // https://github.com/pidcodes/pidcodes.github.com/blob/74f95539d2ad737c1ba2871eeb25b3f5f5d5c790/1209/2F07/index.md
-    .idVendor           = 0x1209,
+    .idVendor           = 0xCafe,
     .idProduct          = 0x2F07,
 
-    .bcdDevice          = 0x0102,
+    .bcdDevice          = 0x0103,
 
     .iManufacturer      = 0x01,
     .iProduct           = 0x02,
@@ -189,7 +192,13 @@ uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance)
     #define CDC_DESC_LEN 0
 #endif
 
-#define GET_CONFIG_LEN(numGamepads) (TUD_CONFIG_DESC_LEN + (numGamepads * TUD_HID_DESC_LEN) + CDC_DESC_LEN + MSC_DESC_LEN)
+#if USB_WEBUSB_ENABLED
+    #define WEBUSB_DESC_LEN TUD_VENDOR_DESC_LEN
+#else
+    #define WEBUSB_DESC_LEN 0
+#endif
+
+#define GET_CONFIG_LEN(numGamepads) (TUD_CONFIG_DESC_LEN + (numGamepads * TUD_HID_DESC_LEN) + CDC_DESC_LEN + MSC_DESC_LEN + WEBUSB_DESC_LEN)
 
 // Endpoint definitions (must all be unique)
 #define EPIN_GAMEPAD1   (0x84)
@@ -201,6 +210,8 @@ uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance)
 #define EPIN_CDC_NOTIF  (0x86)
 #define EPOUT_CDC       (0x07)
 #define EPIN_CDC        (0x87)
+#define EPOUT_WEBUSB    (0x08)
+#define EPIN_WEBUSB     (0x88)
 
 #define PLAYER_TO_STR_IDX(player) (player + 4)
 
@@ -217,15 +228,17 @@ uint8_t player_to_epin(uint8_t player)
 }
 
 #define CONFIG_HEADER(numGamepads) \
-    TUD_CONFIG_DESCRIPTOR(1, ITF_COUNT(numGamepads), 0, GET_CONFIG_LEN(numGamepads), TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 400)
+    TUD_CONFIG_DESCRIPTOR(1, ITF_COUNT(numGamepads), 0, GET_CONFIG_LEN(numGamepads), TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 500)
 
 #define GAMEPAD_CONFIG_DESC(itfNum, strIdx, endpt) \
     TUD_HID_DESCRIPTOR(itfNum, strIdx, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), endpt, GAMEPAD_REPORT_SIZE, 1)
 
 // Only doing transfer at full speed since each file will only be about 128KB, max of 8 files
-#define MSC_DESCRIPTOR(numGamepads) TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 8, EPOUT_MSC, EPIN_MSC, 64)
+#define MSC_DESCRIPTOR() TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 8, EPOUT_MSC, EPIN_MSC, 64)
 
-#define CDC_DESCRIPTOR(numGamepads) TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 9, EPIN_CDC_NOTIF, 8, EPOUT_CDC, EPIN_CDC, 64)
+#define CDC_DESCRIPTOR() TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 9, EPIN_CDC_NOTIF, 8, EPOUT_CDC, EPIN_CDC, 64)
+
+#define WEBUSB_DESCRIPTOR() TUD_VENDOR_DESCRIPTOR(ITF_NUM_WEBUSB, 10, EPOUT_WEBUSB, EPIN_WEBUSB, 64)
 
 // This is setup with the maximum amount of data needed for the description, and it is updated in
 // tud_descriptor_configuration_cb() before being sent to the USB host
@@ -247,7 +260,7 @@ uint8_t desc_configuration[] =
     // *************************************************************************
 
 #if USB_MSC_ENABLED
-    MSC_DESCRIPTOR(MAX_NUMBER_OF_USB_GAMEPADS),
+    MSC_DESCRIPTOR(),
 #endif
 
     // *************************************************************************
@@ -255,7 +268,15 @@ uint8_t desc_configuration[] =
     // *************************************************************************
 
 #if USB_CDC_ENABLED
-    CDC_DESCRIPTOR(MAX_NUMBER_OF_USB_GAMEPADS),
+    CDC_DESCRIPTOR(),
+#endif
+
+    // *************************************************************************
+    // * WebUSB                                                                *
+    // *************************************************************************
+
+#if USB_WEBUSB_ENABLED
+    WEBUSB_DESCRIPTOR()
 #endif
 };
 
@@ -285,7 +306,7 @@ uint8_t const *tud_descriptor_configuration_cb(uint8_t index) {
 
 #if USB_MSC_ENABLED
     uint8_t mscConfig[] = {
-        MSC_DESCRIPTOR(numberOfGamepads)
+        MSC_DESCRIPTOR()
     };
     memcpy(&desc_configuration[offset], mscConfig, sizeof(mscConfig));
     offset += sizeof(mscConfig);
@@ -293,14 +314,93 @@ uint8_t const *tud_descriptor_configuration_cb(uint8_t index) {
 
 #if USB_CDC_ENABLED
     uint8_t cdcConfig[] = {
-        CDC_DESCRIPTOR(numberOfGamepads)
+        CDC_DESCRIPTOR()
     };
     memcpy(&desc_configuration[offset], cdcConfig, sizeof(cdcConfig));
     offset += sizeof(cdcConfig);
 #endif
 
+#if USB_WEBUSB_ENABLED
+    uint8_t webusbConfig[] = {
+        WEBUSB_DESCRIPTOR()
+    };
+    memcpy(&desc_configuration[offset], webusbConfig, sizeof(webusbConfig));
+    offset += sizeof(webusbConfig);
+#endif
+
     return desc_configuration;
 }
+
+//--------------------------------------------------------------------+
+// BOS Descriptor
+//--------------------------------------------------------------------+
+
+/* Microsoft OS 2.0 registry property descriptor
+Per MS requirements https://msdn.microsoft.com/en-us/library/windows/hardware/hh450799(v=vs.85).aspx
+device should create DeviceInterfaceGUIDs. It can be done by driver and
+in case of real PnP solution device should expose MS "Microsoft OS 2.0
+registry property descriptor". Such descriptor can insert any record
+into Windows registry per device/configuration/interface. In our case it
+will insert "DeviceInterfaceGUIDs" multistring property.
+
+GUID is freshly generated and should be OK to use.
+
+https://developers.google.com/web/fundamentals/native-hardware/build-for-webusb/
+(Section Microsoft OS compatibility descriptors)
+*/
+
+#define BOS_TOTAL_LEN      (TUD_BOS_DESC_LEN + TUD_BOS_WEBUSB_DESC_LEN + TUD_BOS_MICROSOFT_OS_DESC_LEN)
+
+#define MS_OS_20_DESC_LEN  0xB2
+
+// BOS Descriptor is required for webUSB
+uint8_t const desc_bos[] =
+{
+  // total length, number of device caps
+  TUD_BOS_DESCRIPTOR(BOS_TOTAL_LEN, 2),
+
+  // Vendor Code, iLandingPage
+  TUD_BOS_WEBUSB_DESCRIPTOR(VENDOR_REQUEST_WEBUSB, 1),
+
+  // Microsoft OS 2.0 descriptor
+  TUD_BOS_MS_OS_20_DESCRIPTOR(MS_OS_20_DESC_LEN, VENDOR_REQUEST_MICROSOFT)
+};
+
+uint8_t const * tud_descriptor_bos_cb(void)
+{
+  return desc_bos;
+}
+
+
+uint8_t const desc_ms_os_20[] =
+{
+  // Set header: length, type, windows version, total length
+  U16_TO_U8S_LE(0x000A), U16_TO_U8S_LE(MS_OS_20_SET_HEADER_DESCRIPTOR), U32_TO_U8S_LE(0x06030000), U16_TO_U8S_LE(MS_OS_20_DESC_LEN),
+
+  // Configuration subset header: length, type, configuration index, reserved, configuration total length
+  U16_TO_U8S_LE(0x0008), U16_TO_U8S_LE(MS_OS_20_SUBSET_HEADER_CONFIGURATION), 0, 0, U16_TO_U8S_LE(MS_OS_20_DESC_LEN-0x0A),
+
+  // Function Subset header: length, type, first interface, reserved, subset length
+  U16_TO_U8S_LE(0x0008), U16_TO_U8S_LE(MS_OS_20_SUBSET_HEADER_FUNCTION), ITF_NUM_WEBUSB, 0, U16_TO_U8S_LE(MS_OS_20_DESC_LEN-0x0A-0x08),
+
+  // MS OS 2.0 Compatible ID descriptor: length, type, compatible ID, sub compatible ID
+  U16_TO_U8S_LE(0x0014), U16_TO_U8S_LE(MS_OS_20_FEATURE_COMPATBLE_ID), 'W', 'I', 'N', 'U', 'S', 'B', 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // sub-compatible
+
+  // MS OS 2.0 Registry property descriptor: length, type
+  U16_TO_U8S_LE(MS_OS_20_DESC_LEN-0x0A-0x08-0x08-0x14), U16_TO_U8S_LE(MS_OS_20_FEATURE_REG_PROPERTY),
+  U16_TO_U8S_LE(0x0007), U16_TO_U8S_LE(0x002A), // wPropertyDataType, wPropertyNameLength and PropertyName "DeviceInterfaceGUIDs\0" in UTF-16
+  'D', 0x00, 'e', 0x00, 'v', 0x00, 'i', 0x00, 'c', 0x00, 'e', 0x00, 'I', 0x00, 'n', 0x00, 't', 0x00, 'e', 0x00,
+  'r', 0x00, 'f', 0x00, 'a', 0x00, 'c', 0x00, 'e', 0x00, 'G', 0x00, 'U', 0x00, 'I', 0x00, 'D', 0x00, 's', 0x00, 0x00, 0x00,
+  U16_TO_U8S_LE(0x0050), // wPropertyDataLength
+	//bPropertyData: “{975F44D9-0D08-43FD-8B3E-127CA8AFFF9D}”.
+  '{', 0x00, '9', 0x00, '7', 0x00, '5', 0x00, 'F', 0x00, '4', 0x00, '4', 0x00, 'D', 0x00, '9', 0x00, '-', 0x00,
+  '0', 0x00, 'D', 0x00, '0', 0x00, '8', 0x00, '-', 0x00, '4', 0x00, '3', 0x00, 'F', 0x00, 'D', 0x00, '-', 0x00,
+  '8', 0x00, 'B', 0x00, '3', 0x00, 'E', 0x00, '-', 0x00, '1', 0x00, '2', 0x00, '7', 0x00, 'C', 0x00, 'A', 0x00,
+  '8', 0x00, 'A', 0x00, 'F', 0x00, 'F', 0x00, 'F', 0x00, '9', 0x00, 'D', 0x00, '}', 0x00, 0x00, 0x00, 0x00, 0x00
+};
+
+TU_VERIFY_STATIC(sizeof(desc_ms_os_20) == MS_OS_20_DESC_LEN, "Incorrect size");
 
 //--------------------------------------------------------------------+
 // String Descriptors
@@ -319,6 +419,7 @@ char const *string_desc_arr[] =
     "DreamPicoPort D",           // 7: Gamepad 4
     "MSC",                       // 8: Mass Storage Class
     "CDC",                       // 9: Communication Device Class
+    "WebUSB",                    // 10: WebUSB interface
 };
 
 static uint16_t _desc_str[32];

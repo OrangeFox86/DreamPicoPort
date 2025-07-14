@@ -31,8 +31,11 @@
 // true to enable USB CDC (serial) interface to directly control the maple bus
 #define USB_CDC_ENABLED true
 
-// true to enable USB MSC (mass storage) interface to read/write VMU files
-#define USB_MSC_ENABLED true
+// true to enable USB MSC (mass storage) interface to read/write VMU files over a virtual drive
+#define USB_MSC_ENABLED false
+
+// true to enable WebUSB interface for configuration and communication
+#define USB_WEBUSB_ENABLED true
 
 // Adjust the CPU clock frequency here (133 MHz is maximum documented stable frequency)
 #ifndef CPU_FREQ_KHZ

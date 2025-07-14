@@ -54,7 +54,24 @@
     #define NUM_ITF_CDC (0)
 #endif
 
-#define ITF_COUNT(numGamepads) (numGamepads + NUM_ITF_CDC + NUM_ITF_MSC)
+// For WebUSB
+#define ITF_NUM_WEBUSB (7)
+
+#if USB_WEBUSB_ENABLED
+    #define NUM_ITF_WEBUSB (1)
+#else
+    #define NUM_ITF_WEBUSB (0)
+#endif
+
+#define ITF_COUNT(numGamepads) (numGamepads + NUM_ITF_MSC + NUM_ITF_CDC + NUM_ITF_WEBUSB)
+
+enum
+{
+  VENDOR_REQUEST_WEBUSB = 1,
+  VENDOR_REQUEST_MICROSOFT = 2
+};
+
+extern uint8_t const desc_ms_os_20[];
 
 //! Minumum analog value defined in USB HID descriptors
 static const int8_t MIN_ANALOG_VALUE = -127;
