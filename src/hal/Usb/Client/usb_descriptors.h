@@ -67,8 +67,7 @@
 
 enum
 {
-  VENDOR_REQUEST_WEBUSB = 1,
-  VENDOR_REQUEST_MICROSOFT = 2
+  VENDOR_REQUEST_MICROSOFT = 1
 };
 
 extern uint8_t const desc_ms_os_20[];
