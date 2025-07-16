@@ -349,7 +349,7 @@ https://developers.google.com/web/fundamentals/native-hardware/build-for-webusb/
 (Section Microsoft OS compatibility descriptors)
 */
 
-#define BOS_TOTAL_LEN      (TUD_BOS_DESC_LEN + TUD_BOS_MICROSOFT_OS_DESC_LEN)
+#define BOS_TOTAL_LEN      (TUD_BOS_DESC_LEN + TUD_BOS_WEBUSB_DESC_LEN + TUD_BOS_MICROSOFT_OS_DESC_LEN)
 
 #define MS_OS_20_DESC_LEN  0xB2
 
@@ -357,10 +357,10 @@ https://developers.google.com/web/fundamentals/native-hardware/build-for-webusb/
 uint8_t const desc_bos[] =
 {
   // total length, number of device caps
-  TUD_BOS_DESCRIPTOR(BOS_TOTAL_LEN, 1),
+  TUD_BOS_DESCRIPTOR(BOS_TOTAL_LEN, 2),
 
   // Vendor Code, iLandingPage
-  //TUD_BOS_WEBUSB_DESCRIPTOR(VENDOR_REQUEST_WEBUSB, 1),
+  TUD_BOS_WEBUSB_DESCRIPTOR(VENDOR_REQUEST_WEBUSB, 1),
 
   // Microsoft OS 2.0 descriptor
   TUD_BOS_MS_OS_20_DESCRIPTOR(MS_OS_20_DESC_LEN, VENDOR_REQUEST_MICROSOFT)
@@ -402,6 +402,12 @@ uint8_t const desc_ms_os_20[] =
 
 TU_VERIFY_STATIC(sizeof(desc_ms_os_20) == MS_OS_20_DESC_LEN, "Incorrect size");
 
+#define URL "example.tinyusb.org/webusb-serial/index.html"
+
+static const uint8_t descriptorType = 3; // WEBUSB URL type
+static const uint8_t scheme = 1; // 0: http, 1: https
+static uint8_t desc_url[47] = {47, descriptorType, scheme};
+
 // Invoked when a control transfer occurred on an interface of this class
 // Driver response accordingly to the request and the transfer stage (setup/data/ack)
 // return false to stall control endpoint (e.g unsupported request)
@@ -412,7 +418,15 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   switch (request->bmRequestType_bit.type) {
     case TUSB_REQ_TYPE_VENDOR:
       switch (request->bRequest) {
-        case 1:
+        case VENDOR_REQUEST_WEBUSB:
+        {
+          // match vendor request in BOS descriptor
+          // Get landing page url
+          memcpy(desc_url + 3, URL, 44);
+          return tud_control_xfer(rhport, request, (void*)(uintptr_t)&desc_url, 47);
+        }
+
+        case VENDOR_REQUEST_MICROSOFT:
           if (request->wIndex == 7) {
             // Get Microsoft OS 2.0 compatible descriptor
             uint16_t total_len;
@@ -424,6 +438,27 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
           }
 
         default: break;
+      }
+      break;
+
+    case TUSB_REQ_TYPE_CLASS:
+      if (request->bRequest == 0x22) {
+        // Webserial simulate the CDC_REQUEST_SET_CONTROL_LINE_STATE (0x22) to connect and disconnect.
+        //web_serial_connected = (request->wValue != 0);
+
+        // // Always lit LED if connected
+        // if (web_serial_connected) {
+        //   board_led_write(true);
+        //   blink_interval_ms = BLINK_ALWAYS_ON;
+
+        //   tud_vendor_write_str("\r\nWebUSB interface connected\r\n");
+        //   tud_vendor_write_flush();
+        // } else {
+        //   blink_interval_ms = BLINK_MOUNTED;
+        // }
+
+        // response with status OK
+        return tud_control_status(rhport, request);
       }
       break;
 
