@@ -45,6 +45,7 @@ extern "C" {
 // Enable TUD algs
 #define CFG_TUD_ENABLED 1
 
+// The RP2040 and RP2350 are only capable of full speed or low speed - select full
 #define CFG_TUSB_RHPORT0_MODE     (OPT_MODE_DEVICE | OPT_MODE_FULL_SPEED)
 
 #ifndef CFG_TUSB_OS

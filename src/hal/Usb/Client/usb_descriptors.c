@@ -122,7 +122,7 @@ tusb_desc_device_t const desc_device =
 {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
-    .bcdUSB             = 0x0200,
+    .bcdUSB             = 0x0201, // at least 2.1 or 3.x for BOS & webUSB
 
     // Use Interface Association Descriptor (IAD) for CDC
     // As required by USB Specs IAD's subclass must be common class (2) and protocol must be IAD (1)
@@ -135,7 +135,7 @@ tusb_desc_device_t const desc_device =
     // PID 2F07 is a subassignment granted through github
     // https://github.com/pidcodes/pidcodes.github.com/blob/74f95539d2ad737c1ba2871eeb25b3f5f5d5c790/1209/2F07/index.md
     .idVendor           = 0xCafe,
-    .idProduct          = 0x2F07,
+    .idProduct          = 0x4011,
 
     .bcdDevice          = 0x0103,
 
@@ -422,7 +422,7 @@ char const *string_desc_arr[] =
     "WebUSB",                    // 10: WebUSB interface
 };
 
-static uint16_t _desc_str[32];
+static uint16_t _desc_str[32] = {};
 
 // Invoked when received GET STRING DESCRIPTOR request
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
