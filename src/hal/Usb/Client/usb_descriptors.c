@@ -134,8 +134,8 @@ tusb_desc_device_t const desc_device =
     // VID 1209 comes from https://pid.codes/
     // PID 2F07 is a subassignment granted through github
     // https://github.com/pidcodes/pidcodes.github.com/blob/74f95539d2ad737c1ba2871eeb25b3f5f5d5c790/1209/2F07/index.md
-    .idVendor           = 0xCafe,
-    .idProduct          = 0x4011,
+    .idVendor           = 0x1209,
+    .idProduct          = 0x2F07,
 
     .bcdDevice          = 0x0103,
 
@@ -469,6 +469,18 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   return false;
 }
 
+void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize) {
+  (void) itf;
+
+  tud_vendor_write(buffer, bufsize);
+  tud_vendor_write_flush();
+
+  // if using RX buffered is enabled, we need to flush the buffer to make room for new data
+  #if CFG_TUD_VENDOR_RX_BUFSIZE > 0
+  tud_vendor_read_flush();
+  #endif
+}
+
 //--------------------------------------------------------------------+
 // String Descriptors
 //--------------------------------------------------------------------+
@@ -484,9 +496,9 @@ char const *string_desc_arr[] =
     "DreamPicoPort B",           // 5: Gamepad 2
     "DreamPicoPort C",           // 6: Gamepad 3
     "DreamPicoPort D",           // 7: Gamepad 4
-    "MSC",                       // 8: Mass Storage Class
-    "CDC",                       // 9: Communication Device Class
-    "WebUSB",                    // 10: WebUSB interface
+    "DreamPicoPort MSC",         // 8: Mass Storage Class
+    "DreamPicoPort CDC",         // 9: Communication Device Class
+    "DreamPicoPort WebUSB",      // 10: WebUSB interface
 };
 
 static uint16_t _desc_str[32] = {};
