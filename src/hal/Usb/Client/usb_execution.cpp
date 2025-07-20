@@ -38,6 +38,7 @@
 #include "class/hid/hid_device.h"
 #include "msc_disk.hpp"
 #include "cdc.hpp"
+#include "webusb.hpp"
 
 UsbGamepad usbGamepads[MAX_NUMBER_OF_USB_GAMEPADS] = {
   UsbGamepad(0),
@@ -281,4 +282,18 @@ void tud_hid_set_report_cb(uint8_t instance,
 
   // echo back anything we received from host
   tud_hid_n_report(instance, report_id, buffer, bufsize);
+}
+
+//--------------------------------------------------------------------+
+// USB Vendor (WebUSB/WinUSB)
+//--------------------------------------------------------------------+
+
+void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize)
+{
+  process_webusb(itf, buffer, bufsize);
+
+  // if using RX buffered is enabled, we need to flush the buffer to make room for new data
+  #if CFG_TUD_VENDOR_RX_BUFSIZE > 0
+  tud_vendor_read_flush();
+  #endif
 }

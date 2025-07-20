@@ -402,11 +402,14 @@ uint8_t const desc_ms_os_20[] =
 
 TU_VERIFY_STATIC(sizeof(desc_ms_os_20) == MS_OS_20_DESC_LEN, "Incorrect size");
 
-#define URL "example.tinyusb.org/webusb-serial/index.html"
+#define WEBUSB_URL  "example.tinyusb.org/webusb-serial/index.html"
 
-static const uint8_t descriptorType = 3; // WEBUSB URL type
-static const uint8_t scheme = 1; // 0: http, 1: https
-static uint8_t desc_url[47] = {47, descriptorType, scheme};
+const tusb_desc_webusb_url_t desc_url = {
+  .bLength         = 3 + sizeof(WEBUSB_URL) - 1,
+  .bDescriptorType = 3, // WEBUSB URL type
+  .bScheme         = 1, // 0: http, 1: https
+  .url             = WEBUSB_URL
+};
 
 // Invoked when a control transfer occurred on an interface of this class
 // Driver response accordingly to the request and the transfer stage (setup/data/ack)
@@ -422,7 +425,6 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
         {
           // match vendor request in BOS descriptor
           // Get landing page url
-          memcpy(desc_url + 3, URL, 44);
           return tud_control_xfer(rhport, request, (void*)(uintptr_t)&desc_url, 47);
         }
 
@@ -467,18 +469,6 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 
   // stall unknown request
   return false;
-}
-
-void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize) {
-  (void) itf;
-
-  tud_vendor_write(buffer, bufsize);
-  tud_vendor_write_flush();
-
-  // if using RX buffered is enabled, we need to flush the buffer to make room for new data
-  #if CFG_TUD_VENDOR_RX_BUFSIZE > 0
-  tud_vendor_read_flush();
-  #endif
 }
 
 //--------------------------------------------------------------------+
