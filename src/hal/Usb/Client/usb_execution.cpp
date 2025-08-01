@@ -29,6 +29,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <string>
+#include <cstdint>
 
 #include "bsp/board.h"
 #include "pico/stdlib.h"
@@ -290,10 +292,66 @@ void tud_hid_set_report_cb(uint8_t instance,
 
 void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize)
 {
-  process_webusb(itf, buffer, bufsize);
+  webusb_process(itf, buffer, bufsize);
 
   // if using RX buffered is enabled, we need to flush the buffer to make room for new data
   #if CFG_TUD_VENDOR_RX_BUFSIZE > 0
   tud_vendor_read_flush();
   #endif
+}
+
+// Invoked when a control transfer occurred on an interface of this class
+// Driver response accordingly to the request and the transfer stage (setup/data/ack)
+// return false to stall control endpoint (e.g unsupported request)
+bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const* request)
+{
+  // nothing to with DATA & ACK stage
+  if (stage != CONTROL_STAGE_SETUP) return true;
+
+  switch (request->bmRequestType_bit.type) {
+    case TUSB_REQ_TYPE_VENDOR:
+      switch (request->bRequest) {
+        case VENDOR_REQUEST_WEBUSB:
+        {
+          // match vendor request in BOS descriptor
+          // Get landing page url
+          const std::uint8_t bufLen = 3 + strlen(webusb_url);
+          std::uint8_t buffer[bufLen];
+          buffer[0] = bufLen;
+          buffer[1] = 3; // WEBUSB URL type
+          buffer[2] = 1; // 0: http, 1: https
+          memcpy(&buffer[3], webusb_url, strlen(webusb_url));
+          return tud_control_xfer(rhport, request, buffer, bufLen);
+        }
+
+        case VENDOR_REQUEST_MICROSOFT:
+          if (request->wIndex == 7) {
+            // Get Microsoft OS 2.0 compatible descriptor
+            uint16_t total_len;
+            memcpy(&total_len, desc_ms_os_20 + 8, 2);
+
+            return tud_control_xfer(rhport, request, (void*)(uintptr_t)desc_ms_os_20, total_len);
+          } else {
+            return false;
+          }
+
+        default: break;
+      }
+      break;
+
+    case TUSB_REQ_TYPE_CLASS:
+      if (request->bRequest == 0x22) {
+        // Webserial simulate the CDC_REQUEST_SET_CONTROL_LINE_STATE (0x22) to connect and disconnect.
+        webusb_connection_event(request->wValue != 0);
+
+        // response with status OK
+        return tud_control_status(rhport, request);
+      }
+      break;
+
+    default: break;
+  }
+
+  // stall unknown request
+  return false;
 }

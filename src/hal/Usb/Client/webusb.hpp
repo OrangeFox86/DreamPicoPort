@@ -25,4 +25,6 @@
 
 #include <stdint.h>
 
-void process_webusb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize);
+constexpr const char* webusb_url = "example.tinyusb.org/webusb-serial/index.html";
+void webusb_connection_event(bool connected);
+void webusb_process(uint8_t itf, const uint8_t* buffer, uint16_t bufsize);
