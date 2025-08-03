@@ -238,7 +238,7 @@ uint8_t player_to_epin(uint8_t player)
 
 #define CDC_DESCRIPTOR() TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 9, EPIN_CDC_NOTIF, 8, EPOUT_CDC, EPIN_CDC, 64)
 
-#define WEBUSB_DESCRIPTOR() TUD_VENDOR_DESCRIPTOR(ITF_NUM_WEBUSB, 10, EPOUT_WEBUSB, EPIN_WEBUSB, 1050)
+#define WEBUSB_DESCRIPTOR() TUD_VENDOR_DESCRIPTOR(ITF_NUM_WEBUSB, 10, EPOUT_WEBUSB, EPIN_WEBUSB, 64)
 
 // This is setup with the maximum amount of data needed for the description, and it is updated in
 // tud_descriptor_configuration_cb() before being sent to the USB host

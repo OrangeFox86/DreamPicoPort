@@ -345,7 +345,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
     case TUSB_REQ_TYPE_CLASS:
       if (request->bRequest == 0x22) {
         // Webserial simulate the CDC_REQUEST_SET_CONTROL_LINE_STATE (0x22) to connect and disconnect.
-        webusb_connection_event(request->wValue);
+        webusb_connection_event(request->wIndex, request->wValue);
 
         // response with status OK
         return tud_control_status(rhport, request);

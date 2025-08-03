@@ -57,6 +57,13 @@ public:
 
     WebUsbInterface(uint8_t itf) : mItf(itf) {}
 
+    void reset()
+    {
+        mRcvIdx = -kSizeMagic;
+        mBuffer.clear();
+        mBuffer.shrink_to_fit();
+    }
+
     static void addParser(const std::shared_ptr<WebUsbCommandParser>& parser)
     {
         if (parser)
@@ -95,7 +102,7 @@ public:
                 if ((mRcvSize ^ invRcvSize) != 0xFFFF)
                 {
                     // Size bytes invalid - reset counter, parse size bytes for another magic, and continue
-                    resetPkt();
+                    reset();
                     const uint8_t* tmpBuffer = mSizeBytes;
                     uint16_t tmpBufSize = sizeof(mSizeBytes);
                     parseMagic(tmpBuffer, tmpBufSize);
@@ -150,7 +157,7 @@ public:
                 }
 
                 // Done processing this packet
-                resetPkt();
+                reset();
             }
         }
     }
@@ -236,13 +243,6 @@ private:
         vendorWrite(itf, crcBuffer, sizeof(crcBuffer), true);
     }
 
-    void resetPkt()
-    {
-        mRcvIdx = -kSizeMagic;
-        mBuffer.clear();
-        mBuffer.shrink_to_fit();
-    }
-
     static std::uint16_t bytesToUint16(const void* payload)
     {
         const std::uint8_t* p8 = reinterpret_cast<const std::uint8_t*>(payload);
@@ -292,7 +292,7 @@ private:
             if (*buffer != k_webusb_magic_value[kSizeMagic + mRcvIdx])
             {
                 // reset and keep waiting
-                resetPkt();
+                reset();
             }
             else
             {
@@ -330,21 +330,28 @@ std::unordered_map<std::uint8_t, std::shared_ptr<WebUsbCommandParser>> WebUsbInt
 //! All available interfaces, mapped by interface number
 static std::unordered_map<std::uint8_t, WebUsbInterface> webusb_interfaces;
 
-//! WebUSB connection state
-static bool webusb_connected = false;
-
 void webusb_init(MutexInterface* mutex)
 {
     webusb_mutex = mutex;
 }
 
-void webusb_connection_event(uint16_t wValue)
+void webusb_connection_event(uint16_t index, uint16_t value)
 {
-    bool connected = (wValue != 0);
-    if (webusb_connected != connected)
+    if (index < CFG_TUD_VENDOR)
     {
-        webusb_connected = connected;
-        webusb_interfaces.clear();
+        bool connected = (value != 0);
+        if (connected)
+        {
+            std::unordered_map<std::uint8_t, WebUsbInterface>::iterator iter = webusb_interfaces.find(index);
+            if (iter != webusb_interfaces.end())
+            {
+                iter->second.reset();
+            }
+        }
+        else
+        {
+            webusb_interfaces.erase(index);
+        }
     }
 }
 
