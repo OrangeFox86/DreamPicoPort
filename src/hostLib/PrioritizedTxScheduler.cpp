@@ -60,14 +60,16 @@ uint32_t PrioritizedTxScheduler::add(std::shared_ptr<Transmission> tx)
     return tx->transmissionId;
 }
 
-uint32_t PrioritizedTxScheduler::add(uint8_t priority,
-                                    uint64_t txTime,
-                                    Transmitter* transmitter,
-                                    MaplePacket& packet,
-                                    bool expectResponse,
-                                    uint32_t expectedResponseNumPayloadWords,
-                                    uint32_t autoRepeatUs,
-                                    uint64_t autoRepeatEndTimeUs)
+uint32_t PrioritizedTxScheduler::add(
+    uint8_t priority,
+    uint64_t txTime,
+    Transmitter* transmitter,
+    MaplePacket& packet,
+    bool expectResponse,
+    uint32_t expectedResponseNumPayloadWords,
+    uint32_t autoRepeatUs,
+    uint64_t autoRepeatEndTimeUs
+)
 {
     uint32_t pktDurationNs = MAPLE_OPEN_LINE_CHECK_TIME_US + packet.getTxTimeNs();
 
@@ -86,15 +88,60 @@ uint32_t PrioritizedTxScheduler::add(uint8_t priority,
     packet.frame.senderAddr = mSenderAddress;
 
     std::shared_ptr<Transmission> tx =
-        std::make_shared<Transmission>(mNextId++,
-                                       priority,
-                                       expectResponse,
-                                       pktDurationUs,
-                                       autoRepeatUs,
-                                       autoRepeatEndTimeUs,
-                                       txTime,
-                                       std::make_shared<MaplePacket>(std::move(packet)),
-                                       transmitter);
+        std::make_shared<Transmission>(
+            mNextId++,
+            priority,
+            expectResponse,
+            pktDurationUs,
+            autoRepeatUs,
+            autoRepeatEndTimeUs,
+            txTime,
+            std::make_shared<MaplePacket>(std::move(packet)),
+            transmitter
+        );
+
+    return add(tx);
+}
+
+uint32_t PrioritizedTxScheduler::add(
+    uint8_t priority,
+    uint64_t txTime,
+    const std::shared_ptr<Transmitter>& transmitter,
+    MaplePacket& packet,
+    bool expectResponse,
+    uint32_t expectedResponseNumPayloadWords,
+    uint32_t autoRepeatUs,
+    uint64_t autoRepeatEndTimeUs
+)
+{
+    uint32_t pktDurationNs = MAPLE_OPEN_LINE_CHECK_TIME_US + packet.getTxTimeNs();
+
+    if (expectResponse)
+    {
+        uint32_t expectedReadDurationUs = MaplePacket::getTxTimeNs(expectedResponseNumPayloadWords, MAPLE_RESPONSE_NS_PER_BIT);
+        pktDurationNs += MAPLE_RESPONSE_DELAY_NS + expectedReadDurationUs;
+    }
+
+    uint32_t pktDurationUs = INT_DIVIDE_CEILING(pktDurationNs, 1000);
+
+    // This will happen if minimal communication is made constantly for 20 days
+    assert(mNextId != INVALID_TX_ID);
+
+    // Update the sender address to my address
+    packet.frame.senderAddr = mSenderAddress;
+
+    std::shared_ptr<Transmission> tx =
+        std::make_shared<Transmission>(
+            mNextId++,
+            priority,
+            expectResponse,
+            pktDurationUs,
+            autoRepeatUs,
+            autoRepeatEndTimeUs,
+            txTime,
+            std::make_shared<MaplePacket>(std::move(packet)),
+            transmitter
+        );
 
     return add(tx);
 }

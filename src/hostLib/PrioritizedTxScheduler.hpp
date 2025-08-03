@@ -90,14 +90,37 @@ public:
     //! @param[in] autoRepeatUs  How often to repeat this transmission in microseconds
     //! @param[in] autoRepeatEndTimeUs  If not 0, auto repeat will cancel after this time
     //! @returns transmission ID
-    uint32_t add(uint8_t priority,
-                 uint64_t txTime,
-                 Transmitter* transmitter,
-                 MaplePacket& packet,
-                 bool expectResponse,
-                 uint32_t expectedResponseNumPayloadWords=0,
-                 uint32_t autoRepeatUs=0,
-                 uint64_t autoRepeatEndTimeUs=0);
+    uint32_t add(
+        uint8_t priority,
+        uint64_t txTime,
+        Transmitter* transmitter,
+        MaplePacket& packet,
+        bool expectResponse,
+        uint32_t expectedResponseNumPayloadWords=0,
+        uint32_t autoRepeatUs=0,
+        uint64_t autoRepeatEndTimeUs=0
+    );
+
+    //! Add a transmission to the schedule
+    //! @param[in] priority  priority of this transmission (0 is highest priority)
+    //! @param[in] txTime  Time at which this should transmit in microseconds
+    //! @param[in] transmitter  Pointer to transmitter that is adding this
+    //! @param[in,out] packet  Packet data to send (internal data is moved upon calling this)
+    //! @param[in] expectResponse  true iff a response is expected after transmission
+    //! @param[in] expectedResponseNumPayloadWords  Number of payload words to expect in response
+    //! @param[in] autoRepeatUs  How often to repeat this transmission in microseconds
+    //! @param[in] autoRepeatEndTimeUs  If not 0, auto repeat will cancel after this time
+    //! @returns transmission ID
+    uint32_t add(
+        uint8_t priority,
+        uint64_t txTime,
+        const std::shared_ptr<Transmitter>& transmitter,
+        MaplePacket& packet,
+        bool expectResponse,
+        uint32_t expectedResponseNumPayloadWords=0,
+        uint32_t autoRepeatUs=0,
+        uint64_t autoRepeatEndTimeUs=0
+    );
 
     //! Peeks the next scheduled packet, given the current time
     //! @param[in] time  The current time

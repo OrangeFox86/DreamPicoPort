@@ -31,6 +31,7 @@
 //! Transmission definition
 struct Transmission
 {
+public:
     //! Unique ID of this transmission
     const uint32_t transmissionId;
     //! Priority where 0 is highest
@@ -49,16 +50,21 @@ struct Transmission
     std::shared_ptr<const MaplePacket> packet;
     //! The object that added this transmission (for callbacks)
     Transmitter* const transmitter;
+    //! The object that added this transmission (for callbacks, shared pointer version)
+    const std::shared_ptr<Transmitter> spTransmitter;
 
-    Transmission(uint32_t transmissionId,
-                 uint8_t priority,
-                 bool expectResponse,
-                 uint32_t txDurationUs,
-                 uint32_t autoRepeatUs,
-                 uint64_t autoRepeatEndTimeUs,
-                 uint64_t nextTxTimeUs,
-                 std::shared_ptr<MaplePacket> packet,
-                 Transmitter* transmitter):
+public:
+    Transmission(
+        uint32_t transmissionId,
+        uint8_t priority,
+        bool expectResponse,
+        uint32_t txDurationUs,
+        uint32_t autoRepeatUs,
+        uint64_t autoRepeatEndTimeUs,
+        uint64_t nextTxTimeUs,
+        std::shared_ptr<MaplePacket> packet,
+        Transmitter* transmitter
+    ):
         transmissionId(transmissionId),
         priority(priority),
         expectResponse(expectResponse),
@@ -67,7 +73,31 @@ struct Transmission
         autoRepeatEndTimeUs(autoRepeatEndTimeUs),
         nextTxTimeUs(nextTxTimeUs),
         packet(packet),
-        transmitter(transmitter)
+        transmitter(transmitter),
+        spTransmitter()
+    {}
+
+    Transmission(
+        uint32_t transmissionId,
+        uint8_t priority,
+        bool expectResponse,
+        uint32_t txDurationUs,
+        uint32_t autoRepeatUs,
+        uint64_t autoRepeatEndTimeUs,
+        uint64_t nextTxTimeUs,
+        std::shared_ptr<MaplePacket> packet,
+        const std::shared_ptr<Transmitter>& transmitter
+    ):
+        transmissionId(transmissionId),
+        priority(priority),
+        expectResponse(expectResponse),
+        txDurationUs(txDurationUs),
+        autoRepeatUs(autoRepeatUs),
+        autoRepeatEndTimeUs(autoRepeatEndTimeUs),
+        nextTxTimeUs(nextTxTimeUs),
+        packet(packet),
+        transmitter(),
+        spTransmitter(transmitter)
     {}
 
     //! @returns the estimated completion time of this transmission

@@ -35,25 +35,54 @@ EndpointTxScheduler::EndpointTxScheduler(
 EndpointTxScheduler::~EndpointTxScheduler()
 {}
 
-uint32_t EndpointTxScheduler::add(uint64_t txTime,
-                                  Transmitter* transmitter,
-                                  uint8_t command,
-                                  uint32_t* payload,
-                                  uint8_t payloadLen,
-                                  bool expectResponse,
-                                  uint32_t expectedResponseNumPayloadWords,
-                                  uint32_t autoRepeatUs,
-                                  uint64_t autoRepeatEndTimeUs)
+uint32_t EndpointTxScheduler::add(
+    uint64_t txTime,
+    Transmitter* transmitter,
+    uint8_t command,
+    uint32_t* payload,
+    uint8_t payloadLen,
+    bool expectResponse,
+    uint32_t expectedResponseNumPayloadWords,
+    uint32_t autoRepeatUs,
+    uint64_t autoRepeatEndTimeUs
+)
 {
     MaplePacket packet({.command=command, .recipientAddr=mRecipientAddr}, payload, payloadLen);
-    return mPrioritizedScheduler->add(mFixedPriority,
-                                      txTime,
-                                      transmitter,
-                                      packet,
-                                      expectResponse,
-                                      expectedResponseNumPayloadWords,
-                                      autoRepeatUs,
-                                      autoRepeatEndTimeUs);
+    return mPrioritizedScheduler->add(
+        mFixedPriority,
+        txTime,
+        transmitter,
+        packet,
+        expectResponse,
+        expectedResponseNumPayloadWords,
+        autoRepeatUs,
+        autoRepeatEndTimeUs
+    );
+}
+
+uint32_t EndpointTxScheduler::add(
+    uint64_t txTime,
+    const std::shared_ptr<Transmitter>& transmitter,
+    uint8_t command,
+    uint32_t* payload,
+    uint8_t payloadLen,
+    bool expectResponse,
+    uint32_t expectedResponseNumPayloadWords,
+    uint32_t autoRepeatUs,
+    uint64_t autoRepeatEndTimeUs
+)
+{
+    MaplePacket packet({.command=command, .recipientAddr=mRecipientAddr}, payload, payloadLen);
+    return mPrioritizedScheduler->add(
+        mFixedPriority,
+        txTime,
+        transmitter,
+        packet,
+        expectResponse,
+        expectedResponseNumPayloadWords,
+        autoRepeatUs,
+        autoRepeatEndTimeUs
+    );
 }
 
 uint32_t EndpointTxScheduler::cancelById(uint32_t transmissionId)

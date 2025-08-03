@@ -24,7 +24,8 @@
 #pragma once
 
 #include <stdint.h>
+#include "hal/Usb/WebUsbCommandParser.hpp"
 
 constexpr const char* webusb_url = "example.tinyusb.org/webusb-serial/index.html";
-void webusb_connection_event(bool connected);
+void webusb_connection_event(uint16_t wValue);
 void webusb_process(uint8_t itf, const uint8_t* buffer, uint16_t bufsize);

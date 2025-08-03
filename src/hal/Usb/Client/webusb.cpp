@@ -21,236 +21,318 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include "webusb.hpp"
 #include "tusb.h"
 #include "usb_descriptors.h"
+#include "hal/System/LockGuard.hpp"
 
 #include <string>
 #include <cstdint>
 #include <cstddef>
+#include <unordered_map>
 
 // Packet format (big endian order):
-// Magic Bytes [4] | Size [2] | Inverse Size [2] | Message Index [2] | Command [2] | Payload [0-N] | CRC [2]
-// CRC covers message index, command, and payload
-
-static constexpr const std::int8_t k_webusb_magic_size = 4;
-static constexpr const std::int8_t k_webusb_size_size = 4;
-static constexpr const std::int8_t k_webusb_idx_size = 2;
-static constexpr const std::int8_t k_webusb_cmd_size = 2;
-static constexpr const std::int8_t k_webusb_crc_size = 2;
-
-static constexpr const std::uint16_t k_invalid_idx_value = 0xFFFF;
-static constexpr const std::uint16_t k_cmd_bad_crc = 0xFFFF;
-
+// Magic Bytes [4] | Size [2] | Inverse Size [2] | Return Address [1] | Command [1] | Payload [0-N] | CRC [2]
+// CRC covers return address, command, and payload
 
 //! The magic value that every packet must begin with
-static constexpr const std::uint8_t webusb_magic[k_webusb_magic_size] = {0xDB, 0x8B, 0xAF, 0xD5};
+static constexpr const std::uint8_t k_webusb_magic_value[] = {0xDB, 0x8B, 0xAF, 0xD5};
 
-//! WebUSB connection state
-static bool winusb_connected = false;
+//! Mutex ensuring serialization to webusb output
+MutexInterface* webusb_mutex = nullptr;
 
-//! Current receive index
-static std::int32_t webusb_rcv_idx = -k_webusb_magic_size;
-
-//! Received packet size
-static std::uint8_t webusb_size_bytes[4];
-
-//! Received size
-static std::uint16_t webusb_rcv_size;
-
-//! Current receive buffer
-static std::string webusb_buffer;
-
-void webusb_reset_pkt()
+class WebUsbInterface
 {
-    webusb_rcv_idx = -k_webusb_magic_size;
-    webusb_buffer.clear();
-    webusb_buffer.shrink_to_fit();
-}
+public:
+    static constexpr const std::int8_t kSizeMagic = sizeof(k_webusb_magic_value);
+    static constexpr const std::int8_t kSizeSize = 4;
+    static constexpr const std::int8_t kSizeAddress = 1;
+    static constexpr const std::int8_t kSizeCommand = 1;
+    static constexpr const std::int8_t kSizeCrc = 2;
 
-void webusb_connection_event(bool connected)
-{
-    if (winusb_connected != connected)
+    static constexpr const std::uint8_t kCmdBadCmd = 0xFF;
+
+public:
+    WebUsbInterface() = delete;
+
+    WebUsbInterface(uint8_t itf) : mItf(itf) {}
+
+    static void addParser(const std::shared_ptr<WebUsbCommandParser>& parser)
     {
-        winusb_connected = connected;
-        webusb_reset_pkt();
-    }
-}
-
-static std::uint16_t bytes_to_uint16(const void* payload)
-{
-    const std::uint8_t* p8 = reinterpret_cast<const std::uint8_t*>(payload);
-    return (static_cast<std::uint16_t>(p8[0]) << 8 | p8[1]);
-}
-
-static void uint16_to_bytes(void* out, std::uint16_t data)
-{
-    std::uint8_t* p8 = reinterpret_cast<std::uint8_t*>(out);
-    *p8 = data >> 8;
-    *p8 = data & 0xFF;
-}
-
-static std::uint16_t compute_crc16(std::uint16_t seed, const void* buffer, std::uint16_t bufLen)
-{
-    std::uint16_t crc = seed;
-    const std::uint8_t* b8 = reinterpret_cast<const std::uint8_t*>(buffer);
-
-    for (std::uint16_t i = 0; i < bufLen; ++i)
-    {
-        crc ^= static_cast<uint8_t>(*b8++) << 8;
-        for (int j = 0; j < 8; ++j)
+        if (parser)
         {
-            if (crc & 0x8000)
+            uint8_t cmd = parser->getSupportedCommand();
+            mParsers[cmd] = parser;
+        }
+    }
+
+    void process(const uint8_t* buffer, uint16_t bufsize)
+    {
+        while (bufsize > 0)
+        {
+            if (mRcvIdx < kSizeSize)
             {
-                crc = (crc << 1) ^ 0x1021;
+                parseMagic(buffer, bufsize);
+
+                while (mRcvIdx < kSizeSize && bufsize > 0)
+                {
+                    mSizeBytes[mRcvIdx] = *buffer;
+
+                    ++mRcvIdx;
+                    ++buffer;
+                    --bufsize;
+                }
+
+                if (mRcvIdx < kSizeSize)
+                {
+                    // Consumed entire buffer without completing size bytes
+                    return;
+                }
+
+                mRcvSize = bytesToUint16(&mSizeBytes[0]);
+                std::uint16_t invRcvSize = bytesToUint16(&mSizeBytes[2]);
+
+                if ((mRcvSize ^ invRcvSize) != 0xFFFF)
+                {
+                    // Size bytes invalid - reset counter, parse size bytes for another magic, and continue
+                    resetPkt();
+                    const uint8_t* tmpBuffer = mSizeBytes;
+                    uint16_t tmpBufSize = sizeof(mSizeBytes);
+                    parseMagic(tmpBuffer, tmpBufSize);
+                    continue;
+                }
+
+                mBuffer.reserve(mRcvSize);
+
+                if (bufsize == 0)
+                {
+                    // Consumed size bytes then ran out of bytes to parse
+                    return;
+                }
             }
-            else
+
+            std::uint16_t bytesToConsume = mRcvSize - mRcvIdx;
+            if (bufsize < bytesToConsume)
             {
-                crc <<= 1;
+                bytesToConsume = bufsize;
+            }
+
+            mBuffer.append(buffer, buffer + bytesToConsume);
+
+            mRcvIdx += bytesToConsume;
+            bufsize -= bytesToConsume;
+
+            if (mRcvIdx >= mRcvSize)
+            {
+                if (mBuffer.size() < (kSizeAddress + kSizeCommand + kSizeCrc))
+                {
+                    // Not enough data for address, cmd, and CRC
+                    return;
+                }
+
+                // Calculate CRC over message address, command, and payload (excluding CRC itself)
+                uint16_t calc_crc = computeCrc16(
+                    mBuffer.data(),
+                    mBuffer.size() - kSizeCrc
+                );
+
+                // Extract CRC from last 2 bytes
+                uint16_t pkt_crc = bytesToUint16(&mBuffer[mBuffer.size() - 2]);
+
+                if (calc_crc == pkt_crc)
+                {
+                    processPkt(
+                        mBuffer[0],
+                        mBuffer[kSizeAddress],
+                        reinterpret_cast<const uint8_t*>(&mBuffer[kSizeAddress + kSizeCommand]),
+                        mBuffer.size() - kSizeAddress - kSizeCommand - kSizeCrc
+                    );
+                }
+
+                // Done processing this packet
+                resetPkt();
             }
         }
     }
 
-    return crc;
-}
-
-static std::uint16_t compute_crc16(const void* buffer, std::uint16_t bufLen)
-{
-    return compute_crc16(0xFFFF, buffer, bufLen);
-}
-
-static void webusb_send_pkt(const uint16_t idx, const uint16_t cmd, const uint8_t* payload, uint16_t payloadLen)
-{
-    const std::uint16_t pktSize = k_webusb_idx_size + k_webusb_cmd_size + payloadLen + k_webusb_crc_size;
-    const std::uint16_t invPktSize = pktSize ^ 0xFFFF;
-    std::uint8_t header[k_webusb_magic_size + k_webusb_size_size + k_webusb_idx_size + k_webusb_cmd_size];
-    memcpy(&header[0], webusb_magic, k_webusb_magic_size);
-    uint16_to_bytes(&header[k_webusb_magic_size], pktSize);
-    uint16_to_bytes(&header[k_webusb_magic_size + sizeof(pktSize)], invPktSize);
-    uint16_to_bytes(&header[k_webusb_magic_size + k_webusb_size_size], idx);
-    uint16_to_bytes(&header[k_webusb_magic_size + k_webusb_size_size + k_webusb_idx_size], cmd);
-
-    // Calculate CRC over message index, command, and payload (excluding CRC itself)
-    uint16_t crc = compute_crc16(header, sizeof(header));
-    crc = compute_crc16(crc, payload, payloadLen);
-    std::uint8_t crcBuffer[k_webusb_crc_size];
-    uint16_to_bytes(crcBuffer, crc);
-
-    tud_vendor_n_write(0, header, sizeof(header));
-    tud_vendor_n_write(0, payload, payloadLen);
-    tud_vendor_n_write(0, crcBuffer, sizeof(crcBuffer));
-    tud_vendor_n_write_flush(0);
-}
-
-static void webusb_process_pkt(const uint16_t idx, const uint16_t cmd, const uint8_t* payload, uint16_t payloadLen)
-{
-    // Echo back
-    webusb_send_pkt(idx, cmd, payload, payloadLen);
-}
-
-static void webusb_parse_magic(const uint8_t*& buffer, uint16_t& bufsize)
-{
-    while (webusb_rcv_idx < 0 && bufsize > 0)
+private:
+    void processPkt(const uint8_t address, const uint8_t cmd, const uint8_t* payload, uint16_t payloadLen)
     {
-        if (*buffer != webusb_magic[k_webusb_magic_size + webusb_rcv_idx])
+        std::unordered_map<std::uint8_t, std::shared_ptr<WebUsbCommandParser>>::iterator iter = mParsers.find(cmd);
+        if (iter != mParsers.end() && iter->second)
         {
-            // reset and keep waiting
-            webusb_reset_pkt();
+            const uint8_t itf = mItf;
+            iter->second->process(
+                payload,
+                payloadLen,
+                [itf, address](std::uint8_t responseCmd, const void* payload, std::uint16_t payloadLen) -> void
+                {
+                    sendPkt(itf, address, responseCmd, reinterpret_cast<const uint8_t*>(payload), payloadLen);
+                }
+            );
         }
         else
         {
-            ++webusb_rcv_idx;
+            // Unsupported command
+            sendPkt(mItf, address, kCmdBadCmd, &cmd, sizeof(cmd));
+        }
+    }
+
+    static void sendPkt(
+        const uint8_t itf,
+        const uint8_t address,
+        const uint8_t cmd,
+        const uint8_t* payload,
+        uint16_t payloadLen
+    )
+    {
+        LockGuard lock(*webusb_mutex);
+
+        const std::uint16_t pktSize = kSizeAddress + kSizeCommand + payloadLen + kSizeCrc;
+        const std::uint16_t invPktSize = pktSize ^ 0xFFFF;
+        std::uint8_t header[kSizeMagic + kSizeSize + kSizeAddress + kSizeCommand];
+        memcpy(&header[0], k_webusb_magic_value, kSizeMagic);
+        uint16ToBytes(&header[kSizeMagic], pktSize);
+        uint16ToBytes(&header[kSizeMagic + sizeof(pktSize)], invPktSize);
+        header[kSizeMagic + kSizeSize] = address;
+        header[kSizeMagic + kSizeSize + kSizeAddress] = cmd;
+
+        // Calculate CRC over message address, command, and payload (excluding CRC itself)
+        uint16_t crc = computeCrc16(header, sizeof(header));
+        crc = computeCrc16(crc, payload, payloadLen);
+        std::uint8_t crcBuffer[kSizeCrc];
+        uint16ToBytes(crcBuffer, crc);
+
+        tud_vendor_n_write(itf, header, sizeof(header));
+        tud_vendor_n_write(itf, payload, payloadLen);
+        tud_vendor_n_write(itf, crcBuffer, sizeof(crcBuffer));
+        tud_vendor_n_write_flush(itf);
+    }
+
+    void resetPkt()
+    {
+        mRcvIdx = -kSizeMagic;
+        mBuffer.clear();
+        mBuffer.shrink_to_fit();
+    }
+
+    static std::uint16_t bytesToUint16(const void* payload)
+    {
+        const std::uint8_t* p8 = reinterpret_cast<const std::uint8_t*>(payload);
+        return (static_cast<std::uint16_t>(p8[0]) << 8 | p8[1]);
+    }
+
+    static void uint16ToBytes(void* out, std::uint16_t data)
+    {
+        std::uint8_t* p8 = reinterpret_cast<std::uint8_t*>(out);
+        *p8 = data >> 8;
+        *p8 = data & 0xFF;
+    }
+
+    static std::uint16_t computeCrc16(std::uint16_t seed, const void* buffer, std::uint16_t bufLen)
+    {
+        std::uint16_t crc = seed;
+        const std::uint8_t* b8 = reinterpret_cast<const std::uint8_t*>(buffer);
+
+        for (std::uint16_t i = 0; i < bufLen; ++i)
+        {
+            crc ^= static_cast<uint8_t>(*b8++) << 8;
+            for (int j = 0; j < 8; ++j)
+            {
+                if (crc & 0x8000)
+                {
+                    crc = (crc << 1) ^ 0x1021;
+                }
+                else
+                {
+                    crc <<= 1;
+                }
+            }
         }
 
-        ++buffer;
-        --bufsize;
+        return crc;
+    }
+
+    static std::uint16_t computeCrc16(const void* buffer, std::uint16_t bufLen)
+    {
+        return computeCrc16(0xFFFF, buffer, bufLen);
+    }
+
+    void parseMagic(const uint8_t*& buffer, uint16_t& bufsize)
+    {
+        while (mRcvIdx < 0 && bufsize > 0)
+        {
+            if (*buffer != k_webusb_magic_value[kSizeMagic + mRcvIdx])
+            {
+                // reset and keep waiting
+                resetPkt();
+            }
+            else
+            {
+                ++mRcvIdx;
+            }
+
+            ++buffer;
+            --bufsize;
+        }
+    }
+
+private:
+    //! All parsers
+    static std::unordered_map<std::uint8_t, std::shared_ptr<WebUsbCommandParser>> mParsers;
+
+    //! The USB vendor interface number
+    const uint8_t mItf;
+
+    //! Current receive index
+    std::int32_t mRcvIdx = -kSizeMagic;
+
+    //! Received packet size
+    std::uint8_t mSizeBytes[4] = {};
+
+    //! Received size
+    std::uint16_t mRcvSize = 0;
+
+    //! Current receive buffer
+    std::string mBuffer = std::string();
+};
+
+// definition of mParsers
+std::unordered_map<std::uint8_t, std::shared_ptr<WebUsbCommandParser>> WebUsbInterface::mParsers;
+
+//! All available interfaces, mapped by interface number
+static std::unordered_map<std::uint8_t, WebUsbInterface> webusb_interfaces;
+
+//! WebUSB connection state
+static bool webusb_connected = false;
+
+void webusb_init(MutexInterface* mutex)
+{
+    webusb_mutex = mutex;
+}
+
+void webusb_connection_event(uint16_t wValue)
+{
+    bool connected = (wValue != 0);
+    if (webusb_connected != connected)
+    {
+        webusb_connected = connected;
+        webusb_interfaces.clear();
     }
 }
 
 void webusb_process(uint8_t itf, const uint8_t* buffer, uint16_t bufsize)
 {
-    while (bufsize > 0)
+    std::unordered_map<std::uint8_t, WebUsbInterface>::iterator iter = webusb_interfaces.find(itf);
+    if (iter == webusb_interfaces.end())
     {
-        if (webusb_rcv_idx < k_webusb_size_size)
-        {
-            webusb_parse_magic(buffer, bufsize);
-
-            while (webusb_rcv_idx < k_webusb_size_size && bufsize > 0)
-            {
-                webusb_size_bytes[webusb_rcv_idx] = *buffer;
-
-                ++webusb_rcv_idx;
-                ++buffer;
-                --bufsize;
-            }
-
-            if (webusb_rcv_idx < k_webusb_size_size)
-            {
-                // Consumed entire buffer without completing size bytes
-                return;
-            }
-
-            webusb_rcv_size = bytes_to_uint16(&webusb_size_bytes[0]);
-            std::uint16_t invRcvSize = bytes_to_uint16(&webusb_size_bytes[2]);
-
-            if ((webusb_rcv_size ^ invRcvSize) != 0xFFFF)
-            {
-                // Size bytes invalid - reset counter, parse size bytes for another magic, and continue
-                webusb_reset_pkt();
-                const uint8_t* tmpBuffer = webusb_size_bytes;
-                uint16_t tmpBufSize = sizeof(webusb_size_bytes);
-                webusb_parse_magic(tmpBuffer, tmpBufSize);
-                continue;
-            }
-
-            webusb_buffer.reserve(webusb_rcv_size);
-
-            if (bufsize == 0)
-            {
-                // Consumed size bytes then ran out of bytes to parse
-                return;
-            }
-        }
-
-        std::uint16_t bytesToConsume = webusb_rcv_size - webusb_rcv_idx;
-        if (bufsize < bytesToConsume)
-        {
-            bytesToConsume = bufsize;
-        }
-
-        webusb_buffer.append(buffer, buffer + bytesToConsume);
-
-        webusb_rcv_idx += bytesToConsume;
-        bufsize -= bytesToConsume;
-
-        if (webusb_rcv_idx >= webusb_rcv_size)
-        {
-            if (webusb_buffer.size() < (k_webusb_idx_size + k_webusb_cmd_size + k_webusb_crc_size))
-            {
-                // Not enough data for idx, cmd, and CRC
-                return;
-            }
-
-            // Calculate CRC over message index, command, and payload (excluding CRC itself)
-            uint16_t calc_crc = compute_crc16(
-                webusb_buffer.data(),
-                webusb_buffer.size() - k_webusb_crc_size
-            );
-
-            // Extract CRC from last 2 bytes
-            uint16_t pkt_crc = bytes_to_uint16(&webusb_buffer[webusb_buffer.size() - 2]);
-
-            if (calc_crc == pkt_crc)
-            {
-                webusb_process_pkt(
-                    bytes_to_uint16(&webusb_buffer[0]),
-                    bytes_to_uint16(&webusb_buffer[k_webusb_idx_size]),
-                    reinterpret_cast<const uint8_t*>(&webusb_buffer[k_webusb_idx_size + k_webusb_cmd_size]),
-                    webusb_buffer.size() - k_webusb_idx_size - k_webusb_cmd_size - k_webusb_crc_size
-                );
-            }
-
-            // Done processing this packet
-            webusb_reset_pkt();
-        }
+        iter = webusb_interfaces.insert(std::make_pair(itf, WebUsbInterface(itf))).first;
     }
+
+    iter->second.process(buffer, bufsize);
+}
+
+void webusb_add_parser(std::shared_ptr<WebUsbCommandParser> parser)
+{
+    WebUsbInterface::addParser(parser);
 }

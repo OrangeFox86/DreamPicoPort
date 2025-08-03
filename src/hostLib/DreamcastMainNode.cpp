@@ -174,8 +174,15 @@ void DreamcastMainNode::readTask(uint64_t currentTimeUs)
         }
 
         // Send this off to the one who transmitted this
+        const std::shared_ptr<Transmitter>& spTransmitter = readStatus.transmission->spTransmitter;
         Transmitter* transmitter = readStatus.transmission->transmitter;
-        if (transmitter != nullptr)
+
+        if (!transmitter)
+        {
+            transmitter = spTransmitter.get();
+        }
+
+        if (transmitter)
         {
             transmitter->txComplete(readStatus.received, readStatus.transmission);
         }
@@ -183,8 +190,15 @@ void DreamcastMainNode::readTask(uint64_t currentTimeUs)
     else if (readStatus.busPhase == MapleBusInterface::Phase::WRITE_COMPLETE)
     {
         // Send this off to the one who transmitted this
+        const std::shared_ptr<Transmitter>& spTransmitter = readStatus.transmission->spTransmitter;
         Transmitter* transmitter = readStatus.transmission->transmitter;
-        if (transmitter != nullptr)
+
+        if (!transmitter)
+        {
+            transmitter = spTransmitter.get();
+        }
+
+        if (transmitter)
         {
             transmitter->txComplete(readStatus.received, readStatus.transmission);
         }
@@ -193,8 +207,15 @@ void DreamcastMainNode::readTask(uint64_t currentTimeUs)
              || readStatus.busPhase == MapleBusInterface::Phase::WRITE_FAILED)
     {
         // Send this off to the one who transmitted this
+        const std::shared_ptr<Transmitter>& spTransmitter = readStatus.transmission->spTransmitter;
         Transmitter* transmitter = readStatus.transmission->transmitter;
-        if (transmitter != nullptr)
+
+        if (!transmitter)
+        {
+            transmitter = spTransmitter.get();
+        }
+
+        if (transmitter)
         {
             transmitter->txFailed(readStatus.busPhase == MapleBusInterface::Phase::WRITE_FAILED,
                                     readStatus.busPhase == MapleBusInterface::Phase::READ_FAILED,
@@ -308,8 +329,15 @@ void DreamcastMainNode::writeTask(uint64_t currentTimeUs)
     if (sentTx != nullptr)
     {
         // Send this off to the one who transmitted this
+        const std::shared_ptr<Transmitter>& spTransmitter = sentTx->spTransmitter;
         Transmitter* transmitter = sentTx->transmitter;
-        if (transmitter != nullptr)
+
+        if (!transmitter)
+        {
+            transmitter = spTransmitter.get();
+        }
+
+        if (transmitter)
         {
             transmitter->txStarted(sentTx);
         }

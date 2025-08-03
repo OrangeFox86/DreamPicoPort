@@ -34,6 +34,8 @@
 #include "MaplePassthroughCommandParser.hpp"
 #include "FlycastCommandParser.hpp"
 
+#include "FlycastWebUsbParser.hpp"
+
 #include "CriticalSectionMutex.hpp"
 #include "Mutex.hpp"
 #include "Clock.hpp"
@@ -52,6 +54,8 @@
 #define MAX_DEVICES 4
 
 const uint8_t MAPLE_HOST_ADDRESSES[MAX_DEVICES] = {0x00, 0x40, 0x80, 0xC0};
+
+static bool core1Initialized = false;
 
 // Second Core Process
 // The second core is in charge of handling communication with Dreamcast peripherals
@@ -117,6 +121,21 @@ void core1()
             playerData,
             dreamcastMainNodes));
 
+    // Initialize WebUsb parsers
+    std::shared_ptr<FlycastWebUsbParser> flycastWebUsbCommandParser =
+        std::make_shared<FlycastWebUsbParser>(
+            picoIdentification,
+            &schedulers[0],
+            MAPLE_HOST_ADDRESSES,
+            numDevices,
+            playerData,
+            dreamcastMainNodes
+        );
+    webusb_add_parser(flycastWebUsbCommandParser);
+
+    // Done initialized
+    core1Initialized = true;
+
     while(true)
     {
         // Process each main node
@@ -144,9 +163,13 @@ int main()
 
     multicore_launch_core1(core1);
 
+    // Wait until core1 is done initializing
+    while (!core1Initialized);
+
     Mutex fileMutex;
     Mutex cdcStdioMutex;
-    usb_init(&fileMutex, &cdcStdioMutex);
+    Mutex webusbMutex;
+    usb_init(&fileMutex, &cdcStdioMutex, &webusbMutex);
 
     while(true)
     {

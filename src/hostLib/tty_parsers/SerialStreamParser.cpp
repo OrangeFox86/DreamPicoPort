@@ -227,6 +227,7 @@ void SerialStreamParser::process()
 
             mEndMarkers.pop_front();
             mParserRx.erase(mParserRx.begin(), eol + 1);
+            mParserRx.shrink_to_fit();
             for (std::size_t& s : mEndMarkers)
             {
                 s -= (pos + 1);

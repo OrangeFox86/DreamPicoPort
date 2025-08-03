@@ -91,8 +91,8 @@ extern "C" {
 
 // Vendor FIFO size of TX and RX
 // If zero: vendor endpoints will not be buffered
-#define CFG_TUD_VENDOR_RX_BUFSIZE 64
-#define CFG_TUD_VENDOR_TX_BUFSIZE 64
+#define CFG_TUD_VENDOR_RX_BUFSIZE 2100
+#define CFG_TUD_VENDOR_TX_BUFSIZE 2100
 
 // CDC Endpoint transfer buffer size, more is faster
 #define CFG_TUD_CDC_EP_BUFSIZE   64

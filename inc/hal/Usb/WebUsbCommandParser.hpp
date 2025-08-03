@@ -21,29 +21,42 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef __USB_INTERFACE_H__
-#define __USB_INTERFACE_H__
+#pragma once
 
-#include "UsbFileSystem.hpp"
-#include "DreamcastControllerObserver.hpp"
 #include "hal/System/MutexInterface.hpp"
+
+#include <cstdint>
 #include <vector>
+#include <memory>
+#include <functional>
 
-//! @returns array of the USB controller observers
-DreamcastControllerObserver** get_usb_controller_observers();
-//! USB initialization
-void usb_init(
-  MutexInterface* mscMutex,
-  MutexInterface* cdcStdioMutex,
-  MutexInterface* webUsbMutex
-);
-//! USB task that needs to be called constantly by main()
-void usb_task();
-//! @returns number of USB controllers
-uint32_t get_num_usb_controllers();
+//! Command parser for processing commands from a WebUSB serial stream
+class WebUsbCommandParser
+{
+public:
+    //! Virtual destructor
+    virtual ~WebUsbCommandParser() = default;
 
-//! Must return the file system
-UsbFileSystem& usb_msc_get_file_system();
+    //! @returns the command byte this parser handles
+    virtual std::uint8_t getSupportedCommand() const = 0;
 
+    //! Called when a command has been received and routed to this parser
+    //! @param[in] payload The payload received - this is the full payload received by the command without CRC
+    //! @param[in] payloadLen The number of bytes in \p payload
+    //! @param[in] responseFn The function to call to make a response
+    virtual void process(
+        const std::uint8_t* payload,
+        std::uint16_t payloadLen,
+        const std::function<
+            void(std::uint8_t responseCmd, const void* payload, std::uint16_t payloadLen)
+        >& responseFn
+    ) = 0;
 
-#endif // __USB_INTERFACE_H__
+    static constexpr const std::uint8_t kResponseSuccess = 0x0A;
+    static constexpr const std::uint8_t kResponseFailure = 0x0F;
+
+    static constexpr const std::uint8_t kResponseCmdInvalid = 0xFE;
+};
+
+void webusb_init(MutexInterface* mutex);
+void webusb_add_parser(std::shared_ptr<WebUsbCommandParser> parser);

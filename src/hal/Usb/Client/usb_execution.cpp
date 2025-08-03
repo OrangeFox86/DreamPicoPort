@@ -163,7 +163,9 @@ void led_task()
 
 void usb_init(
   MutexInterface* mscMutex,
-  MutexInterface* cdcStdioMutex)
+  MutexInterface* cdcStdioMutex,
+  MutexInterface* webUsbMutex
+)
 {
   uint32_t numDevices = get_num_usb_controllers();
 
@@ -178,6 +180,7 @@ void usb_init(
   tusb_init();
   msc_init(mscMutex);
   cdc_init(cdcStdioMutex);
+  webusb_init(webUsbMutex);
 
 #if USB_LED_PIN >= 0
   gpio_init(USB_LED_PIN);
@@ -342,7 +345,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
     case TUSB_REQ_TYPE_CLASS:
       if (request->bRequest == 0x22) {
         // Webserial simulate the CDC_REQUEST_SET_CONTROL_LINE_STATE (0x22) to connect and disconnect.
-        webusb_connection_event(request->wValue != 0);
+        webusb_connection_event(request->wValue);
 
         // response with status OK
         return tud_control_status(rhport, request);
