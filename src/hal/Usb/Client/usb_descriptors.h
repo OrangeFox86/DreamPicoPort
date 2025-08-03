@@ -55,10 +55,11 @@
 #endif
 
 // For WebUSB
-#define ITF_NUM_WEBUSB (7)
+#define ITF_NUM_WEBUSB1 (7)
+#define ITF_NUM_WEBUSB2 (8)
 
 #if USB_WEBUSB_ENABLED
-    #define NUM_ITF_WEBUSB (1)
+    #define NUM_ITF_WEBUSB (2)
 #else
     #define NUM_ITF_WEBUSB (0)
 #endif

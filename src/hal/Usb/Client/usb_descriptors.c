@@ -193,7 +193,7 @@ uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance)
 #endif
 
 #if USB_WEBUSB_ENABLED
-    #define WEBUSB_DESC_LEN TUD_VENDOR_DESC_LEN
+    #define WEBUSB_DESC_LEN (NUM_ITF_WEBUSB * TUD_VENDOR_DESC_LEN)
 #else
     #define WEBUSB_DESC_LEN 0
 #endif
@@ -210,8 +210,10 @@ uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance)
 #define EPIN_CDC_NOTIF  (0x86)
 #define EPOUT_CDC       (0x07)
 #define EPIN_CDC        (0x87)
-#define EPOUT_WEBUSB    (0x08)
-#define EPIN_WEBUSB     (0x88)
+#define EPOUT_WEBUSB1   (0x08)
+#define EPIN_WEBUSB1    (0x88)
+#define EPOUT_WEBUSB2   (0x09)
+#define EPIN_WEBUSB2    (0x89)
 
 #define PLAYER_TO_STR_IDX(player) (player + 4)
 
@@ -238,7 +240,9 @@ uint8_t player_to_epin(uint8_t player)
 
 #define CDC_DESCRIPTOR() TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 9, EPIN_CDC_NOTIF, 8, EPOUT_CDC, EPIN_CDC, 64)
 
-#define WEBUSB_DESCRIPTOR() TUD_VENDOR_DESCRIPTOR(ITF_NUM_WEBUSB, 10, EPOUT_WEBUSB, EPIN_WEBUSB, 64)
+#define WEBUSB1_DESCRIPTOR() TUD_VENDOR_DESCRIPTOR(ITF_NUM_WEBUSB1, 10, EPOUT_WEBUSB1, EPIN_WEBUSB1, 64)
+
+#define WEBUSB2_DESCRIPTOR() TUD_VENDOR_DESCRIPTOR(ITF_NUM_WEBUSB2, 11, EPOUT_WEBUSB2, EPIN_WEBUSB2, 64)
 
 // This is setup with the maximum amount of data needed for the description, and it is updated in
 // tud_descriptor_configuration_cb() before being sent to the USB host
@@ -276,7 +280,8 @@ uint8_t desc_configuration[] =
     // *************************************************************************
 
 #if USB_WEBUSB_ENABLED
-    WEBUSB_DESCRIPTOR()
+    WEBUSB1_DESCRIPTOR(),
+    WEBUSB2_DESCRIPTOR()
 #endif
 };
 
@@ -322,7 +327,8 @@ uint8_t const *tud_descriptor_configuration_cb(uint8_t index) {
 
 #if USB_WEBUSB_ENABLED
     uint8_t webusbConfig[] = {
-        WEBUSB_DESCRIPTOR()
+        WEBUSB1_DESCRIPTOR(),
+        WEBUSB2_DESCRIPTOR()
     };
     memcpy(&desc_configuration[offset], webusbConfig, sizeof(webusbConfig));
     offset += sizeof(webusbConfig);
@@ -351,7 +357,7 @@ https://developers.google.com/web/fundamentals/native-hardware/build-for-webusb/
 
 #define BOS_TOTAL_LEN      (TUD_BOS_DESC_LEN + TUD_BOS_WEBUSB_DESC_LEN + TUD_BOS_MICROSOFT_OS_DESC_LEN)
 
-#define MS_OS_20_DESC_LEN  0xB2
+#define MS_OS_20_DESC_LEN  0x152
 
 // BOS Descriptor is required for webUSB
 uint8_t const desc_bos[] =
@@ -380,15 +386,16 @@ uint8_t const desc_ms_os_20[] =
   // Configuration subset header: length, type, configuration index, reserved, configuration total length
   U16_TO_U8S_LE(0x0008), U16_TO_U8S_LE(MS_OS_20_SUBSET_HEADER_CONFIGURATION), 0, 0, U16_TO_U8S_LE(MS_OS_20_DESC_LEN-0x0A),
 
+
   // Function Subset header: length, type, first interface, reserved, subset length
-  U16_TO_U8S_LE(0x0008), U16_TO_U8S_LE(MS_OS_20_SUBSET_HEADER_FUNCTION), ITF_NUM_WEBUSB, 0, U16_TO_U8S_LE(MS_OS_20_DESC_LEN-0x0A-0x08),
+  U16_TO_U8S_LE(0x0008), U16_TO_U8S_LE(MS_OS_20_SUBSET_HEADER_FUNCTION), ITF_NUM_WEBUSB1, 0, U16_TO_U8S_LE(MS_OS_20_DESC_LEN-0xA0-0x0A-0x08),
 
   // MS OS 2.0 Compatible ID descriptor: length, type, compatible ID, sub compatible ID
   U16_TO_U8S_LE(0x0014), U16_TO_U8S_LE(MS_OS_20_FEATURE_COMPATBLE_ID), 'W', 'I', 'N', 'U', 'S', 'B', 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // sub-compatible
 
   // MS OS 2.0 Registry property descriptor: length, type
-  U16_TO_U8S_LE(MS_OS_20_DESC_LEN-0x0A-0x08-0x08-0x14), U16_TO_U8S_LE(MS_OS_20_FEATURE_REG_PROPERTY),
+  U16_TO_U8S_LE(MS_OS_20_DESC_LEN-0xA0-0x0A-0x08-0x08-0x14), U16_TO_U8S_LE(MS_OS_20_FEATURE_REG_PROPERTY),
   U16_TO_U8S_LE(0x0007), U16_TO_U8S_LE(0x002A), // wPropertyDataType, wPropertyNameLength and PropertyName "DeviceInterfaceGUIDs\0" in UTF-16
   'D', 0x00, 'e', 0x00, 'v', 0x00, 'i', 0x00, 'c', 0x00, 'e', 0x00, 'I', 0x00, 'n', 0x00, 't', 0x00, 'e', 0x00,
   'r', 0x00, 'f', 0x00, 'a', 0x00, 'c', 0x00, 'e', 0x00, 'G', 0x00, 'U', 0x00, 'I', 0x00, 'D', 0x00, 's', 0x00, 0x00, 0x00,
@@ -397,7 +404,27 @@ uint8_t const desc_ms_os_20[] =
   '{', 0x00, '9', 0x00, '7', 0x00, '5', 0x00, 'F', 0x00, '4', 0x00, '4', 0x00, 'D', 0x00, '9', 0x00, '-', 0x00,
   '0', 0x00, 'D', 0x00, '0', 0x00, '8', 0x00, '-', 0x00, '4', 0x00, '3', 0x00, 'F', 0x00, 'D', 0x00, '-', 0x00,
   '8', 0x00, 'B', 0x00, '3', 0x00, 'E', 0x00, '-', 0x00, '1', 0x00, '2', 0x00, '7', 0x00, 'C', 0x00, 'A', 0x00,
-  '8', 0x00, 'A', 0x00, 'F', 0x00, 'F', 0x00, 'F', 0x00, '9', 0x00, 'D', 0x00, '}', 0x00, 0x00, 0x00, 0x00, 0x00
+  '8', 0x00, 'A', 0x00, 'F', 0x00, 'F', 0x00, 'F', 0x00, '9', 0x00, 'D', 0x00, '}', 0x00, 0x00, 0x00, 0x00, 0x00,
+
+
+  // Function Subset header: length, type, first interface, reserved, subset length
+  U16_TO_U8S_LE(0x0008), U16_TO_U8S_LE(MS_OS_20_SUBSET_HEADER_FUNCTION), ITF_NUM_WEBUSB2, 0, U16_TO_U8S_LE(0xA0),
+
+  // MS OS 2.0 Compatible ID descriptor: length, type, compatible ID, sub compatible ID
+  U16_TO_U8S_LE(0x0014), U16_TO_U8S_LE(MS_OS_20_FEATURE_COMPATBLE_ID), 'W', 'I', 'N', 'U', 'S', 'B', 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // sub-compatible
+
+  // MS OS 2.0 Registry property descriptor: length, type
+  U16_TO_U8S_LE(0xA0-0x08-0x14), U16_TO_U8S_LE(MS_OS_20_FEATURE_REG_PROPERTY),
+  U16_TO_U8S_LE(0x0007), U16_TO_U8S_LE(0x002A), // wPropertyDataType, wPropertyNameLength and PropertyName "DeviceInterfaceGUIDs\0" in UTF-16
+  'D', 0x00, 'e', 0x00, 'v', 0x00, 'i', 0x00, 'c', 0x00, 'e', 0x00, 'I', 0x00, 'n', 0x00, 't', 0x00, 'e', 0x00,
+  'r', 0x00, 'f', 0x00, 'a', 0x00, 'c', 0x00, 'e', 0x00, 'G', 0x00, 'U', 0x00, 'I', 0x00, 'D', 0x00, 's', 0x00, 0x00, 0x00,
+  U16_TO_U8S_LE(0x0050), // wPropertyDataLength
+	//bPropertyData: “{975F44D9-0D08-43FD-8B3E-127CA8AFFF9D}”.
+  '{', 0x00, '9', 0x00, '7', 0x00, '5', 0x00, 'F', 0x00, '4', 0x00, '4', 0x00, 'D', 0x00, '9', 0x00, '-', 0x00,
+  '0', 0x00, 'D', 0x00, '0', 0x00, '8', 0x00, '-', 0x00, '4', 0x00, '3', 0x00, 'F', 0x00, 'D', 0x00, '-', 0x00,
+  '8', 0x00, 'B', 0x00, '3', 0x00, 'E', 0x00, '-', 0x00, '1', 0x00, '2', 0x00, '7', 0x00, 'C', 0x00, 'A', 0x00,
+  '8', 0x00, 'A', 0x00, 'F', 0x00, 'F', 0x00, 'F', 0x00, '9', 0x00, 'E', 0x00, '}', 0x00, 0x00, 0x00, 0x00, 0x00
 };
 
 TU_VERIFY_STATIC(sizeof(desc_ms_os_20) == MS_OS_20_DESC_LEN, "Incorrect size");
@@ -419,7 +446,8 @@ char const *string_desc_arr[] =
     "DreamPicoPort D",           // 7: Gamepad 4
     "DreamPicoPort MSC",         // 8: Mass Storage Class
     "DreamPicoPort CDC",         // 9: Communication Device Class
-    "DreamPicoPort WebUSB",      // 10: WebUSB interface
+    "DreamPicoPort WebUSB1",     // 10: WebUSB1 interface
+    "DreamPicoPort WebUSB2",     // 11: WebUSB2 interface
 };
 
 static uint16_t _desc_str[32] = {};
