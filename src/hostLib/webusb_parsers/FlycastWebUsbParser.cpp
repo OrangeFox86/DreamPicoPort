@@ -28,7 +28,7 @@
 
 #include <cstring>
 
-const char* FlycastWebUsbParser::INTERFACE_VERSION = "1.00";
+const std::uint8_t FlycastWebUsbParser::kInterfaceVersion[2] = {1, 0};
 
 FlycastWebUsbParser::FlycastWebUsbParser(
     SystemIdentification& identification,
@@ -50,7 +50,7 @@ void FlycastWebUsbParser::process(
     const std::uint8_t* payload,
     std::uint16_t payloadLen,
     const std::function<
-        void(std::uint8_t responseCmd, const void* payload, std::uint16_t payloadLen)
+        void(std::uint8_t responseCmd, const std::list<std::pair<const void*, std::uint16_t>>& payloadList)
     >& responseFn
 )
 {
@@ -59,7 +59,7 @@ void FlycastWebUsbParser::process(
 
     if (iter >= eol)
     {
-        responseFn(kResponseCmdInvalid, nullptr, 0);
+        responseFn(kResponseCmdInvalid, {});
         return;
     }
 
@@ -87,17 +87,17 @@ void FlycastWebUsbParser::process(
                     playerData->screenData.resetToDefault();
                 }
                 std::string s = std::to_string(count);
-                responseFn(kResponseSuccess, &count, 1);
+                responseFn(kResponseSuccess, {{&count, 1}});
             }
             else if (static_cast<std::size_t>(idx) < mPlayerData.size())
             {
                 mPlayerData[idx]->screenData.resetToDefault();
                 std::uint8_t count = 1;
-                responseFn(kResponseSuccess, &count, 1);
+                responseFn(kResponseSuccess, {{&count, 1}});
             }
             else
             {
-                responseFn(kResponseFailure, nullptr, 0);
+                responseFn(kResponseFailure, {});
             }
         }
         return;
@@ -126,11 +126,11 @@ void FlycastWebUsbParser::process(
             )
             {
                 mPlayerData[idxin]->screenData.setDataToADefault(idxout);
-                responseFn(kResponseSuccess, nullptr, 0);
+                responseFn(kResponseSuccess, {});
             }
             else
             {
-                responseFn(kResponseFailure, nullptr, 0);
+                responseFn(kResponseFailure, {});
             }
         }
         return;
@@ -141,7 +141,7 @@ void FlycastWebUsbParser::process(
             char buffer[mIdentification.getSerialSize() + 1] = {0};
             mIdentification.getSerial(buffer, sizeof(buffer) - 1);
             buffer[sizeof(buffer) - 1] = '\0';
-            responseFn(kResponseSuccess, buffer, strlen(buffer) + 1);
+            responseFn(kResponseSuccess, {{buffer, strlen(buffer) + 1}});
         }
         return;
 
@@ -158,7 +158,6 @@ void FlycastWebUsbParser::process(
 
             if (idx >= 0 && static_cast<std::size_t>(idx) < nodes.size())
             {
-                // NOTE: Mutex will be taken in the callback
                 nodes[idx]->requestSummary(
                     [responseFn](const std::list<std::list<std::array<uint32_t, 2>>>& summary)
                     {
@@ -197,13 +196,13 @@ void FlycastWebUsbParser::process(
                             firstI = false;
                         }
 
-                        responseFn(kResponseSuccess, summaryString.data(), summaryString.size());
+                        responseFn(kResponseSuccess, {{summaryString.data(), summaryString.size()}});
                     }
                 );
             }
             else
             {
-                responseFn(kResponseFailure, nullptr, 0);
+                responseFn(kResponseFailure, {});
             }
         }
         return;
@@ -211,7 +210,7 @@ void FlycastWebUsbParser::process(
         // XV to return interface version
         case 'V':
         {
-            responseFn(kResponseSuccess, INTERFACE_VERSION, strlen(INTERFACE_VERSION) + 1);
+            responseFn(kResponseSuccess, {{kInterfaceVersion, sizeof(kInterfaceVersion)}});
         }
         return;
 
@@ -300,7 +299,7 @@ void FlycastWebUsbParser::process(
                         public:
                             MaplePassthroughTransmitter(
                                 const std::function<
-                                    void(std::uint8_t responseCmd, const void* payload, std::uint16_t payloadLen)
+                                    void(std::uint8_t responseCmd, const std::list<std::pair<const void*, std::uint16_t>>& payloadList)
                                 >& responseFn
                             ):
                                 mResponseFn(responseFn)
@@ -316,7 +315,7 @@ void FlycastWebUsbParser::process(
                             ) override
                             {
                                 std::uint8_t payload = writeFailed ? 3 : 4;
-                                mResponseFn(kResponseFailure, &payload, 1);
+                                mResponseFn(kResponseFailure, {{&payload, 1}});
                             }
 
                             void txComplete(
@@ -324,15 +323,12 @@ void FlycastWebUsbParser::process(
                                 std::shared_ptr<const Transmission> tx
                             )
                             {
-                                std::vector<uint32_t> payload;
-                                payload.resize(packet->payload.size() + 1);
-                                payload[0] = packet->frame.toWord();
-                                memcpy(&payload[1], packet->payload.data(), packet->payload.size());
-                                mResponseFn(kResponseSuccess, payload.data(), payload.size());
+                                std::uint32_t frameWord = packet->frame.toWord();
+                                mResponseFn(kResponseSuccess, {{&frameWord, sizeof(frameWord)}, {packet->payload.data(), packet->payload.size()}});
                             }
 
                             const std::function<
-                                void(std::uint8_t responseCmd, const void* payload, std::uint16_t payloadLen)
+                                void(std::uint8_t responseCmd, const std::list<std::pair<const void*, std::uint16_t>>& payloadList)
                             >& mResponseFn;
                         };
 
@@ -347,25 +343,25 @@ void FlycastWebUsbParser::process(
                     else
                     {
                         std::uint8_t payload = 2;
-                        responseFn(kResponseFailure, &payload, 1);
+                        responseFn(kResponseFailure, {{&payload, 1}});
                     }
                 }
                 else
                 {
                     std::uint8_t payload = 1;
-                    responseFn(kResponseFailure, &payload, 1);
+                    responseFn(kResponseFailure, {{&payload, 1}});
                 }
             }
             else
             {
                 std::uint8_t payload = 0;
-                responseFn(kResponseFailure, &payload, 1);
+                responseFn(kResponseFailure, {{&payload, 1}});
             }
         }
         return;
 
         default:
-            responseFn(kResponseCmdInvalid, nullptr, 0);
+            responseFn(kResponseCmdInvalid, {{nullptr, 0}});
             return;
     }
 }

@@ -165,16 +165,33 @@ private:
             iter->second->process(
                 payload,
                 payloadLen,
-                [itf, address](std::uint8_t responseCmd, const void* payload, std::uint16_t payloadLen) -> void
+                [itf, address](std::uint8_t responseCmd, const std::list<std::pair<const void*, std::uint16_t>>& payloadList) -> void
                 {
-                    sendPkt(itf, address, responseCmd, reinterpret_cast<const uint8_t*>(payload), payloadLen);
+                    sendPkt(itf, address, responseCmd, payloadList);
                 }
             );
         }
         else
         {
             // Unsupported command
-            sendPkt(mItf, address, kCmdBadCmd, &cmd, sizeof(cmd));
+            sendPkt(mItf, address, kCmdBadCmd, {{&cmd, sizeof(cmd)}});
+        }
+    }
+
+    static void vendorWrite(std::uint8_t itf, const void* buffer, std::uint32_t bufsize, bool flush = false)
+    {
+        const std::uint8_t* buffer8 = reinterpret_cast<const std::uint8_t*>(buffer);
+        while (bufsize > 0)
+        {
+            std::uint32_t written = tud_vendor_n_write(itf, buffer8, bufsize);
+            written = (written >= bufsize) ? bufsize : written;
+            bufsize -= written;
+            buffer8 += written;
+
+            if (bufsize > 0 || flush)
+            {
+                tud_vendor_n_write_flush(itf);
+            }
         }
     }
 
@@ -182,11 +199,16 @@ private:
         const uint8_t itf,
         const uint8_t address,
         const uint8_t cmd,
-        const uint8_t* payload,
-        uint16_t payloadLen
+        const std::list<std::pair<const void*, std::uint16_t>>& payloadList
     )
     {
         LockGuard lock(*webusb_mutex);
+
+        std::uint16_t payloadLen = 0;
+        for (const auto& it : payloadList)
+        {
+            payloadLen += it.second;
+        }
 
         const std::uint16_t pktSize = kSizeAddress + kSizeCommand + payloadLen + kSizeCrc;
         const std::uint16_t invPktSize = pktSize ^ 0xFFFF;
@@ -199,14 +221,19 @@ private:
 
         // Calculate CRC over message address, command, and payload (excluding CRC itself)
         uint16_t crc = computeCrc16(header, sizeof(header));
-        crc = computeCrc16(crc, payload, payloadLen);
+        for (const auto& it : payloadList)
+        {
+            crc = computeCrc16(crc, it.first, it.second);
+        }
         std::uint8_t crcBuffer[kSizeCrc];
         uint16ToBytes(crcBuffer, crc);
 
-        tud_vendor_n_write(itf, header, sizeof(header));
-        tud_vendor_n_write(itf, payload, payloadLen);
-        tud_vendor_n_write(itf, crcBuffer, sizeof(crcBuffer));
-        tud_vendor_n_write_flush(itf);
+        vendorWrite(itf, header, sizeof(header));
+        for (const auto& it : payloadList)
+        {
+            vendorWrite(itf, it.first, it.second);
+        }
+        vendorWrite(itf, crcBuffer, sizeof(crcBuffer), true);
     }
 
     void resetPkt()

@@ -62,12 +62,12 @@ public:
         const std::uint8_t* payload,
         std::uint16_t payloadLen,
         const std::function<
-            void(std::uint8_t responseCmd, const void* payload, std::uint16_t payloadLen)
+            void(std::uint8_t responseCmd, const std::list<std::pair<const void*, std::uint16_t>>& payloadList)
         >& responseFn
     ) override;
 
 private:
-    static const char* INTERFACE_VERSION;
+    static const std::uint8_t kInterfaceVersion[2];
     SystemIdentification& mIdentification;
     std::shared_ptr<PrioritizedTxScheduler>* const mSchedulers;
     const uint8_t* const mSenderAddresses;

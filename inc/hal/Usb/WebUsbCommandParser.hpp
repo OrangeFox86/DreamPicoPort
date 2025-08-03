@@ -29,6 +29,7 @@
 #include <vector>
 #include <memory>
 #include <functional>
+#include <list>
 
 //! Command parser for processing commands from a WebUSB serial stream
 class WebUsbCommandParser
@@ -48,7 +49,7 @@ public:
         const std::uint8_t* payload,
         std::uint16_t payloadLen,
         const std::function<
-            void(std::uint8_t responseCmd, const void* payload, std::uint16_t payloadLen)
+            void(std::uint8_t responseCmd, const std::list<std::pair<const void*, std::uint16_t>>& payloadList)
         >& responseFn
     ) = 0;
 
