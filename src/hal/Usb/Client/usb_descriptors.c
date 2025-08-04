@@ -357,7 +357,9 @@ https://developers.google.com/web/fundamentals/native-hardware/build-for-webusb/
 
 #define BOS_TOTAL_LEN      (TUD_BOS_DESC_LEN + TUD_BOS_WEBUSB_DESC_LEN + TUD_BOS_MICROSOFT_OS_DESC_LEN)
 
-#define MS_OS_20_DESC_LEN  0x152
+#define MS_OS_20_DESC_LEN 0x152
+#define MS_OS_20_FN1_LEN 0xA0
+#define MS_OS_20_FN2_LEN 0xA0
 
 // BOS Descriptor is required for webUSB
 uint8_t const desc_bos[] =
@@ -388,14 +390,14 @@ uint8_t const desc_ms_os_20[] =
 
 
   // Function Subset header: length, type, first interface, reserved, subset length
-  U16_TO_U8S_LE(0x0008), U16_TO_U8S_LE(MS_OS_20_SUBSET_HEADER_FUNCTION), ITF_NUM_WEBUSB1, 0, U16_TO_U8S_LE(MS_OS_20_DESC_LEN-0xA0-0x0A-0x08),
+  U16_TO_U8S_LE(0x0008), U16_TO_U8S_LE(MS_OS_20_SUBSET_HEADER_FUNCTION), ITF_NUM_WEBUSB1, 0, U16_TO_U8S_LE(MS_OS_20_FN1_LEN),
 
   // MS OS 2.0 Compatible ID descriptor: length, type, compatible ID, sub compatible ID
   U16_TO_U8S_LE(0x0014), U16_TO_U8S_LE(MS_OS_20_FEATURE_COMPATBLE_ID), 'W', 'I', 'N', 'U', 'S', 'B', 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // sub-compatible
 
   // MS OS 2.0 Registry property descriptor: length, type
-  U16_TO_U8S_LE(MS_OS_20_DESC_LEN-0xA0-0x0A-0x08-0x08-0x14), U16_TO_U8S_LE(MS_OS_20_FEATURE_REG_PROPERTY),
+  U16_TO_U8S_LE(MS_OS_20_FN1_LEN-0x08-0x14), U16_TO_U8S_LE(MS_OS_20_FEATURE_REG_PROPERTY),
   U16_TO_U8S_LE(0x0007), U16_TO_U8S_LE(0x002A), // wPropertyDataType, wPropertyNameLength and PropertyName "DeviceInterfaceGUIDs\0" in UTF-16
   'D', 0x00, 'e', 0x00, 'v', 0x00, 'i', 0x00, 'c', 0x00, 'e', 0x00, 'I', 0x00, 'n', 0x00, 't', 0x00, 'e', 0x00,
   'r', 0x00, 'f', 0x00, 'a', 0x00, 'c', 0x00, 'e', 0x00, 'G', 0x00, 'U', 0x00, 'I', 0x00, 'D', 0x00, 's', 0x00, 0x00, 0x00,
@@ -408,14 +410,14 @@ uint8_t const desc_ms_os_20[] =
 
 
   // Function Subset header: length, type, first interface, reserved, subset length
-  U16_TO_U8S_LE(0x0008), U16_TO_U8S_LE(MS_OS_20_SUBSET_HEADER_FUNCTION), ITF_NUM_WEBUSB2, 0, U16_TO_U8S_LE(0xA0),
+  U16_TO_U8S_LE(0x0008), U16_TO_U8S_LE(MS_OS_20_SUBSET_HEADER_FUNCTION), ITF_NUM_WEBUSB2, 0, U16_TO_U8S_LE(MS_OS_20_FN2_LEN),
 
   // MS OS 2.0 Compatible ID descriptor: length, type, compatible ID, sub compatible ID
   U16_TO_U8S_LE(0x0014), U16_TO_U8S_LE(MS_OS_20_FEATURE_COMPATBLE_ID), 'W', 'I', 'N', 'U', 'S', 'B', 0x00, 0x00,
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // sub-compatible
 
   // MS OS 2.0 Registry property descriptor: length, type
-  U16_TO_U8S_LE(0xA0-0x08-0x14), U16_TO_U8S_LE(MS_OS_20_FEATURE_REG_PROPERTY),
+  U16_TO_U8S_LE(MS_OS_20_FN2_LEN-0x08-0x14), U16_TO_U8S_LE(MS_OS_20_FEATURE_REG_PROPERTY),
   U16_TO_U8S_LE(0x0007), U16_TO_U8S_LE(0x002A), // wPropertyDataType, wPropertyNameLength and PropertyName "DeviceInterfaceGUIDs\0" in UTF-16
   'D', 0x00, 'e', 0x00, 'v', 0x00, 'i', 0x00, 'c', 0x00, 'e', 0x00, 'I', 0x00, 'n', 0x00, 't', 0x00, 'e', 0x00,
   'r', 0x00, 'f', 0x00, 'a', 0x00, 'c', 0x00, 'e', 0x00, 'G', 0x00, 'U', 0x00, 'I', 0x00, 'D', 0x00, 's', 0x00, 0x00, 0x00,
