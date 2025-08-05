@@ -256,7 +256,7 @@ private:
     static void uint16ToBytes(void* out, std::uint16_t data)
     {
         std::uint8_t* p8 = reinterpret_cast<std::uint8_t*>(out);
-        *p8 = data >> 8;
+        *p8++ = data >> 8;
         *p8 = data & 0xFF;
     }
 
