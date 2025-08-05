@@ -33,6 +33,7 @@
 
 // Packet format (big endian order):
 // Magic Bytes [4] | Size [2] | Inverse Size [2] | Return Address [1] | Command [1] | Payload [0-N] | CRC [2]
+// Size is number of bytes in return address, command, payload, and crc
 // CRC covers return address, command, and payload
 
 //! The magic value that every packet must begin with
@@ -118,7 +119,8 @@ public:
                 }
             }
 
-            std::uint16_t bytesToConsume = mRcvSize - mRcvIdx;
+            std::uint16_t payloadIdx = mRcvIdx - kSizeSize;
+            std::uint16_t bytesToConsume = mRcvSize - payloadIdx;
             if (bufsize < bytesToConsume)
             {
                 bytesToConsume = bufsize;
@@ -129,7 +131,9 @@ public:
             mRcvIdx += bytesToConsume;
             bufsize -= bytesToConsume;
 
-            if (mRcvIdx >= mRcvSize)
+            payloadIdx = mRcvIdx - kSizeSize;
+
+            if (payloadIdx >= mRcvSize)
             {
                 if (mBuffer.size() < (kSizeAddress + kSizeCommand + kSizeCrc))
                 {

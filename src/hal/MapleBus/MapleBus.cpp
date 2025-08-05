@@ -31,6 +31,8 @@
 #include "string.h"
 #include "utils.h"
 
+#include <limits>
+
 std::shared_ptr<MapleBusInterface> create_maple_bus(uint32_t pinA, int32_t dirPin, bool dirOutHigh)
 {
     return std::make_shared<MapleBus>(pinA, dirPin, dirOutHigh);
@@ -135,7 +137,7 @@ MapleBus::MapleBus(uint32_t pinA, int32_t dirPin, bool dirOutHigh) :
     mLastRead(),
     mCurrentPhase(MapleBus::Phase::IDLE),
     mExpectingResponse(false),
-    mProcKillTime(0xFFFFFFFFFFFFFFFFULL),
+    mProcKillTime(std::numeric_limits<uint64_t>::max()),
     mLastReceivedWordTimeUs(0),
     mLastReadTransferCount(0)
 {
