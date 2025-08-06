@@ -311,7 +311,7 @@ void FlycastWebUsbParser::process(
                             void txFailed(
                                 bool writeFailed,
                                 bool readFailed,
-                                std::shared_ptr<Transmission> tx
+                                std::shared_ptr<const Transmission> tx
                             ) override
                             {
                                 std::uint8_t payload = writeFailed ? 3 : 4;
@@ -319,8 +319,8 @@ void FlycastWebUsbParser::process(
                             }
 
                             void txComplete(
-                                std::shared_ptr<MaplePacket> packet,
-                                std::shared_ptr<Transmission> tx
+                                std::shared_ptr<const MaplePacket> packet,
+                                std::shared_ptr<const Transmission> tx
                             )
                             {
                                 std::uint32_t frameWord = packet->frame.toWord();

@@ -53,11 +53,11 @@ class DreamcastMouse : public DreamcastPeripheral
         //! Inherited from DreamcastPeripheral
         virtual void txFailed(bool writeFailed,
                               bool readFailed,
-                              std::shared_ptr<Transmission> tx) final;
+                              std::shared_ptr<const Transmission> tx) final;
 
         //! Inherited from DreamcastPeripheral
-        virtual void txComplete(std::shared_ptr<MaplePacket> packet,
-                                std::shared_ptr<Transmission> tx) final;
+        virtual void txComplete(std::shared_ptr<const MaplePacket> packet,
+                                std::shared_ptr<const Transmission> tx) final;
 
         //! Inherited from DreamcastPeripheral
         inline uint32_t getFunctionCode() override final

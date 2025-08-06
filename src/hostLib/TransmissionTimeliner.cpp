@@ -25,7 +25,7 @@
 #include <assert.h>
 
 TransmissionTimeliner::TransmissionTimeliner(MapleBusInterface& bus, std::shared_ptr<PrioritizedTxScheduler> schedule):
-    mBus(bus), mSchedule(schedule), mCurrentTx()
+    mBus(bus), mSchedule(schedule), mCurrentTx(nullptr)
 {}
 
 TransmissionTimeliner::ReadStatus TransmissionTimeliner::readTask(uint64_t currentTimeUs)
@@ -53,9 +53,9 @@ TransmissionTimeliner::ReadStatus TransmissionTimeliner::readTask(uint64_t curre
     return status;
 }
 
-std::shared_ptr<Transmission> TransmissionTimeliner::writeTask(uint64_t currentTimeUs)
+std::shared_ptr<const Transmission> TransmissionTimeliner::writeTask(uint64_t currentTimeUs)
 {
-    std::shared_ptr<Transmission> txSent = nullptr;
+    std::shared_ptr<const Transmission> txSent = nullptr;
 
     if (!mBus.isBusy())
     {

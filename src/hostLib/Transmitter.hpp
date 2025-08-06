@@ -45,11 +45,11 @@ public:
     //! @param[in] tx  The transmission that failed
     virtual void txFailed(bool writeFailed,
                           bool readFailed,
-                          std::shared_ptr<Transmission> tx) = 0;
+                          std::shared_ptr<const Transmission> tx) = 0;
 
     //! Called when a transmission is complete
     //! @param[in] packet  The packet received or nullptr if this was write only transmission
     //! @param[in] tx  The transmission that triggered this data
-    virtual void txComplete(std::shared_ptr<MaplePacket> packet,
-                            std::shared_ptr<Transmission> tx) = 0;
+    virtual void txComplete(std::shared_ptr<const MaplePacket> packet,
+                            std::shared_ptr<const Transmission> tx) = 0;
 };

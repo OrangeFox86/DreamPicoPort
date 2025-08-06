@@ -59,12 +59,12 @@ class DreamcastMainNode : public DreamcastNode
         //! Inherited from DreamcastNode
         virtual inline void txFailed(bool writeFailed,
                                      bool readFailed,
-                                     std::shared_ptr<Transmission> tx) final
+                                     std::shared_ptr<const Transmission> tx) final
         {}
 
         //! Inherited from DreamcastNode
-        virtual void txComplete(std::shared_ptr<MaplePacket> packet,
-                                std::shared_ptr<Transmission> tx) final;
+        virtual void txComplete(std::shared_ptr<const MaplePacket> packet,
+                                std::shared_ptr<const Transmission> tx) final;
 
         //! Called when the main peripheral needs to be disconnected
         //! @param[in] currentTimeUs  The current time as number of microseconds
