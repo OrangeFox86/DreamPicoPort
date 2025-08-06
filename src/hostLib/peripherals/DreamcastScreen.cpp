@@ -39,8 +39,8 @@ DreamcastScreen::DreamcastScreen(uint8_t addr,
 DreamcastScreen::~DreamcastScreen()
 {}
 
-void DreamcastScreen::txComplete(std::shared_ptr<const MaplePacket> packet,
-                                 std::shared_ptr<const Transmission> tx)
+void DreamcastScreen::txComplete(std::shared_ptr<MaplePacket> packet,
+                                 std::shared_ptr<Transmission> tx)
 {
     if (mWaitingForData && packet != nullptr)
     {
@@ -97,7 +97,7 @@ void DreamcastScreen::txStarted(std::shared_ptr<const Transmission> tx)
 
 void DreamcastScreen::txFailed(bool writeFailed,
                                bool readFailed,
-                               std::shared_ptr<const Transmission> tx)
+                               std::shared_ptr<Transmission> tx)
 {
     if (mTransmissionId > 0 && mTransmissionId == tx->transmissionId)
     {

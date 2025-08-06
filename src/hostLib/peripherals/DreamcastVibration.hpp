@@ -53,11 +53,11 @@ class DreamcastVibration : public DreamcastPeripheral
         //! Inherited from DreamcastPeripheral
         virtual void txFailed(bool writeFailed,
                               bool readFailed,
-                              std::shared_ptr<const Transmission> tx) final;
+                              std::shared_ptr<Transmission> tx) final;
 
         //! Inherited from DreamcastPeripheral
-        virtual void txComplete(std::shared_ptr<const MaplePacket> packet,
-                                std::shared_ptr<const Transmission> tx) final;
+        virtual void txComplete(std::shared_ptr<MaplePacket> packet,
+                                std::shared_ptr<Transmission> tx) final;
 
         //! Sends vibration
         //! @param[in] timeUs  The time to send vibration (optional)

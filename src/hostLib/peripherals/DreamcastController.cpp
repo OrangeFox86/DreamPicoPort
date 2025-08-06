@@ -54,7 +54,7 @@ void DreamcastController::txStarted(std::shared_ptr<const Transmission> tx)
 
 void DreamcastController::txFailed(bool writeFailed,
                                    bool readFailed,
-                                   std::shared_ptr<const Transmission> tx)
+                                   std::shared_ptr<Transmission> tx)
 {
     if (mConditionTxId != 0 && tx->transmissionId == mConditionTxId)
     {
@@ -62,8 +62,8 @@ void DreamcastController::txFailed(bool writeFailed,
     }
 }
 
-void DreamcastController::txComplete(std::shared_ptr<const MaplePacket> packet,
-                                     std::shared_ptr<const Transmission> tx)
+void DreamcastController::txComplete(std::shared_ptr<MaplePacket> packet,
+                                     std::shared_ptr<Transmission> tx)
 {
     if (mWaitingForData && packet != nullptr)
     {

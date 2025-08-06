@@ -173,7 +173,7 @@ void DreamcastStorage::txStarted(std::shared_ptr<const Transmission> tx)
 
 void DreamcastStorage::txFailed(bool writeFailed,
                                 bool readFailed,
-                                std::shared_ptr<const Transmission> tx)
+                                std::shared_ptr<Transmission> tx)
 {
     if (mReadState != READ_WRITE_IDLE && tx->transmissionId == mReadingTxId)
     {
@@ -199,8 +199,8 @@ void DreamcastStorage::txFailed(bool writeFailed,
     }
 }
 
-void DreamcastStorage::txComplete(std::shared_ptr<const MaplePacket> packet,
-                                  std::shared_ptr<const Transmission> tx)
+void DreamcastStorage::txComplete(std::shared_ptr<MaplePacket> packet,
+                                  std::shared_ptr<Transmission> tx)
 {
     if (mReadState != READ_WRITE_IDLE && tx->transmissionId == mReadingTxId)
     {

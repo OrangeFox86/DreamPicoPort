@@ -35,7 +35,7 @@ public:
 
     virtual void txFailed(bool writeFailed,
                           bool readFailed,
-                          std::shared_ptr<const Transmission> tx) final
+                          std::shared_ptr<Transmission> tx) final
     {
         if (writeFailed)
         {
@@ -47,8 +47,8 @@ public:
         }
     }
 
-    virtual void txComplete(std::shared_ptr<const MaplePacket> packet,
-                            std::shared_ptr<const Transmission> tx) final
+    virtual void txComplete(std::shared_ptr<MaplePacket> packet,
+                            std::shared_ptr<Transmission> tx) final
     {
         printf("%lu: complete {", (long unsigned int)tx->transmissionId);
         printf("%08lX", (long unsigned int)packet->frame.toWord());

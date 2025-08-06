@@ -59,11 +59,11 @@ void DreamcastTimer::txStarted(std::shared_ptr<const Transmission> tx)
 
 void DreamcastTimer::txFailed(bool writeFailed,
                               bool readFailed,
-                              std::shared_ptr<const Transmission> tx)
+                              std::shared_ptr<Transmission> tx)
 {}
 
-void DreamcastTimer::txComplete(std::shared_ptr<const MaplePacket> packet,
-                                std::shared_ptr<const Transmission> tx)
+void DreamcastTimer::txComplete(std::shared_ptr<MaplePacket> packet,
+                                std::shared_ptr<Transmission> tx)
 {
     if (tx->transmissionId == mButtonStatusId
         && packet->frame.command == COMMAND_RESPONSE_DATA_XFER

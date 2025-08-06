@@ -54,8 +54,8 @@ class MockedDreamcastSubNode : public DreamcastSubNode
 
         MOCK_METHOD(void,
                     txComplete,
-                    (std::shared_ptr<const MaplePacket> packet,
-                        std::shared_ptr<const Transmission> tx),
+                    (std::shared_ptr<MaplePacket> packet,
+                        std::shared_ptr<Transmission> tx),
                     (override));
 
         MOCK_METHOD(void, task, (uint64_t currentTimeUs), (override));

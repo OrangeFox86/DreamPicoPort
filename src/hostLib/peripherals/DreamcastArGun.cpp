@@ -41,9 +41,9 @@ void DreamcastArGun::txStarted(std::shared_ptr<const Transmission> tx)
 
 void DreamcastArGun::txFailed(bool writeFailed,
                               bool readFailed,
-                              std::shared_ptr<const Transmission> tx)
+                              std::shared_ptr<Transmission> tx)
 {}
 
-void DreamcastArGun::txComplete(std::shared_ptr<const MaplePacket> packet,
-                                std::shared_ptr<const Transmission> tx)
+void DreamcastArGun::txComplete(std::shared_ptr<MaplePacket> packet,
+                                std::shared_ptr<Transmission> tx)
 {}

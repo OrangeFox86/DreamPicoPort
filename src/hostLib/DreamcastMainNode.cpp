@@ -64,8 +64,8 @@ DreamcastMainNode::DreamcastMainNode(MapleBusInterface& bus,
 DreamcastMainNode::~DreamcastMainNode()
 {}
 
-void DreamcastMainNode::txComplete(std::shared_ptr<const MaplePacket> packet,
-                                   std::shared_ptr<const Transmission> tx)
+void DreamcastMainNode::txComplete(std::shared_ptr<MaplePacket> packet,
+                                   std::shared_ptr<Transmission> tx)
 {
     // Handle device info from main peripheral
     if (packet != nullptr && packet->frame.command == COMMAND_RESPONSE_DEVICE_INFO)

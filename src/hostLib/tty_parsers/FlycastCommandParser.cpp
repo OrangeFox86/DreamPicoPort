@@ -43,7 +43,7 @@ void FlycastEchoTransmitter::txStarted(std::shared_ptr<const Transmission> tx)
 void FlycastEchoTransmitter::txFailed(
     bool writeFailed,
     bool readFailed,
-    std::shared_ptr<const Transmission> tx)
+    std::shared_ptr<Transmission> tx)
 {
     LockGuard lock(mMutex);
 
@@ -58,8 +58,8 @@ void FlycastEchoTransmitter::txFailed(
 }
 
 void FlycastEchoTransmitter::txComplete(
-    std::shared_ptr<const MaplePacket> packet,
-    std::shared_ptr<const Transmission> tx)
+    std::shared_ptr<MaplePacket> packet,
+    std::shared_ptr<Transmission> tx)
 {
     LockGuard lock(mMutex);
 
@@ -90,7 +90,7 @@ void FlycastBinaryEchoTransmitter::txStarted(std::shared_ptr<const Transmission>
 void FlycastBinaryEchoTransmitter::txFailed(
     bool writeFailed,
     bool readFailed,
-    std::shared_ptr<const Transmission> tx)
+    std::shared_ptr<Transmission> tx)
 {
     LockGuard lock(mMutex);
 
@@ -105,8 +105,8 @@ void FlycastBinaryEchoTransmitter::txFailed(
 }
 
 void FlycastBinaryEchoTransmitter::txComplete(
-    std::shared_ptr<const MaplePacket> packet,
-    std::shared_ptr<const Transmission> tx)
+    std::shared_ptr<MaplePacket> packet,
+    std::shared_ptr<Transmission> tx)
 {
     LockGuard lock(mMutex);
 
