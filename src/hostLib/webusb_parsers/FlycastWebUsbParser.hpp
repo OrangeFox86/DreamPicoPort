@@ -66,6 +66,11 @@ public:
         >& responseFn
     ) override;
 
+    inline static uint32_t flipWordBytes(const uint32_t& word)
+    {
+        return (word << 24) | (word << 8 & 0xFF0000) | (word >> 8 & 0xFF00) | (word >> 24);
+    }
+
 private:
     static const std::uint8_t kInterfaceVersion[2];
     SystemIdentification& mIdentification;

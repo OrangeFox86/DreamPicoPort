@@ -323,7 +323,13 @@ void FlycastWebUsbParser::process(
                                 std::shared_ptr<Transmission> tx
                             )
                             {
-                                std::uint32_t frameWord = packet->frame.toWord();
+                                std::uint32_t frameWord = flipWordBytes(packet->frame.toWord());
+                                // Flip payload bytes in-place
+                                for (std::uint32_t& b : packet->payload)
+                                {
+                                    b = flipWordBytes(b);
+                                }
+
                                 mResponseFn(
                                     kResponseSuccess,
                                     {
