@@ -324,7 +324,13 @@ void FlycastWebUsbParser::process(
                             )
                             {
                                 std::uint32_t frameWord = packet->frame.toWord();
-                                mResponseFn(kResponseSuccess, {{&frameWord, sizeof(frameWord)}, {packet->payload.data(), packet->payload.size()}});
+                                mResponseFn(
+                                    kResponseSuccess,
+                                    {
+                                        {&frameWord, sizeof(frameWord)},
+                                        {packet->payload.data(), sizeof(packet->payload[0]) * packet->payload.size()}
+                                    }
+                                );
                             }
 
                             const std::function<
