@@ -223,7 +223,7 @@ struct MaplePacket
 
     //! Constructor 6 - initializes from payload and moved vector
     //! @param[in] payload  The payload
-    inline MaplePacket(Frame frame, std::vector<uint32_t>&& words, ByteOrder byteOrder = ByteOrder::HOST) :
+    inline MaplePacket(Frame frame, std::vector<uint32_t>&& words, ByteOrder byteOrder = ByteOrder::HOST) noexcept :
         frame(frame),
         payload(std::move(words)),
         payloadByteOrder(byteOrder)

@@ -221,150 +221,129 @@ void FlycastWebUsbParser::process(
             ++iter;
             std::uint16_t size = payloadLen - 1;
 
-            bool valid = false;
-            MaplePacket::Frame frameWord = MaplePacket::Frame::defaultFrame();
-            std::vector<uint32_t> payloadWords;
-
-            if (size >= 4)
+            uint16_t wordLen = size / 4;
+            if (wordLen < 1 || wordLen > 256 || (size - (wordLen * 4) != 0))
             {
-                frameWord.command = *iter++;
-                frameWord.recipientAddr = *iter++;
-                frameWord.senderAddr = *iter++;
-                frameWord.length = *iter++;
-                size -= 4;
-
-                payloadWords.reserve(size / 4);
-
-                while (((iter + 4) <= eol) && (size >= 4))
-                {
-                    uint32_t word =
-                        (static_cast<uint32_t>(*iter) << 24) |
-                        (static_cast<uint32_t>(*(iter + 1)) << 16) |
-                        (static_cast<uint32_t>(*(iter + 2)) << 8) |
-                        static_cast<uint32_t>(*(iter + 3));
-
-                    payloadWords.push_back(word);
-
-                    iter += 4;
-                    size -= 4;
-                }
-
-                valid = (size == 0);
-            }
-            else
-            {
-                valid = false;
+                // Invalid - too few words, too many words, or number of bytes not divisible by 4
+                std::uint8_t payload = 0;
+                responseFn(kResponseFailure, {{&payload, 1}});
+                return;
             }
 
-            if (valid)
+            // Incoming data will be in network order
+            const MaplePacket::ByteOrder byteOrder = MaplePacket::ByteOrder::NETWORK;
+
+            // memcpy is used in order to avoid casting from uint8* to uint32* - the RP2040 would get cranky that way
+            uint32_t frameWord;
+            memcpy(&frameWord, iter, 4);
+            MaplePacket::Frame frame = MaplePacket::Frame::fromWord(frameWord, byteOrder);
+            iter += 4;
+            --wordLen;
+            std::vector<std::uint32_t> payload(wordLen);
+            memcpy(payload.data(), iter, 4 * wordLen);
+
+            MaplePacket packet(frame, std::move(payload), byteOrder);
+
+            if (packet.isValid())
             {
-                MaplePacket packet(frameWord, std::move(payloadWords));
-                if (packet.isValid())
+                uint8_t sender = packet.frame.senderAddr;
+                int32_t idx = -1;
+                const uint8_t* senderAddress = mSenderAddresses;
+
+                if (mNumSenders == 1)
                 {
-                    uint8_t sender = packet.frame.senderAddr;
-                    int32_t idx = -1;
-                    const uint8_t* senderAddress = mSenderAddresses;
-
-                    if (mNumSenders == 1)
-                    {
-                        // Single player special case - always send to the one available, regardless of address
-                        idx = 0;
-                        packet.frame.senderAddr = *senderAddress;
-                        packet.frame.recipientAddr = (packet.frame.recipientAddr & 0x3F) | *senderAddress;
-                    }
-                    else
-                    {
-                        for (uint32_t i = 0; i < mNumSenders && idx < 0; ++i, ++senderAddress)
-                        {
-                            if (sender == *senderAddress)
-                            {
-                                idx = i;
-                            }
-                        }
-                    }
-
-                    if (idx >= 0)
-                    {
-                        if (packet.frame.command == 0x0C &&
-                            packet.frame.length == 0x32 &&
-                            packet.payload[0] == DEVICE_FN_LCD &&
-                            packet.payload[1] == 0)
-                        {
-                            // Save screen data
-                            mPlayerData[idx]->screenData.setData(&packet.payload[2], 0, 0x30, false);
-                        }
-
-                        class MaplePassthroughTransmitter : public Transmitter
-                        {
-                        public:
-                            MaplePassthroughTransmitter(
-                                const std::function<
-                                    void(std::uint8_t responseCmd, const std::list<std::pair<const void*, std::uint16_t>>& payloadList)
-                                >& responseFn
-                            ):
-                                mResponseFn(responseFn)
-                            {}
-
-                            void txStarted(std::shared_ptr<const Transmission> tx) override
-                            {}
-
-                            void txFailed(
-                                bool writeFailed,
-                                bool readFailed,
-                                std::shared_ptr<const Transmission> tx
-                            ) override
-                            {
-                                std::uint8_t payload = writeFailed ? 3 : 4;
-                                mResponseFn(kResponseFailure, {{&payload, 1}});
-                            }
-
-                            void txComplete(
-                                std::shared_ptr<const MaplePacket> packet,
-                                std::shared_ptr<const Transmission> tx
-                            )
-                            {
-                                // Retrieves frame word in packet order
-                                std::uint32_t frameWord = packet->getFrameWord();
-                                mResponseFn(
-                                    kResponseSuccess,
-                                    {
-                                        {&frameWord, sizeof(frameWord)},
-                                        {packet->payload.data(), sizeof(packet->payload[0]) * packet->payload.size()}
-                                    }
-                                );
-                            }
-
-                            const std::function<
-                                void(std::uint8_t responseCmd, const std::list<std::pair<const void*, std::uint16_t>>& payloadList)
-                            >& mResponseFn;
-                        };
-
-                        mSchedulers[idx]->add(
-                            PrioritizedTxScheduler::TransmissionProperties{
-                                .priority = PrioritizedTxScheduler::EXTERNAL_TRANSMISSION_PRIORITY,
-                                .txTime = PrioritizedTxScheduler::TX_TIME_ASAP,
-                                .packet = std::move(packet),
-                                .expectResponse = true,
-                                .rxByteOrder = MaplePacket::ByteOrder::NETWORK // Network order!
-                            },
-                            std::make_shared<MaplePassthroughTransmitter>(responseFn)
-                        );
-                    }
-                    else
-                    {
-                        std::uint8_t payload = 2;
-                        responseFn(kResponseFailure, {{&payload, 1}});
-                    }
+                    // Single player special case - always send to the one available, regardless of address
+                    idx = 0;
+                    packet.frame.senderAddr = *senderAddress;
+                    packet.frame.recipientAddr = (packet.frame.recipientAddr & 0x3F) | *senderAddress;
                 }
                 else
                 {
-                    std::uint8_t payload = 1;
+                    for (uint32_t i = 0; i < mNumSenders && idx < 0; ++i, ++senderAddress)
+                    {
+                        if (sender == *senderAddress)
+                        {
+                            idx = i;
+                        }
+                    }
+                }
+
+                if (idx >= 0)
+                {
+                    if (packet.frame.command == 0x0C &&
+                        packet.frame.length == 0x32 &&
+                        packet.payload[0] == DEVICE_FN_LCD &&
+                        packet.payload[1] == 0)
+                    {
+                        // Save screen data
+                        mPlayerData[idx]->screenData.setData(&packet.payload[2], 0, 0x30, false);
+                    }
+
+                    class MaplePassthroughTransmitter : public Transmitter
+                    {
+                    public:
+                        MaplePassthroughTransmitter(
+                            const std::function<
+                                void(std::uint8_t responseCmd, const std::list<std::pair<const void*, std::uint16_t>>& payloadList)
+                            >& responseFn
+                        ):
+                            mResponseFn(responseFn)
+                        {}
+
+                        void txStarted(std::shared_ptr<const Transmission> tx) override
+                        {}
+
+                        void txFailed(
+                            bool writeFailed,
+                            bool readFailed,
+                            std::shared_ptr<const Transmission> tx
+                        ) override
+                        {
+                            std::uint8_t payload = writeFailed ? 3 : 4;
+                            mResponseFn(kResponseFailure, {{&payload, 1}});
+                        }
+
+                        void txComplete(
+                            std::shared_ptr<const MaplePacket> packet,
+                            std::shared_ptr<const Transmission> tx
+                        )
+                        {
+                            // Retrieves frame word in packet order
+                            std::uint32_t frameWord = packet->getFrameWord();
+                            mResponseFn(
+                                kResponseSuccess,
+                                {
+                                    {&frameWord, sizeof(frameWord)},
+                                    {packet->payload.data(), sizeof(packet->payload[0]) * packet->payload.size()}
+                                }
+                            );
+                        }
+
+                        const std::function<
+                            void(std::uint8_t responseCmd, const std::list<std::pair<const void*, std::uint16_t>>& payloadList)
+                        >& mResponseFn;
+                    };
+
+                    mSchedulers[idx]->add(
+                        PrioritizedTxScheduler::TransmissionProperties{
+                            .priority = PrioritizedTxScheduler::EXTERNAL_TRANSMISSION_PRIORITY,
+                            .txTime = PrioritizedTxScheduler::TX_TIME_ASAP,
+                            .packet = std::move(packet),
+                            .expectResponse = true,
+                            .rxByteOrder = MaplePacket::ByteOrder::NETWORK // Network order!
+                        },
+                        std::make_shared<MaplePassthroughTransmitter>(responseFn)
+                    );
+                }
+                else
+                {
+                    std::uint8_t payload = 2;
                     responseFn(kResponseFailure, {{&payload, 1}});
                 }
             }
             else
             {
-                std::uint8_t payload = 0;
+                std::uint8_t payload = 1;
                 responseFn(kResponseFailure, {{&payload, 1}});
             }
         }

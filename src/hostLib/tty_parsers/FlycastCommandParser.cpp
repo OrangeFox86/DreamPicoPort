@@ -211,6 +211,7 @@ void FlycastCommandParser::submit(const char* chars, uint32_t len)
     const char* eol = chars + len;
     MaplePacket::Frame frameWord = MaplePacket::Frame::defaultFrame();
     std::vector<uint32_t> payloadWords;
+    MaplePacket::ByteOrder byteOrder = MaplePacket::ByteOrder::HOST;
     const char* iter = chars + 1; // Skip past 'X' (implied)
 
     // left strip
@@ -398,38 +399,31 @@ void FlycastCommandParser::submit(const char* chars, uint32_t len)
                 int32_t size = ((*iter) << 8) | (*(iter + 1));
                 iter += 2;
 
-                if (size >= 4)
+                int32_t wordLen = size / 4;
+                if (wordLen < 1 || wordLen > 256 || (size - (wordLen * 4) != 0))
                 {
+                    // Invalid - too few words, too many words, or number of bytes not divisible by 4
+                    valid = false;
+                }
+                else
+                {
+                    // Incoming data will be in network order
+                    byteOrder = MaplePacket::ByteOrder::NETWORK;
+
                     frameWord.command = *iter++;
                     frameWord.recipientAddr = *iter++;
                     frameWord.senderAddr = *iter++;
                     frameWord.length = *iter++;
-                    size -= 4;
+                    wordLen -= 1;
 
-                    payloadWords.reserve(size / 4);
+                    // memcpy is used in order to avoid casting from uint8* to uint32* - the RP2040 gets cranky
+                    payloadWords.resize(wordLen);
+                    memcpy(payloadWords.data(), iter, 4 * wordLen);
 
-                    while (((iter + 4) <= eol) && (size >= 4))
-                    {
-                        uint32_t word =
-                            (static_cast<uint32_t>(*iter) << 24) |
-                            (static_cast<uint32_t>(*(iter + 1)) << 16) |
-                            (static_cast<uint32_t>(*(iter + 2)) << 8) |
-                            static_cast<uint32_t>(*(iter + 3));
-
-                        payloadWords.push_back(word);
-
-                        iter += 4;
-                        size -= 4;
-                    }
-
-                    binaryParsed = true;
-                    valid = (size == 0);
-                }
-                else
-                {
-                    valid = false;
+                    valid = true;
                 }
 
+                binaryParsed = true;
                 iter = eol;
             }
             break; // break out to parsing below
@@ -494,7 +488,7 @@ void FlycastCommandParser::submit(const char* chars, uint32_t len)
 
     if (valid)
     {
-        MaplePacket packet(frameWord, std::move(payloadWords));
+        MaplePacket packet(frameWord, std::move(payloadWords), byteOrder);
         if (packet.isValid())
         {
             uint8_t sender = packet.frame.senderAddr;
