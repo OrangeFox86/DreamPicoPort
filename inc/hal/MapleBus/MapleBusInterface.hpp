@@ -84,11 +84,14 @@ class MapleBusInterface
             const uint32_t* readBuffer;
             //! The number of words received or 0 if no new data available
             uint32_t readBufferLen;
+            //! The byte order of the received packet
+            MaplePacket::ByteOrder rxByteOrder;
 
             Status() :
                 phase(Phase::INVALID),
                 readBuffer(nullptr),
-                readBufferLen(0)
+                readBufferLen(0),
+                rxByteOrder(MaplePacket::ByteOrder::HOST)
             {}
         };
 
@@ -101,10 +104,14 @@ class MapleBusInterface
         //! @param[in] packet  The packet to send (sender address will be overloaded)
         //! @param[in] autostartRead  Set to true in order to start receive after send is complete
         //! @param[in] readTimeoutUs  When autostartRead is true, the read timeout to set
+        //! @param[in] rxBytePrder  When autostartRead is true, the desired byte order of the received packet
         //! @returns true iff the bus was "open" and send has started
-        virtual bool write(const MaplePacket& packet,
-                           bool autostartRead,
-                           uint64_t readTimeoutUs=MAPLE_RESPONSE_TIMEOUT_US) = 0;
+        virtual bool write(
+            const MaplePacket& packet,
+            bool autostartRead,
+            uint64_t readTimeoutUs=MAPLE_RESPONSE_TIMEOUT_US,
+            MaplePacket::ByteOrder rxByteOrder = MaplePacket::ByteOrder::HOST
+        ) = 0;
 
         //! Begins waiting for input
         //! @post processEvents() must periodically be called to check status
@@ -115,8 +122,12 @@ class MapleBusInterface
         //!       write() may be enough though (as long as MAPLE_OPEN_LINE_CHECK_TIME_US is set to
         //!       at least 2).
         //! @param[in] readTimeoutUs  Minimum number of microseconds to read for (optional)
+        //! @param[in] rxByteOrder  The desired byte order of the received packet
         //! @returns true iff bus was not busy and read started
-        virtual bool startRead(uint64_t readTimeoutUs=std::numeric_limits<uint64_t>::max()) = 0;
+        virtual bool startRead(
+            uint64_t readTimeoutUs=std::numeric_limits<uint64_t>::max(),
+            MaplePacket::ByteOrder rxByteOrder = MaplePacket::ByteOrder::HOST
+        ) = 0;
 
         //! Processes timing events for the current time. This should be called before any write
         //! call in order to check timeouts and clear out any used resources.

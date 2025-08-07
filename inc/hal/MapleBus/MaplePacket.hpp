@@ -33,6 +33,15 @@
 
 struct MaplePacket
 {
+    //! Defines the selected byte order of the packet
+    enum class ByteOrder
+    {
+        //! Host: MSB is command
+        HOST,
+        //! Network: MSB is length
+        NETWORK
+    };
+
     //! Deconstructed frame word structure
     struct Frame
     {
@@ -45,22 +54,31 @@ struct MaplePacket
         //! Length of payload in words [0,255]
         uint8_t length;
 
-        //! Byte position of the command in the frame word
-        static const uint32_t COMMAND_POSITION = 24;
-        //! Byte position of the recipient address in the frame word
-        static const uint32_t RECIPIENT_ADDR_POSITION = 16;
-        //! Byte position of the sender address in the frame word
-        static const uint32_t SENDER_ADDR_POSITION = 8;
-        //! Byte position of the payload length in the frame word
-        static const uint32_t LEN_POSITION = 0;
+        //! Byte position of the command in the frame word (host order)
+        static const uint32_t COMMAND_POSITION_HOST = 24;
+        //! Byte position of the recipient address in the frame word (host order)
+        static const uint32_t RECIPIENT_ADDR_POSITION_HOST = 16;
+        //! Byte position of the sender address in the frame word (host order)
+        static const uint32_t SENDER_ADDR_POSITION_HOST = 8;
+        //! Byte position of the payload length in the frame word (host order)
+        static const uint32_t LEN_POSITION_HOST = 0;
+
+        //! Byte position of the command in the frame word (network order)
+        static const uint32_t COMMAND_POSITION_NETWORK = 0;
+        //! Byte position of the recipient address in the frame word (network order)
+        static const uint32_t RECIPIENT_ADDR_POSITION_NETWORK = 8;
+        //! Byte position of the sender address in the frame word (network order)
+        static const uint32_t SENDER_ADDR_POSITION_NETWORK = 16;
+        //! Byte position of the payload length in the frame word (network order)
+        static const uint32_t LEN_POSITION_NETWORK = 24;
 
         //! Set frame data from word
-        inline void setFromFrameWord(uint32_t frameWord)
+        inline void setFromFrameWord(uint32_t frameWord, ByteOrder byteOrder = ByteOrder::HOST)
         {
-            length = getFramePacketLength(frameWord);
-            senderAddr = getFrameSenderAddr(frameWord);
-            recipientAddr = getFrameRecipientAddr(frameWord);
-            command = getFrameCommand(frameWord);
+            length = getFramePacketLength(frameWord, byteOrder);
+            senderAddr = getFrameSenderAddr(frameWord, byteOrder);
+            recipientAddr = getFrameRecipientAddr(frameWord, byteOrder);
+            command = getFrameCommand(frameWord, byteOrder);
         }
 
         //! Generate a default, invalid frame
@@ -71,48 +89,66 @@ struct MaplePacket
         }
 
         //! Generate a frame from a frame word
-        inline static Frame fromWord(uint32_t frameWord)
+        inline static Frame fromWord(uint32_t frameWord, ByteOrder byteOrder = ByteOrder::HOST)
         {
             Frame f;
-            f.setFromFrameWord(frameWord);
+            f.setFromFrameWord(frameWord, byteOrder);
             return f;
         }
 
         //! @param[in] frameWord  The frame word to parse
         //! @returns the packet length specified in the given frame word
-        static inline uint8_t getFramePacketLength(const uint32_t& frameWord)
+        static inline uint8_t getFramePacketLength(const uint32_t& frameWord, ByteOrder byteOrder = ByteOrder::HOST)
         {
-            return ((frameWord >> LEN_POSITION) & 0xFF);
+            const bool isHostOrd = (byteOrder != ByteOrder::NETWORK);
+            return ((frameWord >> (isHostOrd ? LEN_POSITION_HOST : LEN_POSITION_NETWORK )) & 0xFF);
         }
 
         //! @param[in] frameWord  The frame word to parse
         //! @returns the sender address specified in the given frame word
-        static inline uint8_t getFrameSenderAddr(const uint32_t& frameWord)
+        static inline uint8_t getFrameSenderAddr(const uint32_t& frameWord, ByteOrder byteOrder = ByteOrder::HOST)
         {
-            return ((frameWord >> SENDER_ADDR_POSITION) & 0xFF);
+            const bool isHostOrd = (byteOrder != ByteOrder::NETWORK);
+            return ((frameWord >> (isHostOrd ? SENDER_ADDR_POSITION_HOST: SENDER_ADDR_POSITION_NETWORK)) & 0xFF);
         }
 
         //! @param[in] frameWord  The frame word to parse
         //! @returns the recipient address specified in the given frame word
-        static inline uint8_t getFrameRecipientAddr(const uint32_t& frameWord)
+        static inline uint8_t getFrameRecipientAddr(const uint32_t& frameWord, ByteOrder byteOrder = ByteOrder::HOST)
         {
-            return ((frameWord >> RECIPIENT_ADDR_POSITION) & 0xFF);
+            const bool isHostOrd = (byteOrder != ByteOrder::NETWORK);
+            return ((frameWord >> (isHostOrd ? RECIPIENT_ADDR_POSITION_HOST : RECIPIENT_ADDR_POSITION_NETWORK)) & 0xFF);
         }
 
         //! @param[in] frameWord  The frame word to parse
         //! @returns the command specified in the given frame word
-        static inline uint8_t getFrameCommand(const uint32_t& frameWord)
+        static inline uint8_t getFrameCommand(const uint32_t& frameWord, ByteOrder byteOrder = ByteOrder::HOST)
         {
-            return ((frameWord >> COMMAND_POSITION) & 0xFF);
+            const bool isHostOrd = (byteOrder != ByteOrder::NETWORK);
+            return ((frameWord >> (isHostOrd ? COMMAND_POSITION_HOST : COMMAND_POSITION_NETWORK)) & 0xFF);
         }
 
         //! @returns the accumulated frame word from each of the frame data parts
-        inline uint32_t toWord() const
+        inline uint32_t toWord(ByteOrder byteOrder = ByteOrder::HOST) const
         {
-            return (static_cast<uint32_t>(length) << LEN_POSITION
-                    | static_cast<uint32_t>(senderAddr) << SENDER_ADDR_POSITION
-                    | static_cast<uint32_t>(recipientAddr) << RECIPIENT_ADDR_POSITION
-                    | static_cast<uint32_t>(command) << COMMAND_POSITION);
+            if (byteOrder == ByteOrder::NETWORK)
+            {
+                return (
+                    static_cast<uint32_t>(length) << LEN_POSITION_NETWORK |
+                    static_cast<uint32_t>(senderAddr) << SENDER_ADDR_POSITION_NETWORK |
+                    static_cast<uint32_t>(recipientAddr) << RECIPIENT_ADDR_POSITION_NETWORK |
+                    static_cast<uint32_t>(command) << COMMAND_POSITION_NETWORK
+                );
+            }
+            else
+            {
+                return (
+                    static_cast<uint32_t>(length) << LEN_POSITION_HOST |
+                    static_cast<uint32_t>(senderAddr) << SENDER_ADDR_POSITION_HOST |
+                    static_cast<uint32_t>(recipientAddr) << RECIPIENT_ADDR_POSITION_HOST |
+                    static_cast<uint32_t>(command) << COMMAND_POSITION_HOST
+                );
+            }
         }
 
         //! Assignment operator
@@ -122,20 +158,6 @@ struct MaplePacket
             senderAddr = rhs.senderAddr;
             recipientAddr = rhs.recipientAddr;
             command = rhs.command;
-            return *this;
-        }
-
-        //! Assignment operator from uint32 value
-        Frame& operator=(const uint32_t& rhs)
-        {
-            setFromFrameWord(rhs);
-            return *this;
-        }
-
-        //! Assignment operator from int32 value
-        Frame& operator=(const int32_t& rhs)
-        {
-            operator=(static_cast<uint32_t>(rhs));
             return *this;
         }
 
@@ -161,9 +183,10 @@ struct MaplePacket
     //! @param[in] frame  Frame data to initialize
     //! @param[in] payload  The payload words to set
     //! @param[in] len  Number of words in payload
-    inline MaplePacket(Frame frame, const uint32_t* payload, uint8_t len) :
+    inline MaplePacket(Frame frame, const uint32_t* payload, uint8_t len, ByteOrder byteOrder = ByteOrder::HOST) :
         frame(frame),
-        payload(payload, payload + len)
+        payload(payload, payload + len),
+        payloadByteOrder(byteOrder)
     {
         updateFrameLength();
     }
@@ -182,25 +205,28 @@ struct MaplePacket
     //! Constructor 4 - initializes with frame and 1 payload word
     //! @param[in] frame  Frame data to initialize
     //! @param[in] payload  The single payload word to set
-    inline MaplePacket(Frame frame, uint32_t payload) :
-        MaplePacket(frame, &payload, 1)
+    inline MaplePacket(Frame frame, uint32_t payload, ByteOrder byteOrder = ByteOrder::HOST) :
+        MaplePacket(frame, &payload, 1, byteOrder)
     {}
 
     //! Constructor 5
     //! @param[in] words  All words to set
     //! @param[in] len  Number of words in words (must be at least 1 for frame word to be valid)
-    inline MaplePacket(const uint32_t* words, uint8_t len) :
+    inline MaplePacket(const uint32_t* words, uint8_t len, ByteOrder byteOrder = ByteOrder::HOST) :
         MaplePacket(
-            len > 0 ? Frame::fromWord(*words) : Frame::defaultFrame(),
+            len > 0 ? Frame::fromWord(*words, byteOrder) : Frame::defaultFrame(),
             words + 1,
-            len > 0 ? len - 1 : 0)
+            len > 0 ? len - 1 : 0,
+            byteOrder
+        )
     {}
 
     //! Constructor 6 - initializes from payload and moved vector
     //! @param[in] payload  The payload
-    inline MaplePacket(Frame frame, std::vector<uint32_t>&& words) :
+    inline MaplePacket(Frame frame, std::vector<uint32_t>&& words, ByteOrder byteOrder = ByteOrder::HOST) :
         frame(frame),
-        payload(std::move(words))
+        payload(std::move(words)),
+        payloadByteOrder(byteOrder)
     {
         updateFrameLength();
     }
@@ -208,13 +234,15 @@ struct MaplePacket
     //! Copy constructor
     inline MaplePacket(const MaplePacket& rhs) :
         frame(rhs.frame),
-        payload(rhs.payload)
+        payload(rhs.payload),
+        payloadByteOrder(rhs.payloadByteOrder)
     {}
 
     //! Move constructor
-    inline MaplePacket(MaplePacket&& rhs) :
+    inline MaplePacket(MaplePacket&& rhs) noexcept :
         frame(rhs.frame),
-        payload(std::move(rhs.payload))
+        payload(std::move(rhs.payload)),
+        payloadByteOrder(rhs.payloadByteOrder)
     {}
 
     //! Assignment operator
@@ -222,21 +250,26 @@ struct MaplePacket
     {
         frame = rhs.frame;
         payload = rhs.payload;
+        payloadByteOrder = rhs.payloadByteOrder;
         return *this;
     }
 
     //! == operator for this class
     inline bool operator==(const MaplePacket& rhs) const
     {
-        return frame == rhs.frame && payload == rhs.payload;
+        return (
+            frame == rhs.frame &&
+            payload == rhs.payload &&
+            payloadByteOrder == rhs.payloadByteOrder
+        );
     }
 
-    //! @returns frame word value with corrected length
+    //! @returns frame word value with corrected length in the payload byte order
     uint32_t getFrameWord() const
     {
         Frame f = frame;
         f.length = payload.size();
-        return f.toWord();
+        return f.toWord(payloadByteOrder);
     }
 
     //! Resets all data
@@ -257,11 +290,12 @@ struct MaplePacket
     //! Sets packet contents from array
     //! @param[in] words  All words to set
     //! @param[in] len  Number of words in words (must be at least 1 for frame word to be valid)
-    inline void set(const uint32_t* words, uint8_t len)
+    inline void set(const uint32_t* words, uint8_t len, ByteOrder byteOrder = ByteOrder::HOST)
     {
+        payloadByteOrder = byteOrder;
         if (len > 0)
         {
-            frame = words[0];
+            frame.setFromFrameWord(words[0], byteOrder);
         }
         else
         {
@@ -278,72 +312,50 @@ struct MaplePacket
     //! Append words to payload from array
     //! @param[in] words  Payload words to set
     //! @param[in] len  Number of words in words
-    inline void appendPayload(const uint32_t* words, uint8_t len)
+    inline void appendPayload(const uint32_t* words, uint8_t len, ByteOrder byteOrder = ByteOrder::HOST)
     {
         if (len > 0)
         {
-            payload.insert(payload.end(), &words[0], &words[0] + len);
+            bool flipWords = ((payloadByteOrder == ByteOrder::NETWORK) != (byteOrder == ByteOrder::NETWORK));
+            if (flipWords)
+            {
+                reservePayload(payload.size() + len);
+                while (len-- > 0)
+                {
+                    payload.push_back(flipWordBytes(*words++));
+                }
+            }
+            else
+            {
+                payload.insert(payload.end(), &words[0], &words[0] + len);
+            }
+
             updateFrameLength();
         }
     }
 
     //! Appends a single word to payload
     //! @param[in] word  The word to append
-    inline void appendPayload(uint32_t word)
+    inline void appendPayload(uint32_t word, ByteOrder byteOrder = ByteOrder::HOST)
     {
-        appendPayload(&word, 1);
+        appendPayload(&word, 1, byteOrder);
     }
 
     //! Sets payload from array
     //! @param[in] words  Payload words to set
     //! @param[in] len  Number of words in words
-    inline void setPayload(const uint32_t* words, uint8_t len)
+    inline void setPayload(const uint32_t* words, uint8_t len, ByteOrder byteOrder = ByteOrder::HOST)
     {
         payload.clear();
-        appendPayload(words, len);
+        payloadByteOrder = byteOrder;
+        appendPayload(words, len, byteOrder);
     }
 
     //! Sets a single word in payload
     //! @param[in] word  The word to set
-    inline void setPayload(uint32_t word)
+    inline void setPayload(uint32_t word, ByteOrder byteOrder = ByteOrder::HOST)
     {
-        setPayload(&word, 1);
-    }
-
-    //! Append words to payload from array, flipping the byte order before setting their values
-    //! @param[in] words  Payload words to set
-    //! @param[in] len  Number of words in words
-    inline void appendPayloadFlipWords(const uint32_t* words, uint8_t len)
-    {
-        reservePayload(payload.size() + len);
-        while (len-- > 0)
-        {
-            payload.push_back(flipWordBytes(*words++));
-        }
-        updateFrameLength();
-    }
-
-    //! Appends a single word to payload
-    //! @param[in] word  The word to append
-    inline void appendPayloadFlipWords(uint32_t word)
-    {
-        appendPayloadFlipWords(&word, 1);
-    }
-
-    //! Sets payload from array
-    //! @param[in] words  Payload words to set
-    //! @param[in] len  Number of words in words
-    inline void setPayloadFlipWords(const uint32_t* words, uint8_t len)
-    {
-        payload.clear();
-        appendPayloadFlipWords(words, len);
-    }
-
-    //! Sets a single word in payload
-    //! @param[in] word  The word to set
-    inline void setPayloadFlipWords(uint32_t word)
-    {
-        setPayloadFlipWords(&word, 1);
+        setPayload(&word, 1, byteOrder);
     }
 
     //! Update length in frame word with the payload size
@@ -396,6 +408,8 @@ struct MaplePacket
     Frame frame;
     //! Packet payload
     std::vector<uint32_t> payload;
+    //! The byte order of the payload
+    ByteOrder payloadByteOrder;
 };
 
 #endif // __MAPLE_PACKET_H__

@@ -23,6 +23,7 @@
 
 #include "TransmissionTimeliner.hpp"
 #include <assert.h>
+#include "configuration.h"
 
 TransmissionTimeliner::TransmissionTimeliner(MapleBusInterface& bus, std::shared_ptr<PrioritizedTxScheduler> schedule):
     mBus(bus), mSchedule(schedule), mCurrentTx(nullptr)
@@ -37,8 +38,12 @@ TransmissionTimeliner::ReadStatus TransmissionTimeliner::readTask(uint64_t curre
     status.busPhase = busStatus.phase;
     if (status.busPhase == MapleBusInterface::Phase::READ_COMPLETE)
     {
-        status.received = std::make_shared<MaplePacket>(busStatus.readBuffer,
-                                                        busStatus.readBufferLen);
+        status.received = std::make_shared<MaplePacket>(
+            busStatus.readBuffer,
+            busStatus.readBufferLen,
+            busStatus.rxByteOrder
+        );
+
         status.transmission = mCurrentTx;
         mCurrentTx = nullptr;
     }
@@ -63,7 +68,7 @@ std::shared_ptr<const Transmission> TransmissionTimeliner::writeTask(uint64_t cu
         txSent = item.getTx();
         if (txSent != nullptr)
         {
-            if (mBus.write(*txSent->packet, txSent->expectResponse))
+            if (mBus.write(*txSent->packet, txSent->expectResponse, MAPLE_RESPONSE_TIMEOUT_US, txSent->rxByteOrder))
             {
                 mCurrentTx = txSent;
                 mSchedule->popItem(item);

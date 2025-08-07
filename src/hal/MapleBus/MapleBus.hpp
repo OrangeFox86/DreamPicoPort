@@ -53,10 +53,14 @@ class MapleBus : public MapleBusInterface
         //! @param[in] packet  The packet to send (sender address will be overloaded)
         //! @param[in] autostartRead  Set to true in order to start receive after send is complete
         //! @param[in] readTimeoutUs  When autostartRead is true, the read timeout to set
+        //! @param[in] rxBytePrder  When autostartRead is true, the desired byte order of the received packet
         //! @returns true iff the bus was "open" and send has started
-        bool write(const MaplePacket& packet,
-                   bool autostartRead,
-                   uint64_t readTimeoutUs=MAPLE_RESPONSE_TIMEOUT_US);
+        bool write(
+            const MaplePacket& packet,
+            bool autostartRead,
+            uint64_t readTimeoutUs=MAPLE_RESPONSE_TIMEOUT_US,
+            MaplePacket::ByteOrder rxByteOrder = MaplePacket::ByteOrder::HOST
+        ) override;
 
         //! Begins waiting for input
         //! @post processEvents() must periodically be called to check status
@@ -67,8 +71,12 @@ class MapleBus : public MapleBusInterface
         //!       write() may be enough though (as long as MAPLE_OPEN_LINE_CHECK_TIME_US is set to
         //!       at least 2).
         //! @param[in] readTimeoutUs  Minimum number of microseconds to read for (optional)
+        //! @param[in] rxByteOrder  The desired byte order of the received packet
         //! @returns true iff bus was not busy and read started
-        bool startRead(uint64_t readTimeoutUs=NO_TIMEOUT);
+        bool startRead(
+            uint64_t readTimeoutUs=NO_TIMEOUT,
+            MaplePacket::ByteOrder rxByteOrder = MaplePacket::ByteOrder::HOST
+        ) override;
 
         //! Called from a PIO ISR when read has completed for this sender.
         void readIsr();
@@ -80,10 +88,10 @@ class MapleBus : public MapleBusInterface
         //! call in order to check timeouts and clear out any used resources.
         //! @param[in] currentTimeUs  The current time to process for
         //! @returns updated status since last call
-        Status processEvents(uint64_t currentTimeUs);
+        Status processEvents(uint64_t currentTimeUs) override;
 
         //! @returns true iff the bus is currently busy reading or writing.
-        inline bool isBusy() { return mCurrentPhase != Phase::IDLE; }
+        inline bool isBusy() override { return mCurrentPhase != Phase::IDLE; }
 
     private:
         //! Ensures that the bus is open
@@ -160,6 +168,8 @@ class MapleBus : public MapleBusInterface
         bool mExpectingResponse;
         //! The read timeout to use when mExpectingResponse is true
         uint64_t mResponseTimeoutUs;
+        //! The receive byte order of the last received packet
+        MaplePacket::ByteOrder mRxByteOrder;
         //! The time at which the next timeout will occur
         volatile uint64_t mProcKillTime;
         //! The last time which number of received words changed

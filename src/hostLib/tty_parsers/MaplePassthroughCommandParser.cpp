@@ -143,11 +143,15 @@ void MaplePassthroughCommandParser::submit(const char* chars, uint32_t len)
             if (idx >= 0)
             {
                 uint32_t id = mSchedulers[idx]->add(
-                    PrioritizedTxScheduler::EXTERNAL_TRANSMISSION_PRIORITY,
-                    PrioritizedTxScheduler::TX_TIME_ASAP,
-                    &echoTransmitter,
-                    packet,
-                    true);
+                    PrioritizedTxScheduler::TransmissionProperties{
+                        .priority = PrioritizedTxScheduler::EXTERNAL_TRANSMISSION_PRIORITY,
+                        .txTime = PrioritizedTxScheduler::TX_TIME_ASAP,
+                        .packet = std::move(packet),
+                        .expectResponse = true
+                    },
+                    &echoTransmitter
+                );
+
                 std::vector<uint32_t>::iterator iter = words.begin();
                 printf("%lu: added {%08lX", (long unsigned int)id, (long unsigned int)*iter++);
                 for(; iter < words.end(); ++iter)

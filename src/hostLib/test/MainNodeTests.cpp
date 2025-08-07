@@ -181,11 +181,11 @@ TEST_F(MainNodeTest, successfulInfoRequest)
         .WillOnce(Return(status));
     // Since no peripherals are detected, the main node should do a info request, and it will be successful
     EXPECT_CALL(mMapleBus,
-                mockWrite(MaplePacket({.command=COMMAND_DEVICE_INFO_REQUEST,
+                write(MaplePacket({.command=COMMAND_DEVICE_INFO_REQUEST,
                                   .recipientAddr=0x20},
                                   (const uint32_t*)NULL,
                                   (uint8_t)0),
-                      true, _))
+                      true, _, _))
         .Times(1)
         .WillOnce(Return(true));
     // All sub node's task functions will be called with the current time
@@ -212,11 +212,11 @@ TEST_F(MainNodeTest, unsuccessfulInfoRequest)
         .WillOnce(Return(status));
     // Since no peripherals are detected, the main node should do a info request, and it will be unsuccessful
     EXPECT_CALL(mMapleBus,
-                mockWrite(MaplePacket({.command=COMMAND_DEVICE_INFO_REQUEST,
+                write(MaplePacket({.command=COMMAND_DEVICE_INFO_REQUEST,
                                   .recipientAddr=0x20},
                                   (const uint32_t*)NULL,
                                   (uint8_t)0),
-                      true, _))
+                      true, _, _))
         .Times(1)
         .WillOnce(Return(false));
     // All sub node's task functions will be called with the current time
@@ -241,8 +241,17 @@ TEST_F(MainNodeTest, peripheralConnect)
         std::make_shared<MockDreamcastPeripheral>(0x20, 0, mDreamcastMainNode.getEndpointTxScheduler(), mPlayerData.playerIndex);
     mDreamcastMainNode.mPeripheralsToAdd.push_back(mockedDreamcastPeripheral);
     // This is a bad way to do it, but I need mCurrentTx in TransmissionTimeliner to be set to something
-    EXPECT_CALL(mMapleBus, mockWrite(_, _, _)).Times(AnyNumber()).WillRepeatedly(Return(true));
-    mDreamcastMainNode.getEndpointTxScheduler()->add(0, &mDreamcastMainNode, 123, (uint32_t*)nullptr, 0, true);
+    EXPECT_CALL(mMapleBus, write).Times(AnyNumber()).WillRepeatedly(Return(true));
+    mDreamcastMainNode.getEndpointTxScheduler()->add(
+        EndpointTxSchedulerInterface::TransmissionProperties{
+            .txTime = 0,
+            .command = 123,
+            .payload = nullptr,
+            .payloadLen = 0,
+            .expectResponse = true
+        },
+        &mDreamcastMainNode
+    );
     mDreamcastMainNode.getTransmissionTimeliner().writeTask(0);
 
     // --- MOCKING ---
@@ -272,7 +281,7 @@ TEST_F(MainNodeTest, peripheralConnect)
     EXPECT_CALL(*mDreamcastMainNode.mMockedSubNodes[3], task(1000000)).Times(1);
     EXPECT_CALL(*mDreamcastMainNode.mMockedSubNodes[4], task(1000000)).Times(1);
     // Don't care if write is called
-    EXPECT_CALL(mMapleBus, mockWrite(_, _, _)).Times(AnyNumber());
+    EXPECT_CALL(mMapleBus, write).Times(AnyNumber());
 
     // --- TEST EXECUTION ---
     mDreamcastMainNode.task(1000000);
@@ -289,10 +298,19 @@ TEST_F(MainNodeTest, peripheralDisconnect)
         std::make_shared<MockDreamcastPeripheral>(0x20, 0, mDreamcastMainNode.getEndpointTxScheduler(), mPlayerData.playerIndex);
     mDreamcastMainNode.getPeripherals().push_back(mockedDreamcastPeripheral);
     // Update write queue
-    EXPECT_CALL(mMapleBus, mockWrite(_, _, _)).Times(AnyNumber()).WillRepeatedly(Return(true));
+    EXPECT_CALL(mMapleBus, write).Times(AnyNumber()).WillRepeatedly(Return(true));
     for (uint32_t i = 0; i < DreamcastMainNode::MAX_FAILURE_DISCONNECT_COUNT; ++i)
     {
-        mDreamcastMainNode.getEndpointTxScheduler()->add(0, &mDreamcastMainNode, 123, (uint32_t*)nullptr, 0, true);
+        mDreamcastMainNode.getEndpointTxScheduler()->add(
+            EndpointTxSchedulerInterface::TransmissionProperties{
+                .txTime = 0,
+                .command = 123,
+                .payload = nullptr,
+                .payloadLen = 0,
+                .expectResponse = true
+            },
+            &mDreamcastMainNode
+        );
     }
     // Begins the first write
     mDreamcastMainNode.task(0);

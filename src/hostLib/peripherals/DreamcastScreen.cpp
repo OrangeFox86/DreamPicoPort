@@ -62,7 +62,7 @@ void DreamcastScreen::task(uint64_t currentTimeUs)
             static const uint8_t sequenceNum = 0;  // 1 and only 1 in this sequence - always 0
             static const uint16_t blockNum = 0;    // Always 0
             static const uint32_t writeAddrWord = (partitionNum << 24) | (sequenceNum << 16) | blockNum;
-            uint32_t numPayloadWords = ScreenData::NUM_SCREEN_WORDS + 2;
+            uint8_t numPayloadWords = ScreenData::NUM_SCREEN_WORDS + 2;
             uint32_t payload[numPayloadWords] = {DEVICE_FN_LCD, writeAddrWord, 0};
             mScreenData.readData(&payload[2]);
 
@@ -73,13 +73,17 @@ void DreamcastScreen::task(uint64_t currentTimeUs)
             }
 
             mTransmissionId = mEndpointTxScheduler->add(
-                PrioritizedTxScheduler::TX_TIME_ASAP,
-                this,
-                COMMAND_BLOCK_WRITE,
-                payload,
-                numPayloadWords,
-                true,
-                0);
+                EndpointTxSchedulerInterface::TransmissionProperties{
+                    .txTime = PrioritizedTxScheduler::TX_TIME_ASAP,
+                    .command = COMMAND_BLOCK_WRITE,
+                    .payload = payload,
+                    .payloadLen = numPayloadWords,
+                    .expectResponse = true,
+                    .expectedResponseNumPayloadWords = 0
+                },
+                this
+            );
+
             mNextCheckTime = currentTimeUs + US_PER_CHECK;
 
             mUpdateRequired = false;

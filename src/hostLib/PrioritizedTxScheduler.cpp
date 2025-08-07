@@ -61,21 +61,15 @@ uint32_t PrioritizedTxScheduler::add(std::shared_ptr<Transmission> tx)
 }
 
 uint32_t PrioritizedTxScheduler::add(
-    uint8_t priority,
-    uint64_t txTime,
-    Transmitter* transmitter,
-    MaplePacket& packet,
-    bool expectResponse,
-    uint32_t expectedResponseNumPayloadWords,
-    uint32_t autoRepeatUs,
-    uint64_t autoRepeatEndTimeUs
+    TransmissionProperties properties,
+    Transmitter* transmitter
 )
 {
-    uint32_t pktDurationNs = MAPLE_OPEN_LINE_CHECK_TIME_US + packet.getTxTimeNs();
+    uint32_t pktDurationNs = MAPLE_OPEN_LINE_CHECK_TIME_US + properties.packet.getTxTimeNs();
 
-    if (expectResponse)
+    if (properties.expectResponse)
     {
-        uint32_t expectedReadDurationUs = MaplePacket::getTxTimeNs(expectedResponseNumPayloadWords, MAPLE_RESPONSE_NS_PER_BIT);
+        uint32_t expectedReadDurationUs = MaplePacket::getTxTimeNs(properties.expectedResponseNumPayloadWords, MAPLE_RESPONSE_NS_PER_BIT);
         pktDurationNs += MAPLE_RESPONSE_DELAY_NS + expectedReadDurationUs;
     }
 
@@ -85,18 +79,19 @@ uint32_t PrioritizedTxScheduler::add(
     assert(mNextId != INVALID_TX_ID);
 
     // Update the sender address to my address
-    packet.frame.senderAddr = mSenderAddress;
+    properties.packet.frame.senderAddr = mSenderAddress;
 
     std::shared_ptr<Transmission> tx =
         std::make_shared<Transmission>(
             mNextId++,
-            priority,
-            expectResponse,
+            properties.priority,
+            properties.expectResponse,
             pktDurationUs,
-            autoRepeatUs,
-            autoRepeatEndTimeUs,
-            txTime,
-            std::make_shared<MaplePacket>(std::move(packet)),
+            properties.autoRepeatUs,
+            properties.autoRepeatEndTimeUs,
+            properties.txTime,
+            std::make_shared<MaplePacket>(std::move(properties.packet)),
+            properties.rxByteOrder,
             transmitter
         );
 
@@ -104,21 +99,15 @@ uint32_t PrioritizedTxScheduler::add(
 }
 
 uint32_t PrioritizedTxScheduler::add(
-    uint8_t priority,
-    uint64_t txTime,
-    const std::shared_ptr<Transmitter>& transmitter,
-    MaplePacket& packet,
-    bool expectResponse,
-    uint32_t expectedResponseNumPayloadWords,
-    uint32_t autoRepeatUs,
-    uint64_t autoRepeatEndTimeUs
+    TransmissionProperties properties,
+    const std::shared_ptr<Transmitter>& transmitter
 )
 {
-    uint32_t pktDurationNs = MAPLE_OPEN_LINE_CHECK_TIME_US + packet.getTxTimeNs();
+    uint32_t pktDurationNs = MAPLE_OPEN_LINE_CHECK_TIME_US + properties.packet.getTxTimeNs();
 
-    if (expectResponse)
+    if (properties.expectResponse)
     {
-        uint32_t expectedReadDurationUs = MaplePacket::getTxTimeNs(expectedResponseNumPayloadWords, MAPLE_RESPONSE_NS_PER_BIT);
+        uint32_t expectedReadDurationUs = MaplePacket::getTxTimeNs(properties.expectedResponseNumPayloadWords, MAPLE_RESPONSE_NS_PER_BIT);
         pktDurationNs += MAPLE_RESPONSE_DELAY_NS + expectedReadDurationUs;
     }
 
@@ -128,18 +117,19 @@ uint32_t PrioritizedTxScheduler::add(
     assert(mNextId != INVALID_TX_ID);
 
     // Update the sender address to my address
-    packet.frame.senderAddr = mSenderAddress;
+    properties.packet.frame.senderAddr = mSenderAddress;
 
     std::shared_ptr<Transmission> tx =
         std::make_shared<Transmission>(
             mNextId++,
-            priority,
-            expectResponse,
+            properties.priority,
+            properties.expectResponse,
             pktDurationUs,
-            autoRepeatUs,
-            autoRepeatEndTimeUs,
-            txTime,
-            std::make_shared<MaplePacket>(std::move(packet)),
+            properties.autoRepeatUs,
+            properties.autoRepeatEndTimeUs,
+            properties.txTime,
+            std::make_shared<MaplePacket>(std::move(properties.packet)),
+            properties.rxByteOrder,
             transmitter
         );
 

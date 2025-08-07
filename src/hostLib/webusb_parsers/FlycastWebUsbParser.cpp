@@ -323,7 +323,8 @@ void FlycastWebUsbParser::process(
                                 std::shared_ptr<const Transmission> tx
                             )
                             {
-                                std::uint32_t frameWord = packet->frame.toWord();
+                                // Retrieves frame word in packet order
+                                std::uint32_t frameWord = packet->getFrameWord();
                                 mResponseFn(
                                     kResponseSuccess,
                                     {
@@ -339,11 +340,14 @@ void FlycastWebUsbParser::process(
                         };
 
                         mSchedulers[idx]->add(
-                            PrioritizedTxScheduler::EXTERNAL_TRANSMISSION_PRIORITY,
-                            PrioritizedTxScheduler::TX_TIME_ASAP,
-                            std::make_shared<MaplePassthroughTransmitter>(responseFn),
-                            packet,
-                            true
+                            PrioritizedTxScheduler::TransmissionProperties{
+                                .priority = PrioritizedTxScheduler::EXTERNAL_TRANSMISSION_PRIORITY,
+                                .txTime = PrioritizedTxScheduler::TX_TIME_ASAP,
+                                .packet = std::move(packet),
+                                .expectResponse = true,
+                                .rxByteOrder = MaplePacket::ByteOrder::NETWORK // Network order!
+                            },
+                            std::make_shared<MaplePassthroughTransmitter>(responseFn)
                         );
                     }
                     else

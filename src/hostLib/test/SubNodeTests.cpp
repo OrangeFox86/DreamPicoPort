@@ -147,7 +147,7 @@ TEST_F(SubNodeTest, handleDataCommandNoPeripheralsAdded)
     std::shared_ptr<MaplePacket> txPacket = std::make_shared<MaplePacket>(
         MaplePacket::Frame{.command=4, .recipientAddr=1}, 7654321);
     std::shared_ptr<const Transmission> tx =
-        std::make_shared<Transmission>(0, 0, true, 123, 0, 0, 0, txPacket, nullptr);
+        std::make_shared<Transmission>(0, 0, true, 123, 0, 0, 0, txPacket, MaplePacket::ByteOrder::HOST, nullptr);
 
     // --- TEST EXECUTION ---
     mDreamcastSubNode.txComplete(packet, tx);
@@ -170,7 +170,7 @@ TEST_F(SubNodeTest, handleDataCommandPeripheralAdded)
     std::shared_ptr<MaplePacket> txPacket = std::make_shared<MaplePacket>(
         MaplePacket::Frame{.command=4, .recipientAddr=1}, 7654321);
     std::shared_ptr<const Transmission> tx =
-        std::make_shared<Transmission>(0, 0, true, 123, 0, 0, 0, txPacket, nullptr);
+        std::make_shared<Transmission>(0, 0, true, 123, 0, 0, 0, txPacket, MaplePacket::ByteOrder::HOST, nullptr);
 
     // --- TEST EXECUTION ---
     mDreamcastSubNode.txComplete(packet, tx);
@@ -191,7 +191,7 @@ TEST_F(SubNodeTest, handleDataCommandInvalidPayloadSize)
     std::shared_ptr<MaplePacket> txPacket = std::make_shared<MaplePacket>(
         MaplePacket::Frame{.command=4, .recipientAddr=1}, 7654321);
     std::shared_ptr<const Transmission> tx =
-        std::make_shared<Transmission>(0, 0, true, 123, 0, 0, 0, txPacket, nullptr);
+        std::make_shared<Transmission>(0, 0, true, 123, 0, 0, 0, txPacket, MaplePacket::ByteOrder::HOST, nullptr);
     EXPECT_CALL(mDreamcastSubNode, mockMethodPeripheralFactory(_)).Times(0);
 
     // --- TEST EXECUTION ---

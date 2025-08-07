@@ -89,13 +89,16 @@ void DreamcastController::task(uint64_t currentTimeUs)
         uint32_t payload[] = {DEVICE_FN_CONTROLLER};
         uint64_t txTime = PrioritizedTxScheduler::computeNextTimeCadence(currentTimeUs, US_PER_CHECK);
         mConditionTxId = mEndpointTxScheduler->add(
-            txTime,
-            this,
-            COMMAND_GET_CONDITION,
-            payload,
-            1,
-            true,
-            3,
-            US_PER_CHECK);
+            EndpointTxSchedulerInterface::TransmissionProperties{
+                .txTime = txTime,
+                .command = COMMAND_GET_CONDITION,
+                .payload = payload,
+                .payloadLen = 1,
+                .expectResponse = true,
+                .expectedResponseNumPayloadWords = 3,
+                .autoRepeatUs = US_PER_CHECK
+            },
+            this
+        );
     }
 }

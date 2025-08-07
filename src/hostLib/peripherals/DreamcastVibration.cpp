@@ -254,15 +254,18 @@ void DreamcastVibration::send(uint64_t timeUs, uint8_t power, int8_t inclination
     // Send it!
     uint32_t payload[2] = {FUNCTION_CODE, vibrationWord};
     mTransmissionId = mEndpointTxScheduler->add(
-        timeUs,
-        this,
-        COMMAND_SET_CONDITION,
-        payload,
-        2,
-        true,
-        0,
-        autoRepeatUs,
-        autoRepeatEndTimeUs);
+        EndpointTxSchedulerInterface::TransmissionProperties{
+            .txTime = timeUs,
+            .command = COMMAND_SET_CONDITION,
+            .payload = payload,
+            .payloadLen = 2,
+            .expectResponse = true,
+            .expectedResponseNumPayloadWords = 0,
+            .autoRepeatUs = autoRepeatUs,
+            .autoRepeatEndTimeUs = autoRepeatEndTimeUs
+        },
+        this
+    );
 }
 
 void DreamcastVibration::start(uint8_t power, uint8_t desiredFreq)
@@ -289,14 +292,17 @@ void DreamcastVibration::start(uint8_t power, uint8_t desiredFreq)
     // Send it!
     uint32_t payload[2] = {FUNCTION_CODE, vibrationWord};
     mTransmissionId = mEndpointTxScheduler->add(
-        PrioritizedTxScheduler::TX_TIME_ASAP,
-        this,
-        COMMAND_SET_CONDITION,
-        payload,
-        2,
-        true,
-        0,
-        autoRepeatUs);
+        EndpointTxSchedulerInterface::TransmissionProperties{
+            .txTime = PrioritizedTxScheduler::TX_TIME_ASAP,
+            .command = COMMAND_SET_CONDITION,
+            .payload = payload,
+            .payloadLen = 2,
+            .expectResponse = true,
+            .expectedResponseNumPayloadWords = 0,
+            .autoRepeatUs = autoRepeatUs
+        },
+        this
+    );
 }
 
 void DreamcastVibration::stop()

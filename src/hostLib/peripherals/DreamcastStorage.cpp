@@ -95,14 +95,19 @@ void DreamcastStorage::task(uint64_t currentTimeUs)
         case READ_WRITE_STARTED:
         {
             uint32_t payload[2] = {FUNCTION_CODE, mReadingBlock};
+
             mReadingTxId = mEndpointTxScheduler->add(
-                PrioritizedTxScheduler::TX_TIME_ASAP,
-                this,
-                COMMAND_BLOCK_READ,
-                payload,
-                2,
-                true,
-                130);
+                EndpointTxSchedulerInterface::TransmissionProperties{
+                    .txTime = PrioritizedTxScheduler::TX_TIME_ASAP,
+                    .command = COMMAND_BLOCK_READ,
+                    .payload = payload,
+                    .payloadLen = 2,
+                    .expectResponse = true,
+                    .expectedResponseNumPayloadWords = 130
+                },
+                this
+            );
+
             mReadState = READ_WRITE_SENT;
         }
         break;
@@ -252,8 +257,8 @@ void DreamcastStorage::txComplete(std::shared_ptr<const MaplePacket> packet,
 
 void DreamcastStorage::queueNextWritePhase()
 {
-    uint32_t numBlockWords = mWriteBufferLen / 4 / getWriteAccesCount();
-    uint32_t numPayloadWords = 2 + numBlockWords;
+    uint8_t numBlockWords = mWriteBufferLen / 4 / getWriteAccesCount();
+    uint8_t numPayloadWords = 2 + numBlockWords;
     uint32_t payload[numPayloadWords] = {FUNCTION_CODE, mWritingBlock | ((uint32_t)mWritePhase << 16)};
     const uint32_t* pDataIn = static_cast<const uint32_t*>(mWriteBuffer);
     pDataIn += (mWritePhase * numBlockWords);
@@ -264,13 +269,16 @@ void DreamcastStorage::queueNextWritePhase()
     }
 
     mWritingTxId = mEndpointTxScheduler->add(
-        mLastWriteTimeUs + mMinDurationBetweenWrites,
-        this,
-        COMMAND_BLOCK_WRITE,
-        payload,
-        numPayloadWords,
-        true,
-        0);
+        EndpointTxSchedulerInterface::TransmissionProperties{
+            .txTime = mLastWriteTimeUs + mMinDurationBetweenWrites,
+            .command = COMMAND_BLOCK_WRITE,
+            .payload = payload,
+            .payloadLen = numPayloadWords,
+            .expectResponse = true,
+            .expectedResponseNumPayloadWords = 0
+        },
+        this
+    );
 
     mWriteState = READ_WRITE_SENT;
 }
@@ -278,17 +286,20 @@ void DreamcastStorage::queueNextWritePhase()
 void DreamcastStorage::queueWriteCommit()
 {
     // Send COMMAND_GET_LAST_ERROR which commits written data
-    uint32_t numPayloadWords = 2;
+    uint8_t numPayloadWords = 2;
     uint32_t payload[numPayloadWords] = {FUNCTION_CODE, mWritingBlock | ((uint32_t)mWritePhase << 16)};
 
     mWritingTxId = mEndpointTxScheduler->add(
-        mLastWriteTimeUs + mMinDurationBetweenWrites,
-        this,
-        COMMAND_GET_LAST_ERROR,
-        payload,
-        numPayloadWords,
-        true,
-        0);
+        EndpointTxSchedulerInterface::TransmissionProperties{
+            .txTime = mLastWriteTimeUs + mMinDurationBetweenWrites,
+            .command = COMMAND_GET_LAST_ERROR,
+            .payload = payload,
+            .payloadLen = numPayloadWords,
+            .expectResponse = true,
+            .expectedResponseNumPayloadWords = 0
+        },
+        this
+    );
 
     mWriteState = WRITE_COMMIT_SENT;
 }

@@ -265,13 +265,16 @@ void DreamcastMainNode::runDependentTasks(uint64_t currentTimeUs)
         {
             uint64_t txTime = PrioritizedTxScheduler::computeNextTimeCadence(currentTimeUs, US_PER_CHECK);
             mEndpointTxScheduler->add(
-                txTime,
-                nullptr,
-                COMMAND_DEVICE_INFO_REQUEST,
-                nullptr,
-                0,
-                true,
-                EXPECTED_DEVICE_INFO_PAYLOAD_WORDS);
+                EndpointTxSchedulerInterface::TransmissionProperties{
+                    .txTime = txTime,
+                    .command = COMMAND_DEVICE_INFO_REQUEST,
+                    .payload = nullptr,
+                    .payloadLen = 0,
+                    .expectResponse = true,
+                    .expectedResponseNumPayloadWords = EXPECTED_DEVICE_INFO_PAYLOAD_WORDS
+                },
+                nullptr
+            );
         }
     }
 
@@ -358,15 +361,19 @@ void DreamcastMainNode::addInfoRequestToSchedule(uint64_t currentTimeUs)
     {
         txTime = PrioritizedTxScheduler::computeNextTimeCadence(currentTimeUs, US_PER_CHECK);
     }
+
     mScheduleId = mEndpointTxScheduler->add(
-        txTime,
-        this,
-        COMMAND_DEVICE_INFO_REQUEST,
-        nullptr,
-        0,
-        true,
-        EXPECTED_DEVICE_INFO_PAYLOAD_WORDS,
-        US_PER_CHECK);
+        EndpointTxSchedulerInterface::TransmissionProperties{
+            .txTime = txTime,
+            .command = COMMAND_DEVICE_INFO_REQUEST,
+            .payload = nullptr,
+            .payloadLen = 0,
+            .expectResponse = true,
+            .expectedResponseNumPayloadWords = EXPECTED_DEVICE_INFO_PAYLOAD_WORDS,
+            .autoRepeatUs = US_PER_CHECK
+        },
+        this
+    );
 }
 
 void DreamcastMainNode::peripheralChangeEvent(uint64_t currentTimeUs)

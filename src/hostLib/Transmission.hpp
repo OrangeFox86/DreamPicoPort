@@ -48,6 +48,8 @@ public:
     uint64_t nextTxTimeUs;
     //! The packet to transmit
     std::shared_ptr<const MaplePacket> packet;
+    //! When expectResponse is true, the desired byte order of the received packet
+    MaplePacket::ByteOrder rxByteOrder;
     //! The object that added this transmission (for callbacks)
     Transmitter* const transmitter;
     //! The object that added this transmission (for callbacks, shared pointer version)
@@ -63,6 +65,7 @@ public:
         uint64_t autoRepeatEndTimeUs,
         uint64_t nextTxTimeUs,
         std::shared_ptr<MaplePacket> packet,
+        MaplePacket::ByteOrder rxByteOrder,
         Transmitter* transmitter
     ):
         transmissionId(transmissionId),
@@ -73,6 +76,7 @@ public:
         autoRepeatEndTimeUs(autoRepeatEndTimeUs),
         nextTxTimeUs(nextTxTimeUs),
         packet(packet),
+        rxByteOrder(rxByteOrder),
         transmitter(transmitter),
         spTransmitter()
     {}
@@ -86,6 +90,7 @@ public:
         uint64_t autoRepeatEndTimeUs,
         uint64_t nextTxTimeUs,
         std::shared_ptr<MaplePacket> packet,
+        MaplePacket::ByteOrder rxByteOrder,
         const std::shared_ptr<Transmitter>& transmitter
     ):
         transmissionId(transmissionId),
@@ -96,6 +101,7 @@ public:
         autoRepeatEndTimeUs(autoRepeatEndTimeUs),
         nextTxTimeUs(nextTxTimeUs),
         packet(packet),
+        rxByteOrder(rxByteOrder),
         transmitter(),
         spTransmitter(transmitter)
     {}

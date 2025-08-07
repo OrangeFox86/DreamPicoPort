@@ -122,16 +122,11 @@ void FlycastBinaryEchoTransmitter::txComplete(
     };
     send_response(reinterpret_cast<char*>(frame), 4);
 
-    for (uint32_t p : packet->payload)
-    {
-        uint8_t word[4] = {
-            static_cast<uint8_t>(p >> 24),
-            static_cast<uint8_t>((p >> 16) & 0xFF),
-            static_cast<uint8_t>((p >> 8) & 0xFF),
-            static_cast<uint8_t>(p & 0xFF)
-        };
-        send_response(reinterpret_cast<char*>(word), 4);
-    }
+    // Since NETWORK order is selected for received packet, payload is already in the right order
+    send_response(
+        reinterpret_cast<const char*>(packet->payload.data()),
+        sizeof(packet->payload[0]) * packet->payload.size()
+    );
 
     send_response('\n');
 }
@@ -536,21 +531,28 @@ void FlycastCommandParser::submit(const char* chars, uint32_t len)
                 }
 
                 Transmitter* t;
+                MaplePacket::ByteOrder rxByteOrder;
                 if (binaryParsed)
                 {
                     t = mFlycastBinaryEchoTransmitter.get();
+                    rxByteOrder = MaplePacket::ByteOrder::NETWORK; // Network order!
                 }
                 else
                 {
                     t = mFlycastEchoTransmitter.get();
+                    rxByteOrder = MaplePacket::ByteOrder::HOST;
                 }
 
                 mSchedulers[idx]->add(
-                    PrioritizedTxScheduler::EXTERNAL_TRANSMISSION_PRIORITY,
-                    PrioritizedTxScheduler::TX_TIME_ASAP,
-                    t,
-                    packet,
-                    true);
+                    PrioritizedTxScheduler::TransmissionProperties{
+                        .priority = PrioritizedTxScheduler::EXTERNAL_TRANSMISSION_PRIORITY,
+                        .txTime = PrioritizedTxScheduler::TX_TIME_ASAP,
+                        .packet = std::move(packet),
+                        .expectResponse = true,
+                        .rxByteOrder = rxByteOrder
+                    },
+                    t
+                );
             }
             else
             {
