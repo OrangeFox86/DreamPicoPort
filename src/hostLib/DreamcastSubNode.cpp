@@ -27,7 +27,7 @@
 
 DreamcastSubNode::DreamcastSubNode(uint8_t addr,
                                    std::shared_ptr<EndpointTxSchedulerInterface> scheduler,
-                                   PlayerData playerData) :
+                                   const PlayerData& playerData) :
     DreamcastNode(addr, scheduler, playerData),
     mConnected(false),
     mScheduleId(-1)

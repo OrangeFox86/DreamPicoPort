@@ -26,6 +26,7 @@
 
 #include "tusb.h"
 #include "usb_descriptors.h"
+#include "class/hid/hid.h"
 #include "class/hid/hid_device.h"
 #include "pico/unique_id.h"
 #include "configuration.h"

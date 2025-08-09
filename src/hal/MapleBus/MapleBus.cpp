@@ -137,6 +137,8 @@ MapleBus::MapleBus(uint32_t pinA, int32_t dirPin, bool dirOutHigh) :
     mLastRead(),
     mCurrentPhase(MapleBus::Phase::IDLE),
     mExpectingResponse(false),
+    mResponseTimeoutUs(1000),
+    mRxByteOrder(MaplePacket::ByteOrder::HOST),
     mProcKillTime(std::numeric_limits<uint64_t>::max()),
     mLastReceivedWordTimeUs(0),
     mLastReadTransferCount(0)

@@ -29,7 +29,8 @@
 VolatileSystemMemory::VolatileSystemMemory(uint32_t size) :
     SystemMemory(),
     mSize(size),
-    mMemory(new uint8_t[mSize])
+    mMemory(new uint8_t[mSize]),
+    mLastActivityTime(0)
 {
     memset(mMemory.get(), 0xFF, mSize);
 }

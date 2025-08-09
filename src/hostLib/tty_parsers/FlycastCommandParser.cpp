@@ -7,6 +7,7 @@
 #include <cstring>
 #include <string>
 #include <cstdlib>
+#include <cinttypes>
 
 // Flycast command parser
 // Format: X[modifier-char]<cmd-data>\n
@@ -75,7 +76,7 @@ void FlycastEchoTransmitter::txComplete(
 
     for (uint32_t p : packet->payload)
     {
-        snprintf(buf, 64, " %08lX", p);
+        snprintf(buf, 64, " %08" PRIX32, p);
         send_response(buf);
     }
 
@@ -596,9 +597,9 @@ void FlycastCommandParser::summaryCallback(const std::list<std::list<std::array<
             summaryString += '{';
 
             char buffer[10];
-            snprintf(buffer, sizeof(buffer), "%08lX,", j[0]);
+            snprintf(buffer, sizeof(buffer), "%08" PRIX32 ",", j[0]);
             summaryString += buffer;
-            snprintf(buffer, sizeof(buffer), "%08lX", j[1]);
+            snprintf(buffer, sizeof(buffer), "%08" PRIX32, j[1]);
             summaryString += buffer;
 
             summaryString += '}';

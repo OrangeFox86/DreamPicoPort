@@ -89,6 +89,7 @@ class MapleBusInterface
 
             Status() :
                 phase(Phase::INVALID),
+                failureReason(FailureReason::NONE),
                 readBuffer(nullptr),
                 readBufferLen(0),
                 rxByteOrder(MaplePacket::ByteOrder::HOST)

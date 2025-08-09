@@ -35,7 +35,7 @@ class DreamcastSubNode : public DreamcastNode
         //! @param[in] playerData  The player data passed to any connected peripheral
         DreamcastSubNode(uint8_t addr,
                          std::shared_ptr<EndpointTxSchedulerInterface> scheduler,
-                         PlayerData playerData);
+                         const PlayerData& playerData);
 
         //! Copy constructor
         DreamcastSubNode(const DreamcastSubNode& rhs);

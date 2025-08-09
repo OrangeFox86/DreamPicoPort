@@ -74,7 +74,9 @@ class DreamcastMainNode : public DreamcastNode
         void printSummary();
 
         //! Register a callback to be called within Maple core context when summary is obtained
-        //! @param[in] callback  The callback to call when the information is obtained
+        //! @param[in] callback  The callback to call when the information is obtained which is called within the task()
+        //!                      context. The outer list explain each main node. The inner list explain each peripheral.
+        //!                      The inner array index [0] is function code and [1] is function definition flags.
         void requestSummary(const std::function<void(const std::list<std::list<std::array<uint32_t, 2>>>&)>& callback);
 
     private:

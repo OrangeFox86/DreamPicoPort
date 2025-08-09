@@ -90,7 +90,8 @@ class DreamcastNode : public Transmitter
             printf("}");
         }
 
-        //! @return summary of peripherals on this node
+        //! @return summary of peripherals on this node where the inner array index [0] is function code and [1] is
+        //!         function definition flags
         std::list<std::array<uint32_t, 2>> getPeripherals()
         {
             std::list<std::array<uint32_t, 2>> summary;
@@ -105,7 +106,7 @@ class DreamcastNode : public Transmitter
         //! Main constructor with scheduler
         DreamcastNode(uint8_t addr,
                       std::shared_ptr<EndpointTxSchedulerInterface> scheduler,
-                      PlayerData playerData) :
+                      const PlayerData& playerData) :
             mAddr(addr), mEndpointTxScheduler(scheduler), mPlayerData(playerData), mPeripherals()
         {}
 
@@ -114,10 +115,8 @@ class DreamcastNode : public Transmitter
             mAddr(rhs.mAddr),
             mEndpointTxScheduler(rhs.mEndpointTxScheduler),
             mPlayerData(rhs.mPlayerData),
-            mPeripherals()
-        {
-            mPeripherals = rhs.mPeripherals;
-        }
+            mPeripherals(rhs.mPeripherals)
+        {}
 
         //! Run all peripheral tasks
         //! @param[in] currentTimeUs  The current time in microseconds

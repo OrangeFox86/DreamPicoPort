@@ -61,9 +61,6 @@ private:
     static const char* INPUT_EOL_CHARS;
     //! String of characters that are treated as a backspace
     static const char* BACKSPACE_CHARS;
-    //! When this character is seen, then binary data will proceed
-    //! For binary commands, 2-byte size followed by payload then final \n character
-    static const char BINARY_START_CHAR = CommandParser::BINARY_START_CHAR;
 
     //! Receive queue
     std::vector<char> mParserRx;

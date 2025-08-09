@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.12)
 
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
+set(CMAKE_CXX_STANDARD 23)
+
 if(NOT ENABLE_UNIT_TEST)
   # Have pico_sdk_import.cmake use the local SDK if it was pulled down; otherwise, use path at
   # PICO_SDK_PATH environment variable as specified within pico_sdk_import.cmake

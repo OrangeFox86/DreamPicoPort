@@ -27,6 +27,7 @@
 #include "hal/System/LockGuard.hpp"
 
 #include <cstring>
+#include <cinttypes>
 
 const std::uint8_t FlycastWebUsbParser::kInterfaceVersion[2] = {1, 0};
 
@@ -183,9 +184,9 @@ void FlycastWebUsbParser::process(
                                 summaryString += '{';
 
                                 char buffer[10];
-                                snprintf(buffer, sizeof(buffer), "%08lX,", j[0]);
+                                snprintf(buffer, sizeof(buffer), "%08" PRIX32 ",", j[0]);
                                 summaryString += buffer;
-                                snprintf(buffer, sizeof(buffer), "%08lX", j[1]);
+                                snprintf(buffer, sizeof(buffer), "%08" PRIX32, j[1]);
                                 summaryString += buffer;
 
                                 summaryString += '}';
