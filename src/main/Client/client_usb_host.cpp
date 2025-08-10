@@ -78,7 +78,7 @@ void setPwmFn(uint8_t width, uint8_t down)
     else
     {
         buzzer.stop(2);
-        buzzer.buzzRaw({.priority=2, .wrapCount=width, .highCount=(width-down)});
+        buzzer.buzzRaw({.priority=2, .wrapCount=width, .highCount=(static_cast<uint16_t>(width-down))});
     }
 }
 
