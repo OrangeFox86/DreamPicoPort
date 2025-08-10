@@ -162,42 +162,36 @@ void FlycastWebUsbParser::process(
                 nodes[idx]->requestSummary(
                     [responseFn](const std::list<std::list<std::array<uint32_t, 2>>>& summary)
                     {
-                        std::string summaryString;
-                        summaryString.reserve(512);
+                        std::string response;
+                        response.reserve(64);
 
-                        bool firstI = true;
+                        bool first = true;
                         for (const auto& i : summary)
                         {
-                            if (!firstI)
+                            if (!first)
                             {
-                                summaryString += ';';
+                                // Semicolon means start of next peripheral data
+                                response.push_back(';');
                             }
 
-                            bool firstJ = true;
                             for (const auto& j : i)
                             {
-                                if (!firstJ)
-                                {
-                                    summaryString += ',';
-                                }
+                                // Pipe means a 4-byte value will follow (first is function code)
+                                response.push_back('|');
+                                uint32_t out = MaplePacket::flipWordBytes(j[0]);
+                                const char* const p8Out = reinterpret_cast<const char*>(&out);
+                                response.append(p8Out, 4);
 
-                                summaryString += '{';
-
-                                char buffer[10];
-                                snprintf(buffer, sizeof(buffer), "%08" PRIX32 ",", j[0]);
-                                summaryString += buffer;
-                                snprintf(buffer, sizeof(buffer), "%08" PRIX32, j[1]);
-                                summaryString += buffer;
-
-                                summaryString += '}';
-
-                                firstJ = false;
+                                // Pipe means a 4-byte value will follow (second is function definitions word)
+                                response.push_back('|');
+                                out = MaplePacket::flipWordBytes(j[1]);
+                                response.append(p8Out, 4);
                             }
 
-                            firstI = false;
+                            first = false;
                         }
 
-                        responseFn(kResponseSuccess, {{summaryString.data(), summaryString.size()}});
+                        responseFn(kResponseSuccess, {{response.data(), response.size()}});
                     }
                 );
             }
