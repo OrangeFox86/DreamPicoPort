@@ -83,7 +83,7 @@ extern "C" {
 #define CFG_TUD_MSC             1 // MSC always defined, even when not used
 #define CFG_TUD_HID             MAX_NUMBER_OF_USB_GAMEPADS
 #define CFG_TUD_MIDI            0
-#define CFG_TUD_VENDOR          2 // Vendor (for WebUSB) always defined, even when not used
+#define CFG_TUD_VENDOR          2
 
 // CDC FIFO size of TX and RX
 #define CFG_TUD_CDC_RX_BUFSIZE   2100

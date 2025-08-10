@@ -40,6 +40,7 @@
 #include "class/cdc/cdc_device.h"
 
 #include <hal/Usb/TtyParser.hpp>
+#include <hal/Usb/client_usb_interface.h>
 
 static bool echoOn = true;
 static TtyParser* ttyParser = nullptr;
@@ -156,7 +157,11 @@ void cdc_init(MutexInterface* cdcStdioMutex)
 
 void cdc_task()
 {
-#if USB_CDC_ENABLED
+    if (!is_usb_cdc_en())
+    {
+        return;
+    }
+
     // connected and there are data available
     if (tud_cdc_available())
     {
@@ -185,7 +190,6 @@ void cdc_task()
             tud_cdc_read_flush();
         }
     }
-#endif
 }
 
 // Invoked when cdc when line state changed e.g connected/disconnected

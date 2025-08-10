@@ -32,6 +32,8 @@
 #include "configuration.h"
 #include <string.h>
 
+#include <hal/Usb/client_usb_interface.h>
+
 static uint8_t numberOfGamepads = MAX_NUMBER_OF_USB_GAMEPADS;
 
 void set_usb_descriptor_number_of_gamepads(uint8_t num)
@@ -181,25 +183,14 @@ uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance)
 // Configuration Descriptor
 //--------------------------------------------------------------------+
 
-#if USB_MSC_ENABLED
-    #define MSC_DESC_LEN TUD_MSC_DESC_LEN
-#else
-    #define MSC_DESC_LEN 0
-#endif
-
-#if USB_CDC_ENABLED
-    #define CDC_DESC_LEN TUD_CDC_DESC_LEN
-#else
-    #define CDC_DESC_LEN 0
-#endif
-
-#if USB_WEBUSB_ENABLED
-    #define WEBUSB_DESC_LEN (NUM_ITF_WEBUSB * TUD_VENDOR_DESC_LEN)
-#else
-    #define WEBUSB_DESC_LEN 0
-#endif
-
-#define GET_CONFIG_LEN(numGamepads) (TUD_CONFIG_DESC_LEN + (numGamepads * TUD_HID_DESC_LEN) + CDC_DESC_LEN + MSC_DESC_LEN + WEBUSB_DESC_LEN)
+#define GET_CONFIG_LEN(numGamepads, cdcEn, mscEn) \
+    ( \
+        TUD_CONFIG_DESC_LEN + \
+        (numGamepads * TUD_HID_DESC_LEN) + \
+        ((cdcEn ? 1 : 0) * TUD_CDC_DESC_LEN) + \
+        ((mscEn ? 1 : 0) * TUD_MSC_DESC_LEN) + \
+        (NUM_ITF_WEBUSB * TUD_VENDOR_DESC_LEN) \
+    )
 
 // Endpoint definitions (must all be unique)
 #define EPIN_GAMEPAD1   (0x84)
@@ -230,8 +221,8 @@ uint8_t player_to_epin(uint8_t player)
     }
 }
 
-#define CONFIG_HEADER(numGamepads) \
-    TUD_CONFIG_DESCRIPTOR(1, ITF_COUNT(numGamepads), 0, GET_CONFIG_LEN(numGamepads), TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 500)
+#define CONFIG_HEADER(numGamepads, cdcEn, mscEn) \
+    TUD_CONFIG_DESCRIPTOR(1, ITF_COUNT(numGamepads, cdcEn, mscEn), 0, GET_CONFIG_LEN(numGamepads, cdcEn, mscEn), TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 500)
 
 #define GAMEPAD_CONFIG_DESC(itfNum, strIdx, endpt) \
     TUD_HID_DESCRIPTOR(itfNum, strIdx, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), endpt, GAMEPAD_REPORT_SIZE, 1)
@@ -249,7 +240,7 @@ uint8_t player_to_epin(uint8_t player)
 // tud_descriptor_configuration_cb() before being sent to the USB host
 uint8_t desc_configuration[] =
 {
-    CONFIG_HEADER(MAX_NUMBER_OF_USB_GAMEPADS),
+    CONFIG_HEADER(MAX_NUMBER_OF_USB_GAMEPADS, true, true),
 
     // *************************************************************************
     // * Gamepad Descriptors                                                   *
@@ -264,26 +255,20 @@ uint8_t desc_configuration[] =
     // * Storage Device Descriptor                                             *
     // *************************************************************************
 
-#if USB_MSC_ENABLED
     MSC_DESCRIPTOR(),
-#endif
 
     // *************************************************************************
     // * Communication Device Descriptor  (for debug messaging)                *
     // *************************************************************************
 
-#if USB_CDC_ENABLED
     CDC_DESCRIPTOR(),
-#endif
 
     // *************************************************************************
     // * WebUSB                                                                *
     // *************************************************************************
 
-#if USB_WEBUSB_ENABLED
     WEBUSB1_DESCRIPTOR(),
     WEBUSB2_DESCRIPTOR()
-#endif
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
@@ -296,7 +281,7 @@ uint8_t const *tud_descriptor_configuration_cb(uint8_t index) {
     uint32_t offset = 0;
 
     uint8_t header[] = {
-        CONFIG_HEADER(numberOfGamepads)
+        CONFIG_HEADER(numberOfGamepads, is_usb_cdc_en(), is_usb_msc_en())
     };
     memcpy(&desc_configuration[offset], header, sizeof(header));
     offset += sizeof(header);
@@ -310,30 +295,30 @@ uint8_t const *tud_descriptor_configuration_cb(uint8_t index) {
         offset += sizeof(gpConfig);
     }
 
-#if USB_MSC_ENABLED
-    uint8_t mscConfig[] = {
-        MSC_DESCRIPTOR()
-    };
-    memcpy(&desc_configuration[offset], mscConfig, sizeof(mscConfig));
-    offset += sizeof(mscConfig);
-#endif
+    if (is_usb_msc_en())
+    {
+        uint8_t mscConfig[] = {
+            MSC_DESCRIPTOR()
+        };
+        memcpy(&desc_configuration[offset], mscConfig, sizeof(mscConfig));
+        offset += sizeof(mscConfig);
+    }
 
-#if USB_CDC_ENABLED
-    uint8_t cdcConfig[] = {
-        CDC_DESCRIPTOR()
-    };
-    memcpy(&desc_configuration[offset], cdcConfig, sizeof(cdcConfig));
-    offset += sizeof(cdcConfig);
-#endif
+    if (is_usb_cdc_en())
+    {
+        uint8_t cdcConfig[] = {
+            CDC_DESCRIPTOR()
+        };
+        memcpy(&desc_configuration[offset], cdcConfig, sizeof(cdcConfig));
+        offset += sizeof(cdcConfig);
+    }
 
-#if USB_WEBUSB_ENABLED
     uint8_t webusbConfig[] = {
         WEBUSB1_DESCRIPTOR(),
         WEBUSB2_DESCRIPTOR()
     };
     memcpy(&desc_configuration[offset], webusbConfig, sizeof(webusbConfig));
     offset += sizeof(webusbConfig);
-#endif
 
     return desc_configuration;
 }

@@ -23,7 +23,22 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
 extern "C" {
+#endif
+
 void set_usb_descriptor_number_of_gamepads(uint8_t num);
 uint8_t get_usb_descriptor_number_of_gamepads();
+
+//! Enables or disables the USB CDC (Communication Data Class aka "serial" or "tty") interface
+void set_usb_cdc_en(bool en);
+//! @return true iff USB CDC is enabled
+bool is_usb_cdc_en();
+//! Enables or disables the USB MSC (Mass Storage Class) interface
+void set_usb_msc_en(bool en);
+//! @return true iff USB MSC is enabled
+bool is_usb_msc_en();
+
+#ifdef __cplusplus
 }
+#endif

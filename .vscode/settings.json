@@ -81,7 +81,8 @@
         "stop_token": "cpp",
         "cfenv": "cpp",
         "typeindex": "cpp",
-        "hid_device.h": "c"
+        "hid_device.h": "c",
+        "client_usb_interface.hpp": "c"
     },
     "cmake.configureOnOpen": false
 }

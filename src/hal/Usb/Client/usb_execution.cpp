@@ -25,7 +25,7 @@
 #include "UsbGamepadDreamcastControllerObserver.hpp"
 #include "UsbGamepad.h"
 #include "configuration.h"
-#include "hal/Usb/client_usb_interface.hpp"
+#include "hal/Usb/client_usb_interface.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -358,3 +358,28 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
   // stall unknown request
   return false;
 }
+
+static bool cdc_en = false;
+
+void set_usb_cdc_en(bool en)
+{
+    cdc_en = en;
+}
+
+bool is_usb_cdc_en()
+{
+    return cdc_en;
+}
+
+static bool msc_en = false;
+
+void set_usb_msc_en(bool en)
+{
+    msc_en = en;
+}
+
+bool is_usb_msc_en()
+{
+    return msc_en;
+}
+

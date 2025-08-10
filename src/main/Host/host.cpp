@@ -46,7 +46,8 @@
 #include "hal/MapleBus/MapleBusInterface.hpp"
 #include "hal/Usb/usb_interface.hpp"
 #include "hal/Usb/TtyParser.hpp"
-#include "hal/Usb/client_usb_interface.hpp"
+#include "hal/Usb/client_usb_interface.h"
+#include "hal/System/DppSettings.hpp"
 
 #include <memory>
 #include <algorithm>
@@ -155,6 +156,10 @@ int main()
 {
     set_sys_clock_khz(CPU_FREQ_KHZ, true);
 
+    DppSettings settings = DppSettings::load();
+
+    set_usb_cdc_en(settings.cdcEn);
+    set_usb_msc_en(settings.mscEn);
     set_usb_descriptor_number_of_gamepads(SELECTED_NUMBER_OF_DEVICES);
 
 #if SHOW_DEBUG_MESSAGES

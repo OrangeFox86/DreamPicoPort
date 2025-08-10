@@ -37,34 +37,19 @@
 
 // For mass storage device
 #define ITF_NUM_MSC (4)
-
-#if USB_MSC_ENABLED
-    #define NUM_ITF_MSC (1)
-#else
-    #define NUM_ITF_MSC (0)
-#endif
+#define NUM_ITF_MSC (1)
 
 // For serial device
 #define ITF_NUM_CDC (5)
 #define ITF_NUM_CDC_DATA (6) // Implied, not directly used
-
-#if USB_CDC_ENABLED
-    #define NUM_ITF_CDC (2)
-#else
-    #define NUM_ITF_CDC (0)
-#endif
+#define NUM_ITF_CDC (2)
 
 // For WebUSB
 #define ITF_NUM_WEBUSB1 (7)
 #define ITF_NUM_WEBUSB2 (8)
+#define NUM_ITF_WEBUSB (2)
 
-#if USB_WEBUSB_ENABLED
-    #define NUM_ITF_WEBUSB (2)
-#else
-    #define NUM_ITF_WEBUSB (0)
-#endif
-
-#define ITF_COUNT(numGamepads) (numGamepads + NUM_ITF_MSC + NUM_ITF_CDC + NUM_ITF_WEBUSB)
+#define ITF_COUNT(numGamepads, cdcEn, mscEn) (numGamepads + (mscEn ? NUM_ITF_MSC : 0) + (cdcEn ? NUM_ITF_CDC : 0) + NUM_ITF_WEBUSB)
 
 enum
 {
