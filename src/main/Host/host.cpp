@@ -35,6 +35,7 @@
 #include "MaplePassthroughCommandParser.hpp"
 #include "FlycastCommandParser.hpp"
 
+#include "MapleWebUsbParser.hpp"
 #include "FlycastWebUsbParser.hpp"
 
 #include "CriticalSectionMutex.hpp"
@@ -124,15 +125,20 @@ void core1()
             dreamcastMainNodes));
 
     // Initialize WebUsb parsers
+    std::shared_ptr<MapleWebUsbParser> mapleWebUsbParser =
+        std::make_shared<MapleWebUsbParser>(
+            &schedulers[0],
+            MAPLE_HOST_ADDRESSES,
+            numDevices
+        );
     std::shared_ptr<FlycastWebUsbParser> flycastWebUsbCommandParser =
         std::make_shared<FlycastWebUsbParser>(
             picoIdentification,
-            &schedulers[0],
-            MAPLE_HOST_ADDRESSES,
-            numDevices,
+            mapleWebUsbParser,
             playerData,
             dreamcastMainNodes
         );
+    webusb_add_parser(mapleWebUsbParser);
     webusb_add_parser(flycastWebUsbCommandParser);
 
     // Done initialized
@@ -157,6 +163,8 @@ int main()
 {
     set_sys_clock_khz(CPU_FREQ_KHZ, true);
 
+    // Initialize settings from flash
+    // This needs to be done before interrupts are enabled
     DppSettings settings = DppSettings::initialize();
 
     set_usb_cdc_en(settings.cdcEn);

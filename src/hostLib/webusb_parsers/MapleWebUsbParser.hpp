@@ -32,30 +32,41 @@
 #include "PlayerData.hpp"
 #include "DreamcastMainNode.hpp"
 
-#include "MapleWebUsbParser.hpp"
-
 #include <memory>
 #include <list>
 #include <array>
 #include <functional>
 
-class FlycastWebUsbParser : public WebUsbCommandParser
+class MapleWebUsbParser : public WebUsbCommandParser
 {
 public:
-    FlycastWebUsbParser(
-        SystemIdentification& identification,
-        const std::shared_ptr<MapleWebUsbParser>& mapleWebUsbParser,
-        const std::vector<std::shared_ptr<PlayerData>>& playerData,
-        const std::vector<std::shared_ptr<DreamcastMainNode>>& nodes
+    MapleWebUsbParser(
+        std::shared_ptr<PrioritizedTxScheduler>* schedulers,
+        const uint8_t* senderAddresses,
+        uint32_t numSenders
     );
 
-    virtual ~FlycastWebUsbParser() = default;
+    virtual ~MapleWebUsbParser() = default;
 
     //! Inherited from WebUsbCommandParser
     inline std::uint8_t getSupportedCommand() const override
     {
-        return static_cast<std::uint8_t>('X');
+        return static_cast<std::uint8_t>('0');
     }
+
+    //! Processes a raw maple packet
+    //! @param[in] payload Full maple packet payload, excluding CRC
+    //! @param[in] payloadLen The length of \p payload
+    //! @param[in] responseFn The function to respond on
+    //! @return [-1, MaplePacket::Frame::defaultFrame()] on failure
+    //! @return pair where the first value is the player index and the second value is the frame word transmitted
+    std::pair<int32_t, MaplePacket::Frame> processMaplePacket(
+        const std::uint8_t* payload,
+        std::uint16_t payloadLen,
+        const std::function<
+            void(std::uint8_t responseCmd, const std::list<std::pair<const void*, std::uint16_t>>& payloadList)
+        >& responseFn
+    );
 
     //! Inherited from WebUsbCommandParser
     void process(
@@ -67,9 +78,7 @@ public:
     ) override;
 
 private:
-    static const std::uint8_t kInterfaceVersion[2];
-    SystemIdentification& mIdentification;
-    std::shared_ptr<MapleWebUsbParser> mMapleWebUsbParser;
-    std::vector<std::shared_ptr<PlayerData>> mPlayerData;
-    std::vector<std::shared_ptr<DreamcastMainNode>> nodes;
+    std::shared_ptr<PrioritizedTxScheduler>* const mSchedulers;
+    const uint8_t* const mSenderAddresses;
+    const uint32_t mNumSenders;
 };
