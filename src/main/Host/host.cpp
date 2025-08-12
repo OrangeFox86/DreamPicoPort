@@ -26,6 +26,7 @@
 #include "pico/stdlib.h"
 #include "hardware/clocks.h"
 #include "pico/multicore.h"
+#include <hardware/flash.h>
 
 #include "configuration.h"
 
@@ -156,7 +157,7 @@ int main()
 {
     set_sys_clock_khz(CPU_FREQ_KHZ, true);
 
-    DppSettings settings = DppSettings::load();
+    DppSettings settings = DppSettings::initialize();
 
     set_usb_cdc_en(settings.cdcEn);
     set_usb_msc_en(settings.mscEn);

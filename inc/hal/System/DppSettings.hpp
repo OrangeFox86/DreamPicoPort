@@ -25,8 +25,27 @@
 
 struct DppSettings
 {
+    //! USB CDC enabled flag
     bool cdcEn;
+    //! USB MSC enabled flag
     bool mscEn;
 
-    static DppSettings load();
+    //! Initializes and loads settings
+    //! @pre must be called before interrupts or core 1 is started
+    //! @return loaded settings
+    static DppSettings initialize();
+
+    //! Save settings to flash and reboots system
+    void save();
+
+    //! @pre DppSettings::initialize() must have been called
+    //! @return the offset address in flash where settings are located
+    static inline uint32_t getSettingsOffsetAddr()
+    {
+        return kSettingsOffsetAddr;
+    }
+
+private:
+    //! Offset address of settings within flash
+    static uint32_t kSettingsOffsetAddr;
 };

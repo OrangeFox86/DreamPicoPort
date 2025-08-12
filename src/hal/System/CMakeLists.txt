@@ -11,6 +11,7 @@ target_link_libraries(hal-System
     hardware_flash
     hardware_pwm
     pico_unique_id
+    pico_multicore
 )
 target_compile_options(hal-System PRIVATE
   -Wall
