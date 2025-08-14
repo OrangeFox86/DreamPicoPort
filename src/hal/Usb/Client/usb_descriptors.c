@@ -34,20 +34,57 @@
 
 #include <hal/Usb/client_usb_interface.h>
 
-static uint8_t numberOfGamepads = MAX_NUMBER_OF_USB_GAMEPADS;
+static uint8_t numberOfGamepads = 0;
+static bool enabledGamepads[MAX_NUMBER_OF_USB_GAMEPADS] = {};
 
-void set_usb_descriptor_number_of_gamepads(uint8_t num)
+void set_usb_descriptor_gamepad_en(uint8_t idx, bool en)
 {
-    if (num > MAX_NUMBER_OF_USB_GAMEPADS)
+    if (idx >= MAX_NUMBER_OF_USB_GAMEPADS)
     {
-        num = MAX_NUMBER_OF_USB_GAMEPADS;
+        return;
     }
-    numberOfGamepads = num;
+
+    if (enabledGamepads[idx] != en)
+    {
+        enabledGamepads[idx] = en;
+        if (en)
+        {
+            ++numberOfGamepads;
+        }
+        else
+        {
+            --numberOfGamepads;
+        }
+    }
 }
 
-uint8_t get_usb_descriptor_number_of_gamepads()
+bool is_usb_descriptor_gamepad_en(uint8_t idx)
 {
-    return numberOfGamepads;
+    if (idx >= MAX_NUMBER_OF_USB_GAMEPADS)
+    {
+        return false;
+    }
+
+    return enabledGamepads[idx];
+}
+
+int16_t usb_gamepad_instance_to_index(uint8_t instance)
+{
+    int16_t idx = -1;
+    ++instance;
+    while(instance > 0)
+    {
+        if (idx >= MAX_NUMBER_OF_USB_GAMEPADS)
+        {
+            return -1;
+        }
+
+        if (enabledGamepads[++idx])
+        {
+            --instance;
+        }
+    }
+    return idx;
 }
 
 #undef TUD_HID_REPORT_DESC_GAMEPAD
@@ -171,7 +208,13 @@ uint8_t const *tud_hid_descriptor_report_cb(uint8_t instance)
 {
     if (instance < numberOfGamepads)
     {
-        uint8_t buff[] = {TUD_HID_REPORT_DESC_GAMEPAD(numberOfGamepads, instance)};
+        int16_t idx = usb_gamepad_instance_to_index(instance);
+        if (idx < 0)
+        {
+            return NULL;
+        }
+
+        uint8_t buff[] = {TUD_HID_REPORT_DESC_GAMEPAD(numberOfGamepads, idx)};
         memcpy(desc_hid_report, buff, sizeof(desc_hid_report));
         return desc_hid_report;
     }
@@ -286,13 +329,16 @@ uint8_t const *tud_descriptor_configuration_cb(uint8_t index) {
     memcpy(&desc_configuration[offset], header, sizeof(header));
     offset += sizeof(header);
 
-    for (uint8_t i = 0; i < numberOfGamepads; ++i)
+    for (uint8_t i = 0; i < MAX_NUMBER_OF_USB_GAMEPADS; ++i)
     {
-        uint8_t gpConfig[] = {
-            GAMEPAD_CONFIG_DESC(i, PLAYER_TO_STR_IDX(i), player_to_epin(i))
-        };
-        memcpy(&desc_configuration[offset], gpConfig, sizeof(gpConfig));
-        offset += sizeof(gpConfig);
+        if (enabledGamepads[i])
+        {
+            uint8_t gpConfig[] = {
+                GAMEPAD_CONFIG_DESC(i, PLAYER_TO_STR_IDX(i), player_to_epin(i))
+            };
+            memcpy(&desc_configuration[offset], gpConfig, sizeof(gpConfig));
+            offset += sizeof(gpConfig);
+        }
     }
 
     if (is_usb_msc_en())

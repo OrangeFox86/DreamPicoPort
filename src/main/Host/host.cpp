@@ -47,6 +47,7 @@
 #include "hal/System/LockGuard.hpp"
 #include "hal/MapleBus/MapleBusInterface.hpp"
 #include "hal/Usb/usb_interface.hpp"
+#include "hal/Usb/client_usb_interface.h"
 #include "hal/Usb/TtyParser.hpp"
 #include "hal/Usb/client_usb_interface.h"
 #include "hal/System/DppSettings.hpp"
@@ -57,6 +58,8 @@
 #define MAX_DEVICES 4
 
 const uint8_t MAPLE_HOST_ADDRESSES[MAX_DEVICES] = {0x00, 0x40, 0x80, 0xC0};
+const uint32_t MAPLE_PINS[MAX_DEVICES] = {P1_BUS_START_PIN, P2_BUS_START_PIN, P3_BUS_START_PIN, P4_BUS_START_PIN};
+const uint32_t MAPLE_DIR_PINS[MAX_DEVICES] = {P1_DIR_PIN, P2_DIR_PIN, P3_DIR_PIN, P4_DIR_PIN};
 
 static bool core1Initialized = false;
 
@@ -69,15 +72,21 @@ void core1()
     // Wait for steady state
     sleep_ms(100);
 
-    uint32_t numUsbControllers = get_num_usb_controllers();
-    uint32_t numDevices = std::min(numUsbControllers, (uint32_t)MAX_DEVICES);
+    uint32_t numDevices = 0;
+    uint8_t mapleHostAddresses[MAX_DEVICES] = {};
+    uint32_t maplePins[MAX_DEVICES] = {};
+    int32_t mapleDirPins[MAX_DEVICES] = {};
+    for (uint8_t i = 0; i < MAX_DEVICES; ++i)
+    {
+        if (is_usb_descriptor_gamepad_en(i))
+        {
+            mapleHostAddresses[numDevices] = MAPLE_HOST_ADDRESSES[i];
+            maplePins[numDevices] = MAPLE_PINS[i];
+            mapleDirPins[numDevices] = MAPLE_DIR_PINS[i];
+            ++numDevices;
+        }
+    }
 
-    uint32_t maplePins[MAX_DEVICES] = {
-        P1_BUS_START_PIN, P2_BUS_START_PIN, P3_BUS_START_PIN, P4_BUS_START_PIN
-    };
-    int32_t mapleDirPins[MAX_DEVICES] = {
-        P1_DIR_PIN, P2_DIR_PIN, P3_DIR_PIN, P4_DIR_PIN
-    };
     CriticalSectionMutex screenMutexes[numDevices];
     std::shared_ptr<ScreenData> screenData[numDevices];
     std::vector<std::shared_ptr<PlayerData>> playerData;
@@ -98,7 +107,7 @@ void core1()
                                                      clock,
                                                      usb_msc_get_file_system());
         buses[i] = create_maple_bus(maplePins[i], mapleDirPins[i], DIR_OUT_HIGH);
-        schedulers[i] = std::make_shared<PrioritizedTxScheduler>(schedulerMutexes[i], MAPLE_HOST_ADDRESSES[i]);
+        schedulers[i] = std::make_shared<PrioritizedTxScheduler>(schedulerMutexes[i], mapleHostAddresses[i]);
         dreamcastMainNodes[i] = std::make_shared<DreamcastMainNode>(
             *buses[i],
             *playerData[i],
@@ -111,7 +120,7 @@ void core1()
     usb_cdc_set_parser(ttyParser);
     ttyParser->addCommandParser(
         std::make_shared<MaplePassthroughCommandParser>(
-            &schedulers[0], MAPLE_HOST_ADDRESSES, numDevices));
+            &schedulers[0], mapleHostAddresses, numDevices));
     PicoIdentification picoIdentification;
     Mutex flycastCommandParserMutex;
     ttyParser->addCommandParser(
@@ -119,7 +128,7 @@ void core1()
             flycastCommandParserMutex,
             picoIdentification,
             &schedulers[0],
-            MAPLE_HOST_ADDRESSES,
+            mapleHostAddresses,
             numDevices,
             playerData,
             dreamcastMainNodes));
@@ -128,7 +137,7 @@ void core1()
     std::shared_ptr<MapleWebUsbParser> mapleWebUsbParser =
         std::make_shared<MapleWebUsbParser>(
             &schedulers[0],
-            MAPLE_HOST_ADDRESSES,
+            mapleHostAddresses,
             numDevices
         );
     std::shared_ptr<FlycastWebUsbParser> flycastWebUsbCommandParser =
@@ -169,7 +178,10 @@ int main()
 
     set_usb_cdc_en(settings.cdcEn);
     set_usb_msc_en(settings.mscEn);
-    set_usb_descriptor_number_of_gamepads(SELECTED_NUMBER_OF_DEVICES);
+    for (uint8_t i = 0; i < SELECTED_NUMBER_OF_DEVICES; ++i)
+    {
+        set_usb_descriptor_gamepad_en(i, true);
+    }
 
 #if SHOW_DEBUG_MESSAGES
     stdio_uart_init();

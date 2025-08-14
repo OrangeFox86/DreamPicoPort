@@ -75,34 +75,10 @@ DreamcastControllerObserver** get_usb_controller_observers()
   return observers;
 }
 
-uint32_t get_num_usb_controllers()
-{
-  uint8_t installedGamepads = get_usb_descriptor_number_of_gamepads();
-
-  if (installedGamepads <= MAX_NUMBER_OF_USB_GAMEPADS)
-  {
-    return installedGamepads;
-  }
-  else
-  {
-    return MAX_NUMBER_OF_USB_GAMEPADS;
-  }
-}
-
 bool usbEnabled = false;
-
-UsbControllerDevice** pAllUsbDevices = nullptr;
-
-uint8_t numUsbDevices = 0;
 
 bool usbDisconnecting = false;
 absolute_time_t usbDisconnectTime;
-
-void set_usb_devices(UsbControllerDevice** devices, uint8_t n)
-{
-  pAllUsbDevices = devices;
-  numUsbDevices = n;
-}
 
 bool gIsConnected = false;
 
@@ -125,13 +101,16 @@ void led_task()
   else
   {
     bool keyPressed = false;
-    UsbControllerDevice** pdevs = pAllUsbDevices;
-    for (uint32_t i = numUsbDevices; i > 0; --i, ++pdevs)
+    UsbControllerDevice** pdevs = devices;
+    for (uint32_t i = 0; i < MAX_NUMBER_OF_USB_GAMEPADS; ++i, ++pdevs)
     {
-      if ((*pdevs)->isButtonPressed())
+      if (is_usb_descriptor_gamepad_en(i))
       {
-        keyPressed = true;
-        break;
+        if ((*pdevs)->isButtonPressed())
+        {
+          keyPressed = true;
+          break;
+        }
       }
     }
     if (gIsConnected)
@@ -167,15 +146,6 @@ void usb_init(
   MutexInterface* webUsbMutex
 )
 {
-  uint32_t numDevices = get_num_usb_controllers();
-
-  uint32_t max = sizeof(devices) / sizeof(devices[1]);
-  if (numDevices > max)
-  {
-    numDevices = max;
-  }
-  set_usb_devices(devices, numDevices);
-
   board_init();
   tusb_init();
   msc_init(mscMutex);
@@ -207,11 +177,14 @@ void usb_task()
 // Invoked when device is mounted
 void tud_mount_cb(void)
 {
-  UsbControllerDevice** pdevs = pAllUsbDevices;
-  for (uint32_t i = numUsbDevices; i > 0; --i, ++pdevs)
+  UsbControllerDevice** pdevs = devices;
+  for (uint32_t i = 0; i < MAX_NUMBER_OF_USB_GAMEPADS; ++i, ++pdevs)
   {
-    (*pdevs)->updateUsbConnected(true);
-    (*pdevs)->send(true);
+      if (is_usb_descriptor_gamepad_en(i))
+      {
+        (*pdevs)->updateUsbConnected(true);
+        (*pdevs)->send(true);
+      }
   }
   gIsConnected = true;
 }
@@ -219,10 +192,13 @@ void tud_mount_cb(void)
 // Invoked when device is unmounted
 void tud_umount_cb(void)
 {
-  UsbControllerDevice** pdevs = pAllUsbDevices;
-  for (uint32_t i = numUsbDevices; i > 0; --i, ++pdevs)
+  UsbControllerDevice** pdevs = devices;
+  for (uint32_t i = 0; i < MAX_NUMBER_OF_USB_GAMEPADS; ++i, ++pdevs)
   {
-    (*pdevs)->updateUsbConnected(false);
+    if (is_usb_descriptor_gamepad_en(i))
+    {
+      (*pdevs)->updateUsbConnected(false);
+    }
   }
   gIsConnected = false;
 }
@@ -233,10 +209,13 @@ void tud_umount_cb(void)
 void tud_suspend_cb(bool remote_wakeup_en)
 {
   (void) remote_wakeup_en;
-  UsbControllerDevice** pdevs = pAllUsbDevices;
-  for (uint32_t i = numUsbDevices; i > 0; --i, ++pdevs)
+  UsbControllerDevice** pdevs = devices;
+  for (uint32_t i = 0; i < MAX_NUMBER_OF_USB_GAMEPADS; ++i, ++pdevs)
   {
-    (*pdevs)->updateUsbConnected(false);
+    if (is_usb_descriptor_gamepad_en(i))
+    {
+      (*pdevs)->updateUsbConnected(false);
+    }
   }
   gIsConnected = false;
 }
@@ -244,11 +223,14 @@ void tud_suspend_cb(bool remote_wakeup_en)
 // Invoked when usb bus is resumed
 void tud_resume_cb(void)
 {
-  UsbControllerDevice** pdevs = pAllUsbDevices;
-  for (uint32_t i = numUsbDevices; i > 0; --i, ++pdevs)
+  UsbControllerDevice** pdevs = devices;
+  for (uint32_t i = 0; i < MAX_NUMBER_OF_USB_GAMEPADS; ++i, ++pdevs)
   {
-    (*pdevs)->updateUsbConnected(true);
-    (*pdevs)->send(true);
+    if (is_usb_descriptor_gamepad_en(i))
+    {
+      (*pdevs)->updateUsbConnected(true);
+      (*pdevs)->send(true);
+    }
   }
   gIsConnected = true;
 }
@@ -264,15 +246,15 @@ uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, hid_report_t
 {
   (void) report_id;
   (void) report_type;
-  if (instance >= numUsbDevices)
+
+  int16_t idx = usb_gamepad_instance_to_index(instance);
+  if (idx < 0)
   {
     return 0;
   }
-  else
-  {
-    // Build the report for the given report ID and return the size set
-    return pAllUsbDevices[instance]->getReport(buffer, reqlen);
-  }
+
+  // Build the report for the given report ID and return the size set
+  return devices[idx]->getReport(buffer, reqlen);
 }
 
 // Invoked when received SET_REPORT control request or

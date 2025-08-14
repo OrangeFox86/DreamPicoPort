@@ -39,8 +39,6 @@ void usb_init(
 );
 //! USB task that needs to be called constantly by main()
 void usb_task();
-//! @returns number of USB controllers
-uint32_t get_num_usb_controllers();
 
 //! Must return the file system
 UsbFileSystem& usb_msc_get_file_system();

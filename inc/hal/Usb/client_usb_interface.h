@@ -27,8 +27,9 @@
 extern "C" {
 #endif
 
-void set_usb_descriptor_number_of_gamepads(uint8_t num);
-uint8_t get_usb_descriptor_number_of_gamepads();
+void set_usb_descriptor_gamepad_en(uint8_t idx, bool en);
+bool is_usb_descriptor_gamepad_en(uint8_t idx);
+int16_t usb_gamepad_instance_to_index(uint8_t instance);
 
 //! Enables or disables the USB CDC (Communication Data Class aka "serial" or "tty") interface
 void set_usb_cdc_en(bool en);
