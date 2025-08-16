@@ -23,19 +23,45 @@
 
 #pragma once
 
+#include <cstdint>
+
 struct DppSettings
 {
-    //! USB CDC enabled flag
-    bool cdcEn;
-    //! USB MSC enabled flag
-    bool mscEn;
+    //! Number of players supported
+    static const uint8_t kNumPlayers = 4;
+
+    //! Enumerates the different player detection modes
+    enum class PlayerDetectionMode : std::uint8_t
+    {
+        kDisable = 0,   //!< No auto detection, always disabled
+        kEnable,        //!< No auto detection, always enabled
+        kAutoThreshold = kEnable, //!< Any value greater than this value is automatic detection
+        kAutoDynamic,   //!< Auto detection, disabling and enabling as device is detected or removed
+        kAutoStatic     //!< Initially disabled, switch to kEnable and save settings once detected
+    };
+
+    //! USB CDC enabled flag (default: true)
+    bool cdcEn = true;
+    //! USB MSC enabled flag (default: false)
+    bool mscEn = false;
+    //! Detection mode for each player
+    PlayerDetectionMode playerDetectionModes[kNumPlayers] = {
+        PlayerDetectionMode::kAutoStatic,
+        PlayerDetectionMode::kAutoStatic,
+        PlayerDetectionMode::kAutoStatic,
+        PlayerDetectionMode::kAutoStatic
+    };
 
     //! Initializes and loads settings
     //! @pre must be called before interrupts or core 1 is started
     //! @return loaded settings
-    static DppSettings initialize();
+    static const DppSettings& initialize();
+
+    //! @return the settings loaded on initialize()
+    static const DppSettings& getInitialSettings();
 
     //! Save settings to flash and reboots system
+    //! @pre this must be called from core 0!
     void save();
 
     //! @pre DppSettings::initialize() must have been called
@@ -45,7 +71,12 @@ struct DppSettings
         return kSettingsOffsetAddr;
     }
 
+    bool operator==(const DppSettings&) const = default;
+    bool operator!=(const DppSettings&) const = default;
+
 private:
     //! Offset address of settings within flash
     static uint32_t kSettingsOffsetAddr;
+    //! The loaded settings on initialize()
+    static DppSettings kLoadedSettings;
 };

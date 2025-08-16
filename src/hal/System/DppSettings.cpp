@@ -43,12 +43,16 @@ static const uint32_t kUsbEnableMscMask = 0x00000002;
 struct SettingsMemory
 {
 	uint32_t magic;
-    uint16_t size; // Number of words, starting at CRC
+    uint16_t size; // Number of 4-byte words, starting at CRC
     uint16_t invSize;
 	uint32_t crc;
     uint32_t usbEn;
-	uint8_t pad[FLASH_PAGE_SIZE - (4 * sizeof(uint32_t))];
+    uint8_t playerEnableMode[4];
 };
+
+static const uint16_t kSettingsMemorySize = 3;
+
+static_assert(sizeof(SettingsMemory) < FLASH_PAGE_SIZE, "Incorrect size");
 
 static uint32_t __no_inline_not_in_flash_func(get_settings_flash_offset)()
 {
@@ -72,14 +76,8 @@ uint32_t __no_inline_not_in_flash_func(calc_crc32)(const uint32_t* ptr, uint16_t
     return crc;
 }
 
-DppSettings DppSettings::initialize()
+const DppSettings& DppSettings::initialize()
 {
-    // Defaults
-    DppSettings settings = {
-        .cdcEn = USB_CDC_ENABLED,
-        .mscEn = USB_MSC_ENABLED
-    };
-
     kSettingsOffsetAddr = get_settings_flash_offset();
 
     const SettingsMemory* settingsMemory = reinterpret_cast<const SettingsMemory*>(
@@ -89,20 +87,31 @@ DppSettings DppSettings::initialize()
     if (
         settingsMemory->magic != kMagic ||
         ((settingsMemory->size ^ settingsMemory->invSize) != 0xFFFF) ||
-        (settingsMemory->size < 2) ||
+        (settingsMemory->size < kSettingsMemorySize) ||
         (calc_crc32(&settingsMemory->crc, settingsMemory->size) != 0)
     )
     {
-        return settings;
+        // Data in flash is invalid
+        return kLoadedSettings;
     }
 
-    settings.cdcEn = ((settingsMemory->usbEn & kUsbEnableCdcMask) > 0);
-    settings.mscEn = ((settingsMemory->usbEn & kUsbEnableMscMask) > 0);
+    kLoadedSettings.cdcEn = ((settingsMemory->usbEn & kUsbEnableCdcMask) > 0);
+    kLoadedSettings.mscEn = ((settingsMemory->usbEn & kUsbEnableMscMask) > 0);
+    for (uint8_t i = 0; i < kNumPlayers; ++i)
+    {
+        kLoadedSettings.playerDetectionModes[i] =
+            static_cast<DppSettings::PlayerDetectionMode>(settingsMemory->playerEnableMode[i]);
+    }
 
-    return settings;
+    return kLoadedSettings;
 }
 
-static void __not_in_flash_func(save_settings_memory)(const SettingsMemory& mem)
+const DppSettings& DppSettings::getInitialSettings()
+{
+    return kLoadedSettings;
+}
+
+void __no_inline_not_in_flash_func(save_settings_memory)(uint32_t offsetAddr, const SettingsMemory& mem)
 {
     // This function must be called by core0, and core1 is stopped to ensure nothing is accessing flash
     multicore_reset_core1();
@@ -112,18 +121,24 @@ static void __not_in_flash_func(save_settings_memory)(const SettingsMemory& mem)
     gpio_set_function_masked(0xFFFFFFFF, gpio_function_t::GPIO_FUNC_NULL);
 
     // Disable all IRQs on this core
-    save_and_disable_interrupts();
+    uint32_t savedInterrupts = save_and_disable_interrupts();
+    busy_wait_us(50000); // note: DO NOT USE sleep_*() FUNCTIONS WHILE INTERRUPTS ARE DISABLED!
 
-    flash_range_erase(DppSettings::getSettingsOffsetAddr(), FLASH_SECTOR_SIZE);
+    flash_range_erase(offsetAddr, FLASH_SECTOR_SIZE);
 
-    flash_range_program(
-        DppSettings::getSettingsOffsetAddr(),
-        (const uint8_t*)&mem,
-        sizeof(SettingsMemory)
-    );
+    // Create the page since flash_range_program() requires multiple of FLASH_PAGE_SIZE bytes
+    uint8_t page[FLASH_PAGE_SIZE];
+    memcpy(&page[0], &mem, sizeof(SettingsMemory));
+    memset(&page[sizeof(SettingsMemory)], 0xFF, sizeof(page) - sizeof(SettingsMemory));
+
+    // WRITE IT!
+    flash_range_program(offsetAddr, page, FLASH_PAGE_SIZE);
 
     // Wait a moment
-    sleep_ms(50);
+    busy_wait_us(50000);
+
+    // Interrupts need to be restored in order to reboot
+    restore_interrupts_from_disabled(savedInterrupts);
 
     // Reboot now to apply settings
     watchdog_reboot(0, 0, 0);
@@ -133,13 +148,18 @@ void DppSettings::save()
 {
     SettingsMemory mem{
         .magic = kMagic,
-        .size = 0x0002,
+        .size = kSettingsMemorySize,
         .crc = 0xFFFFFFFF,
         .usbEn = (cdcEn ? kUsbEnableCdcMask : 0) | (mscEn ? kUsbEnableMscMask : 0)
     };
     mem.invSize = mem.size ^ 0xFFFF;
+    for (uint8_t i = 0; i < kNumPlayers; ++i)
+    {
+        mem.playerEnableMode[i] = static_cast<uint8_t>(playerDetectionModes[i]);
+    }
     mem.crc = calc_crc32(&mem.crc + 1, mem.size - 1);
-    save_settings_memory(mem);
+    save_settings_memory(kSettingsOffsetAddr, mem);
 }
 
 uint32_t DppSettings::kSettingsOffsetAddr = 0;
+DppSettings DppSettings::kLoadedSettings;

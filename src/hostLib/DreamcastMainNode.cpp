@@ -27,17 +27,24 @@
 #include "DreamcastController.hpp"
 #include "EndpointTxScheduler.hpp"
 
-DreamcastMainNode::DreamcastMainNode(MapleBusInterface& bus,
-                                     PlayerData playerData,
-                                     std::shared_ptr<PrioritizedTxScheduler> prioritizedTxScheduler) :
-    DreamcastNode(DreamcastPeripheral::MAIN_PERIPHERAL_ADDR_MASK,
-                  std::make_shared<EndpointTxScheduler>(
-                    prioritizedTxScheduler,
-                    PrioritizedTxScheduler::MAIN_TRANSMISSION_PRIORITY,
-                    DreamcastPeripheral::getRecipientAddress(
-                        playerData.playerIndex, DreamcastPeripheral::MAIN_PERIPHERAL_ADDR_MASK)
-                  ),
-                  playerData),
+DreamcastMainNode::DreamcastMainNode(
+    MapleBusInterface& bus,
+    PlayerData playerData,
+    std::shared_ptr<PrioritizedTxScheduler> prioritizedTxScheduler,
+    bool detectionOnly
+) :
+    DreamcastNode(
+        DreamcastPeripheral::MAIN_PERIPHERAL_ADDR_MASK,
+        std::make_shared<EndpointTxScheduler>(
+            prioritizedTxScheduler,
+            PrioritizedTxScheduler::MAIN_TRANSMISSION_PRIORITY,
+            DreamcastPeripheral::getRecipientAddress(
+            playerData.playerIndex, DreamcastPeripheral::MAIN_PERIPHERAL_ADDR_MASK)
+        ),
+        playerData
+    ),
+    mDetectionOnly(detectionOnly),
+    mDeviceDetected(false),
     mSubNodes(),
     mTransmissionTimeliner(bus, prioritizedTxScheduler),
     mScheduleId(-1),
@@ -64,23 +71,29 @@ DreamcastMainNode::DreamcastMainNode(MapleBusInterface& bus,
 DreamcastMainNode::~DreamcastMainNode()
 {}
 
-void DreamcastMainNode::txComplete(std::shared_ptr<const MaplePacket> packet,
-                                   std::shared_ptr<const Transmission> tx)
+void DreamcastMainNode::txComplete(
+    std::shared_ptr<const MaplePacket> packet,
+    std::shared_ptr<const Transmission> tx
+)
 {
     // Handle device info from main peripheral
     if (packet != nullptr && packet->frame.command == COMMAND_RESPONSE_DEVICE_INFO)
     {
-        if (packet->payload.size() > 3)
+        mDeviceDetected = true;
+
+        if (mDetectionOnly)
+        {
+            // This node will now be completely idle
+            cancelInfoRequest();
+        }
+        else if (packet->payload.size() > 3)
         {
             uint32_t mask = peripheralFactory(packet->payload);
             if (mPeripherals.size() > 0)
             {
                 // Remove the auto reload device info request transmission from schedule
-                if (mScheduleId >= 0)
-                {
-                    mEndpointTxScheduler->cancelById(mScheduleId);
-                    mScheduleId = -1;
-                }
+                cancelInfoRequest();
+
                 DEBUG_PRINT("P%lu connected (", mPlayerData.playerIndex + 1);
                 debugPrintPeripherals();
                 DEBUG_PRINT(")\n");
@@ -103,6 +116,7 @@ void DreamcastMainNode::txComplete(std::shared_ptr<const MaplePacket> packet,
 
 void DreamcastMainNode::disconnectMainPeripheral(uint64_t currentTimeUs)
 {
+    mDeviceDetected = false;
     peripheralChangeEvent(currentTimeUs);
     mPeripherals.clear();
     mEndpointTxScheduler->cancelByRecipient(getRecipientAddress());
@@ -374,6 +388,15 @@ void DreamcastMainNode::addInfoRequestToSchedule(uint64_t currentTimeUs)
         },
         this
     );
+}
+
+void DreamcastMainNode::cancelInfoRequest()
+{
+    if (mScheduleId >= 0)
+    {
+        mEndpointTxScheduler->cancelById(mScheduleId);
+        mScheduleId = -1;
+    }
 }
 
 void DreamcastMainNode::peripheralChangeEvent(uint64_t currentTimeUs)
