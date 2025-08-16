@@ -314,7 +314,7 @@ int main()
                             autoDetectTimeUs[i] = time_us_64();
                             autoDetectReactionTimeUs = (autoDetectTimeUs[i] + 500000);
 
-                            if (allMapleDetectionModes[i] != DppSettings::PlayerDetectionMode::kAutoDynamic)
+                            if (allMapleDetectionModes[i] == DppSettings::PlayerDetectionMode::kAutoStatic)
                             {
                                 // Update settings which will be saved later
                                 currentDppSettings.playerDetectionModes[playerIdx] = DppSettings::PlayerDetectionMode::kEnable;
@@ -332,7 +332,7 @@ int main()
                             fflush(stdout);
                         }
                     }
-                    else
+                    else if (allMapleDetectionModes[i] != DppSettings::PlayerDetectionMode::kAutoDynamicNoDisable)
                     {
                         // Was connected, react on disconnect
                         if (!dreamcastMainNodes[i]->isDeviceDetected())

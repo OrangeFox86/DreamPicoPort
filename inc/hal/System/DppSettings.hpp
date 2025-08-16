@@ -33,11 +33,18 @@ struct DppSettings
     //! Enumerates the different player detection modes
     enum class PlayerDetectionMode : std::uint8_t
     {
-        kDisable = 0,   //!< No auto detection, always disabled
-        kEnable,        //!< No auto detection, always enabled
-        kAutoThreshold = kEnable, //!< Any value greater than this value is automatic detection
-        kAutoDynamic,   //!< Auto detection, disabling and enabling as device is detected or removed
-        kAutoStatic     //!< Initially disabled, switch to kEnable and save settings once detected
+        //! No auto detection, always disabled
+        kDisable = 0,
+        //! No auto detection, always enabled
+        kEnable,
+        //! Any value greater than this value is automatic detection
+        kAutoThreshold = kEnable,
+        //! Initially disabled, switch to kEnable and save settings once detected
+        kAutoStatic,
+        //! Auto detection, disabling and enabling as device is detected or removed
+        kAutoDynamic,
+        //! Auto detection, enabling as device is detected, only disabled upon power loss
+        kAutoDynamicNoDisable
     };
 
     //! USB CDC enabled flag (default: true)
