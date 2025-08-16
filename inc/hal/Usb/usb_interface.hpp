@@ -37,6 +37,10 @@ void usb_init(
   MutexInterface* cdcStdioMutex,
   MutexInterface* webUsbMutex
 );
+//! Start USB execution
+void usb_start();
+//! Stop USB execution
+void usb_stop();
 //! USB task that needs to be called constantly by main()
 void usb_task();
 

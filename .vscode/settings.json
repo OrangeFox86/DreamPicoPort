@@ -83,7 +83,8 @@
         "typeindex": "cpp",
         "hid_device.h": "c",
         "client_usb_interface.hpp": "c",
-        "client_usb_interface.h": "c"
+        "client_usb_interface.h": "c",
+        "watchdog.h": "c"
     },
     "cmake.configureOnOpen": false
 }

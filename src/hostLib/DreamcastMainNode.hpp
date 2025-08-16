@@ -115,6 +115,8 @@ class DreamcastMainNode : public DreamcastNode
     public:
         //! Number of microseconds in between each info request when no peripheral is detected
         static const uint32_t US_PER_CHECK = 16000;
+        //! Overrides the above when this node is used for detection only
+        static const uint32_t DETECTION_ONLY_US_PER_CHECK = 250000;
         //! Number of communication failures before main peripheral is disconnected
         static const uint32_t MAX_FAILURE_DISCONNECT_COUNT = 10;
         //! Number of milliseconds that a connect signal is asserted

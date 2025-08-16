@@ -60,6 +60,7 @@
 #define MAX_DEVICES (DppSettings::kNumPlayers)
 
 const uint32_t WATCHDOG_MAPLE_AUTO_DETECT_MAGIC = 0xEA68D4;
+
 const uint8_t MAPLE_HOST_ADDRESSES[MAX_DEVICES] = {0x00, 0x40, 0x80, 0xC0};
 const uint32_t MAPLE_PINS[MAX_DEVICES] = {P1_BUS_START_PIN, P2_BUS_START_PIN, P3_BUS_START_PIN, P4_BUS_START_PIN};
 const uint32_t MAPLE_DIR_PINS[MAX_DEVICES] = {P1_DIR_PIN, P2_DIR_PIN, P3_DIR_PIN, P4_DIR_PIN};
@@ -72,7 +73,7 @@ static DppSettings::PlayerDetectionMode allMapleDetectionModes[MAX_DEVICES] = {
 };
 
 static uint8_t mapleEnabledMask = 0;
-static uint32_t numDevices = 0;
+static uint8_t numDevices = 0;
 static bool anyMapleAutoDetect = false;
 static uint8_t mapleIndexToPlayerIndex[MAX_DEVICES] = {};
 static DppSettings::PlayerDetectionMode mapleDetectionModes[MAX_DEVICES] = {};
@@ -133,12 +134,19 @@ void core1()
     Mutex schedulerMutexes[numDevices];
     std::shared_ptr<PrioritizedTxScheduler> schedulers[numDevices];
     Clock clock;
-    for (uint32_t i = 0; i < numDevices; ++i)
+    uint8_t instanceId = 0;
+    for (uint8_t i = 0; i < numDevices; ++i)
     {
+        DreamcastControllerObserver& thisObserver = *(observers[mapleIndexToPlayerIndex[i]]);
+        if (!mapleAutoDetectOnly[i])
+        {
+            thisObserver.setInstanceId(instanceId++);
+        }
+
         screenData[i] = std::make_shared<ScreenData>(screenMutexes[i], i);
         playerData[i] = std::make_shared<PlayerData>(
-            i,
-            *(observers[i]),
+            mapleIndexToPlayerIndex[i],
+            thisObserver,
             *screenData[i],
             clock,
             usb_msc_get_file_system()
@@ -258,15 +266,17 @@ int main()
     stdio_uart_init();
 #endif
 
+    Mutex fileMutex;
+    Mutex cdcStdioMutex;
+    Mutex webusbMutex;
+    usb_init(&fileMutex, &cdcStdioMutex, &webusbMutex);
+
     multicore_launch_core1(core1);
 
     // Wait until core1 is done initializing
     while (!core1Initialized);
 
-    Mutex fileMutex;
-    Mutex cdcStdioMutex;
-    Mutex webusbMutex;
-    usb_init(&fileMutex, &cdcStdioMutex, &webusbMutex);
+    usb_start();
 
     while(true)
     {
@@ -281,9 +291,7 @@ int main()
 
             if (autoDetectReactionTimeUs > 0 && time_us_64() >= autoDetectReactionTimeUs)
             {
-                printf("REACT\n");
-                fflush(stdout);
-                autoDetectReactionTimeUs = 0;
+                usb_stop();
 
                 watchdog_hw->scratch[0] = WATCHDOG_MAPLE_AUTO_DETECT_MAGIC;
                 watchdog_hw->scratch[1] = mapleEnabledMask;
@@ -294,7 +302,9 @@ int main()
                     currentDppSettings.save();
                 }
 
-                watchdog_reboot(0, 0, 50);
+                watchdog_reboot(0, 0, 0);
+
+                return 0;
             }
 
             for (uint32_t i = 0; i < numDevices; ++i)
@@ -308,8 +318,6 @@ int main()
                         // Was disconnected, react on connection
                         if (dreamcastMainNodes[i]->isDeviceDetected())
                         {
-                            printf("Device detected\n");
-
                             mapleEnabledMask |= (1 << playerIdx);
                             autoDetectTimeUs[i] = time_us_64();
                             autoDetectReactionTimeUs = (autoDetectTimeUs[i] + 500000);
@@ -319,17 +327,6 @@ int main()
                                 // Update settings which will be saved later
                                 currentDppSettings.playerDetectionModes[playerIdx] = DppSettings::PlayerDetectionMode::kEnable;
                             }
-
-                            printf("Enable mask: %02hx; auto detect time: %llu; reaction time: %llu; detect: ", mapleEnabledMask, autoDetectTimeUs[i], autoDetectReactionTimeUs);
-
-                            for (uint8_t i = 0; i < DppSettings::kNumPlayers; ++i)
-                            {
-                                printf("%02hx ", static_cast<uint8_t>(currentDppSettings.playerDetectionModes[i]));
-                            }
-
-                            printf("\n");
-
-                            fflush(stdout);
                         }
                     }
                     else if (allMapleDetectionModes[i] != DppSettings::PlayerDetectionMode::kAutoDynamicNoDisable)
@@ -337,9 +334,6 @@ int main()
                         // Was connected, react on disconnect
                         if (!dreamcastMainNodes[i]->isDeviceDetected())
                         {
-                            printf("Device no longer detected\n");
-                            fflush(stdout);
-
                             mapleEnabledMask &= ~(1 << playerIdx);
                             autoDetectTimeUs[i] = time_us_64();
                             autoDetectReactionTimeUs = (autoDetectTimeUs[i] + 500000);

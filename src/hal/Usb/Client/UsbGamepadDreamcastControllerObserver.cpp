@@ -91,3 +91,8 @@ void UsbGamepadDreamcastControllerObserver::controllerDisconnected()
     mUsbController.updateControllerConnected(false);
     mUsbController.send(true);
 }
+
+void UsbGamepadDreamcastControllerObserver::setInstanceId(uint8_t instance)
+{
+    mUsbController.setInstanceId(instance);
+}

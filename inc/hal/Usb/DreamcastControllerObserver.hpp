@@ -53,6 +53,10 @@ class DreamcastControllerObserver
 
         //! Called when controller disconnected
         virtual void controllerDisconnected() = 0;
+
+        //! Set the instance ID for sending report
+        //! @param[in] instance The instance ID
+        virtual void setInstanceId(uint8_t instance) = 0;
 };
 
 #endif // __DREAMCAST_CONTROLLER_OBSERVER_H__

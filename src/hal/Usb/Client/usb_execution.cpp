@@ -147,7 +147,6 @@ void usb_init(
 )
 {
   board_init();
-  tusb_init();
   msc_init(mscMutex);
   cdc_init(cdcStdioMutex);
   webusb_init(webUsbMutex);
@@ -161,6 +160,17 @@ void usb_init(
   gpio_init(SIMPLE_USB_LED_PIN);
   gpio_set_dir_out_masked(1<<SIMPLE_USB_LED_PIN);
 #endif
+}
+
+void usb_start()
+{
+  dcd_connect(0);
+  tusb_init();
+}
+
+void usb_stop()
+{
+  dcd_disconnect(0);
 }
 
 void usb_task()

@@ -39,7 +39,9 @@ DreamcastMainNode::DreamcastMainNode(
             prioritizedTxScheduler,
             PrioritizedTxScheduler::MAIN_TRANSMISSION_PRIORITY,
             DreamcastPeripheral::getRecipientAddress(
-            playerData.playerIndex, DreamcastPeripheral::MAIN_PERIPHERAL_ADDR_MASK)
+                playerData.playerIndex,
+                DreamcastPeripheral::MAIN_PERIPHERAL_ADDR_MASK
+            )
         ),
         playerData
     ),
@@ -384,7 +386,7 @@ void DreamcastMainNode::addInfoRequestToSchedule(uint64_t currentTimeUs)
             .payloadLen = 0,
             .expectResponse = true,
             .expectedResponseNumPayloadWords = EXPECTED_DEVICE_INFO_PAYLOAD_WORDS,
-            .autoRepeatUs = US_PER_CHECK
+            .autoRepeatUs = (mDetectionOnly ? DETECTION_ONLY_US_PER_CHECK : US_PER_CHECK)
         },
         this
     );
