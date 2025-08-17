@@ -41,9 +41,8 @@ class MapleWebUsbParser : public WebUsbCommandParser
 {
 public:
     MapleWebUsbParser(
-        std::shared_ptr<PrioritizedTxScheduler>* schedulers,
-        const uint8_t* senderAddresses,
-        uint32_t numSenders
+        const std::vector<std::shared_ptr<PrioritizedTxScheduler>>& schedulers,
+        const std::vector<uint8_t>& senderAddresses
     );
 
     virtual ~MapleWebUsbParser() = default;
@@ -78,7 +77,6 @@ public:
     ) override;
 
 private:
-    std::shared_ptr<PrioritizedTxScheduler>* const mSchedulers;
-    const uint8_t* const mSenderAddresses;
-    const uint32_t mNumSenders;
+    const std::vector<std::shared_ptr<PrioritizedTxScheduler>> mSchedulers;
+    const std::vector<uint8_t> mSenderAddresses;
 };

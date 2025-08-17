@@ -64,11 +64,11 @@ public:
     FlycastCommandParser(
         MutexInterface& m,
         SystemIdentification& identification,
-        std::shared_ptr<PrioritizedTxScheduler>* schedulers,
-        const uint8_t* senderAddresses,
-        uint32_t numSenders,
+        const std::vector<std::shared_ptr<PrioritizedTxScheduler>>& schedulers,
+        const std::vector<uint8_t>& senderAddresses,
         const std::vector<std::shared_ptr<PlayerData>>& playerData,
-        const std::vector<std::shared_ptr<DreamcastMainNode>>& nodes);
+        const std::vector<std::shared_ptr<DreamcastMainNode>>& nodes
+    );
 
     //! @returns the string of command characters this parser handles
     virtual const char* getCommandChars() final;
@@ -86,9 +86,8 @@ private:
     static const char* INTERFACE_VERSION;
     MutexInterface& mMutex;
     SystemIdentification& mIdentification;
-    std::shared_ptr<PrioritizedTxScheduler>* const mSchedulers;
-    const uint8_t* const mSenderAddresses;
-    const uint32_t mNumSenders;
+    const std::vector<std::shared_ptr<PrioritizedTxScheduler>> mSchedulers;
+    const std::vector<uint8_t> mSenderAddresses;
     std::vector<std::shared_ptr<PlayerData>> mPlayerData;
     std::vector<std::shared_ptr<DreamcastMainNode>> nodes;
     std::unique_ptr<FlycastEchoTransmitter> mFlycastEchoTransmitter;

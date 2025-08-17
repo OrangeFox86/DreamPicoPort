@@ -135,9 +135,8 @@ void FlycastBinaryEchoTransmitter::txComplete(
 FlycastCommandParser::FlycastCommandParser(
     MutexInterface& m,
     SystemIdentification& identification,
-    std::shared_ptr<PrioritizedTxScheduler>* schedulers,
-    const uint8_t* senderAddresses,
-    uint32_t numSenders,
+    const std::vector<std::shared_ptr<PrioritizedTxScheduler>>& schedulers,
+    const std::vector<uint8_t>& senderAddresses,
     const std::vector<std::shared_ptr<PlayerData>>& playerData,
     const std::vector<std::shared_ptr<DreamcastMainNode>>& nodes
 ) :
@@ -145,7 +144,6 @@ FlycastCommandParser::FlycastCommandParser(
     mIdentification(identification),
     mSchedulers(schedulers),
     mSenderAddresses(senderAddresses),
-    mNumSenders(numSenders),
     mPlayerData(playerData),
     nodes(nodes),
     mSummaryCallback(std::bind(&FlycastCommandParser::summaryCallback, this, std::placeholders::_1))
@@ -502,27 +500,29 @@ void FlycastCommandParser::submit(const char* chars, uint32_t len)
         {
             uint8_t sender = packet.frame.senderAddr;
             int32_t idx = -1;
-            const uint8_t* senderAddress = mSenderAddresses;
 
-            if (mNumSenders == 1)
+            if (mSenderAddresses.size() == 1)
             {
                 // Single player special case - always send to the one available, regardless of address
                 idx = 0;
-                packet.frame.senderAddr = *senderAddress;
-                packet.frame.recipientAddr = (packet.frame.recipientAddr & 0x3F) | *senderAddress;
+                packet.frame.senderAddr = mSenderAddresses[0];
+                packet.frame.recipientAddr = (packet.frame.recipientAddr & 0x3F) | mSenderAddresses[0];
             }
             else
             {
-                for (uint32_t i = 0; i < mNumSenders && idx < 0; ++i, ++senderAddress)
+                uint32_t i = 0;
+                for (uint8_t addr : mSenderAddresses)
                 {
-                    if (sender == *senderAddress)
+                    if (sender == addr)
                     {
                         idx = i;
                     }
+
+                    ++i;
                 }
             }
 
-            if (idx >= 0)
+            if (idx >= 0 && static_cast<std::size_t>(idx) < mSchedulers.size())
             {
                 if (packet.frame.command == 0x0C &&
                     packet.frame.length == 0x32 &&

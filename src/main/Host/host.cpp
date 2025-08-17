@@ -87,6 +87,61 @@ static volatile uint64_t autoDetectReactionTimeUs = 0;
 static DppSettings currentDppSettings;
 static volatile bool core1Initialized = false;
 
+std::unique_ptr<SerialStreamParser> make_tty_parser(
+    const std::vector<std::shared_ptr<PrioritizedTxScheduler>>& schedulers,
+    const std::vector<uint8_t>& mapleHostAddresses,
+    const std::vector<std::shared_ptr<PlayerData>>& playerData
+)
+{
+    // Initialize CDC to Maple Bus interfaces
+    static Mutex ttyParserMutex;
+    std::unique_ptr<SerialStreamParser> ttyParser = std::make_unique<SerialStreamParser>(ttyParserMutex, 'h');
+    usb_cdc_set_parser(ttyParser.get());
+    ttyParser->addCommandParser(
+        std::make_shared<MaplePassthroughCommandParser>(
+            schedulers, mapleHostAddresses
+        )
+    );
+    static PicoIdentification picoIdentification;
+    static Mutex flycastCommandParserMutex;
+    ttyParser->addCommandParser(
+        std::make_shared<FlycastCommandParser>(
+            flycastCommandParserMutex,
+            picoIdentification,
+            schedulers,
+            mapleHostAddresses,
+            playerData,
+            dreamcastMainNodes
+        )
+    );
+
+    return ttyParser;
+}
+
+void setup_webusb_parsers(
+    const std::vector<std::shared_ptr<PrioritizedTxScheduler>>& schedulers,
+    const std::vector<uint8_t>& mapleHostAddresses,
+    const std::vector<std::shared_ptr<PlayerData>>& playerData
+)
+{
+    // Initialize WebUsb parsers
+    std::shared_ptr<MapleWebUsbParser> mapleWebUsbParser =
+        std::make_shared<MapleWebUsbParser>(
+            schedulers,
+            mapleHostAddresses
+        );
+    static PicoIdentification picoIdentification;
+    std::shared_ptr<FlycastWebUsbParser> flycastWebUsbCommandParser =
+        std::make_shared<FlycastWebUsbParser>(
+            picoIdentification,
+            mapleWebUsbParser,
+            playerData,
+            dreamcastMainNodes
+        );
+    webusb_add_parser(mapleWebUsbParser);
+    webusb_add_parser(flycastWebUsbCommandParser);
+}
+
 // Second Core Process
 // The second core is in charge of handling communication with Dreamcast peripherals
 void core1()
@@ -96,7 +151,7 @@ void core1()
     // Wait for steady state
     sleep_ms(100);
 
-    uint8_t mapleHostAddresses[MAX_DEVICES] = {};
+    std::vector<uint8_t> mapleHostAddresses(MAX_DEVICES);
     uint32_t maplePins[MAX_DEVICES] = {};
     int32_t mapleDirPins[MAX_DEVICES] = {};
     for (uint8_t i = 0; i < MAX_DEVICES; ++i)
@@ -128,6 +183,7 @@ void core1()
             }
         }
     }
+    mapleHostAddresses.resize(numDevices);
 
     CriticalSectionMutex screenMutexes[numDevices];
     std::shared_ptr<ScreenData> screenData[numDevices];
@@ -137,7 +193,7 @@ void core1()
     std::shared_ptr<MapleBusInterface> buses[numDevices];
     dreamcastMainNodes.resize(numDevices);
     Mutex schedulerMutexes[numDevices];
-    std::shared_ptr<PrioritizedTxScheduler> schedulers[numDevices];
+    std::vector<std::shared_ptr<PrioritizedTxScheduler>> schedulers(numDevices);
     Clock clock;
     uint8_t instanceId = 0;
     for (uint8_t i = 0; i < numDevices; ++i)
@@ -166,45 +222,8 @@ void core1()
         );
     }
 
-    // Initialize CDC to Maple Bus interfaces
-    Mutex ttyParserMutex;
-    SerialStreamParser* ttyParser = new SerialStreamParser(ttyParserMutex, 'h');
-    usb_cdc_set_parser(ttyParser);
-    ttyParser->addCommandParser(
-        std::make_shared<MaplePassthroughCommandParser>(
-            &schedulers[0], mapleHostAddresses, numDevices
-        )
-    );
-    PicoIdentification picoIdentification;
-    Mutex flycastCommandParserMutex;
-    ttyParser->addCommandParser(
-        std::make_shared<FlycastCommandParser>(
-            flycastCommandParserMutex,
-            picoIdentification,
-            &schedulers[0],
-            mapleHostAddresses,
-            numDevices,
-            playerData,
-            dreamcastMainNodes
-        )
-    );
-
-    // Initialize WebUsb parsers
-    std::shared_ptr<MapleWebUsbParser> mapleWebUsbParser =
-        std::make_shared<MapleWebUsbParser>(
-            &schedulers[0],
-            mapleHostAddresses,
-            numDevices
-        );
-    std::shared_ptr<FlycastWebUsbParser> flycastWebUsbCommandParser =
-        std::make_shared<FlycastWebUsbParser>(
-            picoIdentification,
-            mapleWebUsbParser,
-            playerData,
-            dreamcastMainNodes
-        );
-    webusb_add_parser(mapleWebUsbParser);
-    webusb_add_parser(flycastWebUsbCommandParser);
+    std::unique_ptr<SerialStreamParser> ttyParser = make_tty_parser(schedulers, mapleHostAddresses, playerData);
+    setup_webusb_parsers(schedulers, mapleHostAddresses, playerData);
 
     // Done initialized
     core1Initialized = true;

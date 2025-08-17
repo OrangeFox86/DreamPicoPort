@@ -62,12 +62,12 @@ public:
     }
 } echoTransmitter;
 
-MaplePassthroughCommandParser::MaplePassthroughCommandParser(std::shared_ptr<PrioritizedTxScheduler>* schedulers,
-                                                             const uint8_t* senderAddresses,
-                                                             uint32_t numSenders) :
+MaplePassthroughCommandParser::MaplePassthroughCommandParser(
+    const std::vector<std::shared_ptr<PrioritizedTxScheduler>>& schedulers,
+    const std::vector<uint8_t>& senderAddresses
+) :
     mSchedulers(schedulers),
-    mSenderAddresses(senderAddresses),
-    mNumSenders(numSenders)
+    mSenderAddresses(senderAddresses)
 {}
 
 const char* MaplePassthroughCommandParser::getCommandChars()
@@ -130,17 +130,19 @@ void MaplePassthroughCommandParser::submit(const char* chars, uint32_t len)
         {
             uint8_t sender = packet.frame.senderAddr;
             int32_t idx = -1;
-            const uint8_t* senderAddress = mSenderAddresses;
+            uint32_t i = 0;
 
-            for (uint32_t i = 0; i < mNumSenders && idx < 0; ++i, ++senderAddress)
+            for (uint8_t addr : mSenderAddresses)
             {
-                if (sender == *senderAddress)
+                if (sender == addr)
                 {
                     idx = i;
                 }
+
+                ++i;
             }
 
-            if (idx >= 0)
+            if (idx >= 0 && static_cast<std::size_t>(idx) < mSchedulers.size())
             {
                 uint32_t id = mSchedulers[idx]->add(
                     PrioritizedTxScheduler::TransmissionProperties{

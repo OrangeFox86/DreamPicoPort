@@ -35,9 +35,10 @@
 class MaplePassthroughCommandParser : public CommandParser
 {
 public:
-    MaplePassthroughCommandParser(std::shared_ptr<PrioritizedTxScheduler>* schedulers,
-                                  const uint8_t* senderAddresses,
-                                  uint32_t numSenders);
+    MaplePassthroughCommandParser(
+        const std::vector<std::shared_ptr<PrioritizedTxScheduler>>& schedulers,
+        const std::vector<uint8_t>& senderAddresses
+    );
 
     //! @returns the string of command characters this parser handles
     virtual const char* getCommandChars() final;
@@ -49,7 +50,6 @@ public:
     virtual void printHelp() final;
 
 private:
-    std::shared_ptr<PrioritizedTxScheduler>* const mSchedulers;
-    const uint8_t* const mSenderAddresses;
-    const uint32_t mNumSenders;
+    const std::vector<std::shared_ptr<PrioritizedTxScheduler>> mSchedulers;
+    const std::vector<uint8_t> mSenderAddresses;
 };

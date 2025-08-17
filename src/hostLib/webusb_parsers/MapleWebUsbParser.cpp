@@ -31,13 +31,11 @@
 #include <cinttypes>
 
 MapleWebUsbParser::MapleWebUsbParser(
-    std::shared_ptr<PrioritizedTxScheduler>* schedulers,
-    const uint8_t* senderAddresses,
-    uint32_t numSenders
+    const std::vector<std::shared_ptr<PrioritizedTxScheduler>>& schedulers,
+    const std::vector<uint8_t>& senderAddresses
 ) :
     mSchedulers(schedulers),
-    mSenderAddresses(senderAddresses),
-    mNumSenders(numSenders)
+    mSenderAddresses(senderAddresses)
 {}
 
 std::pair<int32_t, MaplePacket::Frame> MapleWebUsbParser::processMaplePacket(
@@ -92,27 +90,29 @@ std::pair<int32_t, MaplePacket::Frame> MapleWebUsbParser::processMaplePacket(
 
     uint8_t sender = packet.frame.senderAddr;
     int32_t idx = -1;
-    const uint8_t* senderAddress = mSenderAddresses;
 
-    if (mNumSenders == 1)
+    if (mSenderAddresses.size() == 1)
     {
         // Single player special case - always send to the one available, regardless of address
         idx = 0;
-        packet.frame.senderAddr = *senderAddress;
-        packet.frame.recipientAddr = (packet.frame.recipientAddr & 0x3F) | *senderAddress;
+        packet.frame.senderAddr = mSenderAddresses[0];
+        packet.frame.recipientAddr = (packet.frame.recipientAddr & 0x3F) | mSenderAddresses[0];
     }
     else
     {
-        for (uint32_t i = 0; i < mNumSenders && idx < 0; ++i, ++senderAddress)
+        uint32_t i = 0;
+        for (uint8_t addr : mSenderAddresses)
         {
-            if (sender == *senderAddress)
+            if (sender == addr)
             {
                 idx = i;
             }
+
+            ++i;
         }
     }
 
-    if (idx < 0)
+    if (idx < 0 || static_cast<std::size_t>(idx) >= mSchedulers.size())
     {
         // Couldn't find the desired address
         std::uint8_t payload = 2;
