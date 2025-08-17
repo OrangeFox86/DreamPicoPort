@@ -65,7 +65,7 @@ const uint8_t MAPLE_HOST_ADDRESSES[MAX_DEVICES] = {0x00, 0x40, 0x80, 0xC0};
 const uint32_t MAPLE_PINS[MAX_DEVICES] = {P1_BUS_START_PIN, P2_BUS_START_PIN, P3_BUS_START_PIN, P4_BUS_START_PIN};
 const uint32_t MAPLE_DIR_PINS[MAX_DEVICES] = {P1_DIR_PIN, P2_DIR_PIN, P3_DIR_PIN, P4_DIR_PIN};
 
-static DppSettings::PlayerDetectionMode allMapleDetectionModes[MAX_DEVICES] = {
+static volatile DppSettings::PlayerDetectionMode allMapleDetectionModes[MAX_DEVICES] = {
     DppSettings::PlayerDetectionMode::kDisable,
     DppSettings::PlayerDetectionMode::kDisable,
     DppSettings::PlayerDetectionMode::kDisable,
@@ -74,17 +74,18 @@ static DppSettings::PlayerDetectionMode allMapleDetectionModes[MAX_DEVICES] = {
 
 static uint8_t mapleEnabledMask = 0;
 static uint8_t numDevices = 0;
-static bool anyMapleAutoDetect = false;
-static uint8_t mapleIndexToPlayerIndex[MAX_DEVICES] = {};
-static DppSettings::PlayerDetectionMode mapleDetectionModes[MAX_DEVICES] = {};
-static bool mapleAutoDetectOnly[MAX_DEVICES] = {};
+static volatile bool anyMapleAutoDetect = false;
+static volatile bool allMapleAutoDetect = true;
+static volatile uint8_t mapleIndexToPlayerIndex[MAX_DEVICES] = {};
+static volatile DppSettings::PlayerDetectionMode mapleDetectionModes[MAX_DEVICES] = {};
+static volatile bool mapleAutoDetectOnly[MAX_DEVICES] = {};
 static std::vector<std::shared_ptr<DreamcastMainNode>> dreamcastMainNodes;
 // Time markers for auto detect when anyMapleAutoDetect is true
-static uint64_t autoDetectTimeUs[MAX_DEVICES] = {};
-static uint64_t autoDetectReactionTimeUs = 0;
+static volatile uint64_t autoDetectTimeUs[MAX_DEVICES] = {};
+static volatile uint64_t autoDetectReactionTimeUs = 0;
 
 static DppSettings currentDppSettings;
-static bool core1Initialized = false;
+static volatile bool core1Initialized = false;
 
 // Second Core Process
 // The second core is in charge of handling communication with Dreamcast peripherals
@@ -120,6 +121,10 @@ void core1()
             if (autoDetect)
             {
                 anyMapleAutoDetect = true;
+            }
+            else
+            {
+                allMapleAutoDetect = false;
             }
         }
     }
@@ -218,10 +223,66 @@ void core1()
     }
 }
 
+void maple_detect(bool rebootNowOnDetect = false)
+{
+    for (uint32_t i = 0; i < numDevices; ++i)
+    {
+        DppSettings::PlayerDetectionMode mode = mapleDetectionModes[i];
+        if (mode > DppSettings::PlayerDetectionMode::kAutoThreshold && autoDetectTimeUs[i] == 0)
+        {
+            const uint8_t playerIdx = mapleIndexToPlayerIndex[i];
+            if (mapleAutoDetectOnly[i])
+            {
+                // Was disconnected, react on connection
+                if (dreamcastMainNodes[i]->isDeviceDetected())
+                {
+                    mapleEnabledMask |= (1 << playerIdx);
+                    autoDetectTimeUs[i] = time_us_64();
+                    autoDetectReactionTimeUs = (autoDetectTimeUs[i] + 500000);
+
+                    if (allMapleDetectionModes[i] == DppSettings::PlayerDetectionMode::kAutoStatic)
+                    {
+                        // Update settings which will be saved later
+                        currentDppSettings.playerDetectionModes[playerIdx] = DppSettings::PlayerDetectionMode::kEnable;
+                    }
+                }
+            }
+            else if (allMapleDetectionModes[i] != DppSettings::PlayerDetectionMode::kAutoDynamicNoDisable)
+            {
+                // Was connected, react on disconnect
+                if (!dreamcastMainNodes[i]->isDeviceDetected())
+                {
+                    mapleEnabledMask &= ~(1 << playerIdx);
+                    autoDetectTimeUs[i] = time_us_64();
+                    autoDetectReactionTimeUs = (autoDetectTimeUs[i] + 500000);
+                }
+            }
+        }
+    }
+
+    if (autoDetectReactionTimeUs > 0 && (rebootNowOnDetect || time_us_64() >= autoDetectReactionTimeUs))
+    {
+        usb_stop();
+
+        watchdog_hw->scratch[0] = WATCHDOG_MAPLE_AUTO_DETECT_MAGIC;
+        watchdog_hw->scratch[1] = mapleEnabledMask;
+
+        if (DppSettings::getInitialSettings() != currentDppSettings)
+        {
+            // This should cause a reboot
+            currentDppSettings.save();
+        }
+
+        watchdog_reboot(0, 0, 0);
+    }
+}
+
 // First Core Process
 // The first core is in charge of initialization and USB communication
 int main()
 {
+    bool rebootDetected = (watchdog_hw->scratch[0] == WATCHDOG_MAPLE_AUTO_DETECT_MAGIC);
+
     set_sys_clock_khz(CPU_FREQ_KHZ, true);
 
     // Initialize settings from flash
@@ -231,7 +292,7 @@ int main()
     set_usb_cdc_en(currentDppSettings.cdcEn);
     set_usb_msc_en(currentDppSettings.mscEn);
 
-    if (watchdog_hw->scratch[0] == WATCHDOG_MAPLE_AUTO_DETECT_MAGIC)
+    if (rebootDetected)
     {
         // Reboot occurred because auto detect changed states
         uint8_t mask = 1;
@@ -276,71 +337,39 @@ int main()
     // Wait until core1 is done initializing
     while (!core1Initialized);
 
+    if (allMapleAutoDetect && !rebootDetected)
+    {
+        // Run for 3.5 seconds to see if anything is initially detected (older VMUs may have 3 second beep)
+        bool somethingDetected = false;
+        uint64_t endTime = time_us_64() + 3500000;
+        while (time_us_64() < endTime && !somethingDetected)
+        {
+            for (auto& node : dreamcastMainNodes)
+            {
+                if (node->isDeviceDetected())
+                {
+                    somethingDetected = true;
+                }
+            }
+        }
+
+        maple_detect(true);
+    }
+
+    static const uint64_t kMapleDetectPeriodUs = 125000;
+    uint64_t nextMapleDetect = time_us_64() + kMapleDetectPeriodUs;
+
     usb_start();
 
     while(true)
     {
         usb_task();
 
-        if (anyMapleAutoDetect)
+        if (anyMapleAutoDetect && time_us_64() >= nextMapleDetect)
         {
-            if (time_us_64() < 500000)
-            {
-                continue;
-            }
+            maple_detect();
 
-            if (autoDetectReactionTimeUs > 0 && time_us_64() >= autoDetectReactionTimeUs)
-            {
-                usb_stop();
-
-                watchdog_hw->scratch[0] = WATCHDOG_MAPLE_AUTO_DETECT_MAGIC;
-                watchdog_hw->scratch[1] = mapleEnabledMask;
-
-                if (DppSettings::getInitialSettings() != currentDppSettings)
-                {
-                    // This should cause a reboot
-                    currentDppSettings.save();
-                }
-
-                watchdog_reboot(0, 0, 0);
-
-                return 0;
-            }
-
-            for (uint32_t i = 0; i < numDevices; ++i)
-            {
-                DppSettings::PlayerDetectionMode mode = mapleDetectionModes[i];
-                if (mode > DppSettings::PlayerDetectionMode::kAutoThreshold && autoDetectTimeUs[i] == 0)
-                {
-                    const uint8_t playerIdx = mapleIndexToPlayerIndex[i];
-                    if (mapleAutoDetectOnly[i])
-                    {
-                        // Was disconnected, react on connection
-                        if (dreamcastMainNodes[i]->isDeviceDetected())
-                        {
-                            mapleEnabledMask |= (1 << playerIdx);
-                            autoDetectTimeUs[i] = time_us_64();
-                            autoDetectReactionTimeUs = (autoDetectTimeUs[i] + 500000);
-
-                            if (allMapleDetectionModes[i] == DppSettings::PlayerDetectionMode::kAutoStatic)
-                            {
-                                // Update settings which will be saved later
-                                currentDppSettings.playerDetectionModes[playerIdx] = DppSettings::PlayerDetectionMode::kEnable;
-                            }
-                        }
-                    }
-                    else if (allMapleDetectionModes[i] != DppSettings::PlayerDetectionMode::kAutoDynamicNoDisable)
-                    {
-                        // Was connected, react on disconnect
-                        if (!dreamcastMainNodes[i]->isDeviceDetected())
-                        {
-                            mapleEnabledMask &= ~(1 << playerIdx);
-                            autoDetectTimeUs[i] = time_us_64();
-                            autoDetectReactionTimeUs = (autoDetectTimeUs[i] + 500000);
-                        }
-                    }
-                }
-            }
+            nextMapleDetect = time_us_64() + kMapleDetectPeriodUs;
         }
     }
 }
