@@ -43,8 +43,6 @@ const uint8_t MAPLE_HOST_ADDRESSES[MAX_DEVICES] = {0x00, 0x40, 0x80, 0xC0};
 const uint32_t MAPLE_PINS[MAX_DEVICES] = {P1_BUS_START_PIN, P2_BUS_START_PIN, P3_BUS_START_PIN, P4_BUS_START_PIN};
 const uint32_t MAPLE_DIR_PINS[MAX_DEVICES] = {P1_DIR_PIN, P2_DIR_PIN, P3_DIR_PIN, P4_DIR_PIN};
 
-static volatile bool core1Initialized = false;
-
 static std::vector<DreamcastNodeData> dcNodes;
 
 // Second Core Process
@@ -53,9 +51,6 @@ void core1()
 {
     // Initialize TTY and WebUsb parsers
     std::unique_ptr<SerialStreamParser> ttyParser = make_parsers(dcNodes);
-
-    // Done initialized
-    core1Initialized = true;
 
     while(true)
     {
@@ -161,11 +156,6 @@ int main()
 
     dcNodes = setup_dreamcast_nodes(playerDefs);
 
-    if (allMapleAutoDetect && dcNodes.empty())
-    {
-        allMapleAutoDetect = false;
-    }
-
 #if SHOW_DEBUG_MESSAGES
     stdio_uart_init();
 #endif
@@ -183,10 +173,7 @@ int main()
 
     multicore_launch_core1(core1);
 
-    // Wait until core1 is done initializing
-    while (!core1Initialized);
-
-    if (allMapleAutoDetect && !rebootDetected)
+    if (allMapleAutoDetect && !rebootDetected && !dcNodes.empty())
     {
         // Run for 3.5 seconds to see if anything is initially detected (older VMUs may have 3 second beep)
         bool somethingDetected = false;
