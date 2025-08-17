@@ -48,11 +48,18 @@ struct SettingsMemory
 	uint32_t crc;
     uint32_t usbEn;
     uint8_t playerEnableMode[4];
+    uint32_t gpioA[4];
+    uint32_t gpioDir[4];
+    uint8_t gpioDirOutputHigh[4];
+    int32_t usbLedGpio;
+    int32_t simpleUsbLedGpio;
 };
 
-static const uint16_t kSettingsMemorySize = 3;
+static const uint16_t kSettingsMemorySizeBytes = (sizeof(SettingsMemory) - offsetof(SettingsMemory, crc));
+static const uint16_t kSettingsMemorySizeWords = (kSettingsMemorySizeBytes / 4);
 
 static_assert(sizeof(SettingsMemory) < FLASH_PAGE_SIZE, "Incorrect size");
+static_assert(kSettingsMemorySizeBytes % 4 == 0, "Incorrect size");
 
 static uint32_t __no_inline_not_in_flash_func(get_settings_flash_offset)()
 {
@@ -87,7 +94,7 @@ const DppSettings& DppSettings::initialize()
     if (
         settingsMemory->magic != kMagic ||
         ((settingsMemory->size ^ settingsMemory->invSize) != 0xFFFF) ||
-        (settingsMemory->size < kSettingsMemorySize) ||
+        (settingsMemory->size < kSettingsMemorySizeWords) ||
         (calc_crc32(&settingsMemory->crc, settingsMemory->size) != 0)
     )
     {
@@ -97,10 +104,15 @@ const DppSettings& DppSettings::initialize()
 
     kLoadedSettings.cdcEn = ((settingsMemory->usbEn & kUsbEnableCdcMask) > 0);
     kLoadedSettings.mscEn = ((settingsMemory->usbEn & kUsbEnableMscMask) > 0);
+    kLoadedSettings.usbLedGpio = settingsMemory->usbLedGpio;
+    kLoadedSettings.simpleUsbLedGpio = settingsMemory->simpleUsbLedGpio;
     for (uint8_t i = 0; i < kNumPlayers; ++i)
     {
         kLoadedSettings.playerDetectionModes[i] =
             static_cast<DppSettings::PlayerDetectionMode>(settingsMemory->playerEnableMode[i]);
+        kLoadedSettings.gpioA[i] = settingsMemory->gpioA[i];
+        kLoadedSettings.gpioDir[i] = settingsMemory->gpioDir[i];
+        kLoadedSettings.gpioDirOutputHigh[i] = settingsMemory->gpioDirOutputHigh[i];
     }
 
     return kLoadedSettings;
@@ -148,14 +160,19 @@ void DppSettings::save()
 {
     SettingsMemory mem{
         .magic = kMagic,
-        .size = kSettingsMemorySize,
+        .size = kSettingsMemorySizeWords,
         .crc = 0xFFFFFFFF,
-        .usbEn = (cdcEn ? kUsbEnableCdcMask : 0) | (mscEn ? kUsbEnableMscMask : 0)
+        .usbEn = (cdcEn ? kUsbEnableCdcMask : 0) | (mscEn ? kUsbEnableMscMask : 0),
+        .usbLedGpio = usbLedGpio,
+        .simpleUsbLedGpio = simpleUsbLedGpio
     };
     mem.invSize = mem.size ^ 0xFFFF;
     for (uint8_t i = 0; i < kNumPlayers; ++i)
     {
         mem.playerEnableMode[i] = static_cast<uint8_t>(playerDetectionModes[i]);
+        mem.gpioA[i] = gpioA[i];
+        mem.gpioDir[i] = gpioDir[i];
+        mem.gpioDirOutputHigh[i] = gpioDirOutputHigh[i];
     }
     mem.crc = calc_crc32(&mem.crc + 1, mem.size - 1);
     save_settings_memory(kSettingsOffsetAddr, mem);

@@ -56,18 +56,7 @@ struct DreamcastNodeData
 };
 
 std::vector<DreamcastNodeData> setup_dreamcast_nodes(const std::vector<PlayerDefinition>& playerDefs);
-std::unique_ptr<SerialStreamParser> make_tty_parser(
-    const std::vector<std::shared_ptr<PrioritizedTxScheduler>>& schedulers,
-    const std::vector<uint8_t>& mapleHostAddresses,
-    const std::vector<std::shared_ptr<PlayerData>>& playerData,
-    const std::vector<std::shared_ptr<DreamcastMainNode>>& dreamcastMainNodes
-);
-void setup_webusb_parsers(
-    const std::vector<std::shared_ptr<PrioritizedTxScheduler>>& schedulers,
-    const std::vector<uint8_t>& mapleHostAddresses,
-    const std::vector<std::shared_ptr<PlayerData>>& playerData,
-    const std::vector<std::shared_ptr<DreamcastMainNode>>& dreamcastMainNodes
-);
+std::unique_ptr<SerialStreamParser> make_parsers(const std::vector<DreamcastNodeData>& dcNodes);
 void maple_detect(
     uint8_t& mapleEnabledMask,
     DppSettings& currentDppSettings,

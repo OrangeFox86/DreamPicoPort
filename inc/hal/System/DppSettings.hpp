@@ -23,6 +23,8 @@
 
 #pragma once
 
+#include "configuration.h"
+
 #include <cstdint>
 
 struct DppSettings
@@ -58,6 +60,38 @@ struct DppSettings
         PlayerDetectionMode::kAutoStatic,
         PlayerDetectionMode::kAutoStatic
     };
+    //! GPIO number of maple A, maple B is always very next one
+    uint32_t gpioA[kNumPlayers] = {
+        P1_BUS_START_PIN,
+        P2_BUS_START_PIN,
+        P3_BUS_START_PIN,
+        P4_BUS_START_PIN
+    };
+    //! GPIO number of direction output
+    uint32_t gpioDir[kNumPlayers] = {
+        P1_DIR_PIN,
+        P2_DIR_PIN,
+        P3_DIR_PIN,
+        P4_DIR_PIN
+    };
+    //! true if output is high when currently outputting, false for opposite
+    bool gpioDirOutputHigh[kNumPlayers] = {
+        DIR_OUT_HIGH,
+        DIR_OUT_HIGH,
+        DIR_OUT_HIGH,
+        DIR_OUT_HIGH
+    };
+    //! LED GPIO number for USB activity or -1 to disable
+    //! When USB connected:
+    //!   Default: ON
+    //!   When controller key pressed: OFF
+    //! When USB disconnected:
+    //!   Default: OFF
+    //!   When controller key pressed: Flashing quick
+    int32_t usbLedGpio = USB_LED_PIN;
+    //! LED GPIO number for simple USB activity or -1 to disable
+    //! ON when USB connected; OFF when disconnected
+    int32_t simpleUsbLedGpio = SIMPLE_USB_LED_PIN;
 
     //! Initializes and loads settings
     //! @pre must be called before interrupts or core 1 is started

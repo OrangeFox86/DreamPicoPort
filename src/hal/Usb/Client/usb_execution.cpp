@@ -82,68 +82,74 @@ absolute_time_t usbDisconnectTime;
 
 bool gIsConnected = false;
 
+int32_t gUsbLedGpio = -1;
+int32_t gSimpleUsbLedGpio = -1;
+
 void led_task()
 {
-#if USB_LED_PIN >= 0
-  static bool ledOn = false;
-  static uint32_t startMs = 0;
-  if (usbDisconnecting)
+  if (gUsbLedGpio >= 0)
   {
-    // Currently counting down to disconnect; flash LED
-    static const uint32_t BLINK_TIME_MS = 500;
-    uint32_t t = board_millis() - startMs;
-    if (t >= BLINK_TIME_MS)
+    static bool ledOn = false;
+    static uint32_t startMs = 0;
+    if (usbDisconnecting)
     {
-      startMs += BLINK_TIME_MS;
-      ledOn = !ledOn;
-    }
-  }
-  else
-  {
-    bool keyPressed = false;
-    UsbControllerDevice** pdevs = devices;
-    for (uint32_t i = 0; i < MAX_NUMBER_OF_USB_GAMEPADS; ++i, ++pdevs)
-    {
-      if (is_usb_descriptor_gamepad_en(i))
-      {
-        if ((*pdevs)->isButtonPressed())
-        {
-          keyPressed = true;
-          break;
-        }
-      }
-    }
-    if (gIsConnected)
-    {
-      // When connected, LED is ON only when no key is pressed
-      ledOn = !keyPressed;
-    }
-    else
-    {
-      // When not connected, LED blinks when key is pressed
-      static const uint32_t BLINK_TIME_MS = 100;
+      // Currently counting down to disconnect; flash LED
+      static const uint32_t BLINK_TIME_MS = 500;
       uint32_t t = board_millis() - startMs;
       if (t >= BLINK_TIME_MS)
       {
         startMs += BLINK_TIME_MS;
         ledOn = !ledOn;
       }
-      ledOn = ledOn && keyPressed;
     }
+    else
+    {
+      bool keyPressed = false;
+      UsbControllerDevice** pdevs = devices;
+      for (uint32_t i = 0; i < MAX_NUMBER_OF_USB_GAMEPADS; ++i, ++pdevs)
+      {
+        if (is_usb_descriptor_gamepad_en(i))
+        {
+          if ((*pdevs)->isButtonPressed())
+          {
+            keyPressed = true;
+            break;
+          }
+        }
+      }
+      if (gIsConnected)
+      {
+        // When connected, LED is ON only when no key is pressed
+        ledOn = !keyPressed;
+      }
+      else
+      {
+        // When not connected, LED blinks when key is pressed
+        static const uint32_t BLINK_TIME_MS = 100;
+        uint32_t t = board_millis() - startMs;
+        if (t >= BLINK_TIME_MS)
+        {
+          startMs += BLINK_TIME_MS;
+          ledOn = !ledOn;
+        }
+        ledOn = ledOn && keyPressed;
+      }
+    }
+    gpio_put(gUsbLedGpio, ledOn);
   }
-  gpio_put(USB_LED_PIN, ledOn);
-#endif
 
-#if SIMPLE_USB_LED_PIN >= 0
-  gpio_put(SIMPLE_USB_LED_PIN, gIsConnected);
-#endif
-
+  if (gSimpleUsbLedGpio >= 0)
+  {
+    gpio_put(gSimpleUsbLedGpio, gIsConnected);
+  }
 }
 
 void usb_init(
   MutexInterface* mscMutex,
   MutexInterface* cdcStdioMutex,
-  MutexInterface* webUsbMutex
+  MutexInterface* webUsbMutex,
+  int32_t usbLedGpio,
+  int32_t simpleUsbLedGpio
 )
 {
   board_init();
@@ -151,15 +157,19 @@ void usb_init(
   cdc_init(cdcStdioMutex);
   webusb_init(webUsbMutex);
 
-#if USB_LED_PIN >= 0
-  gpio_init(USB_LED_PIN);
-  gpio_set_dir_out_masked(1<<USB_LED_PIN);
-#endif
+  gUsbLedGpio = usbLedGpio;
+  if (gUsbLedGpio >= 0)
+  {
+    gpio_init(gUsbLedGpio);
+    gpio_set_dir_out_masked(1<<gUsbLedGpio);
+  }
 
-#if SIMPLE_USB_LED_PIN >= 0
-  gpio_init(SIMPLE_USB_LED_PIN);
-  gpio_set_dir_out_masked(1<<SIMPLE_USB_LED_PIN);
-#endif
+  gSimpleUsbLedGpio = simpleUsbLedGpio;
+  if (gSimpleUsbLedGpio >= 0)
+  {
+    gpio_init(gSimpleUsbLedGpio);
+    gpio_set_dir_out_masked(1<<gSimpleUsbLedGpio);
+  }
 }
 
 void usb_start()

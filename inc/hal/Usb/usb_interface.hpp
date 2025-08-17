@@ -35,7 +35,9 @@ DreamcastControllerObserver** get_usb_controller_observers();
 void usb_init(
   MutexInterface* mscMutex,
   MutexInterface* cdcStdioMutex,
-  MutexInterface* webUsbMutex
+  MutexInterface* webUsbMutex,
+  int32_t usbLedGpio,
+  int32_t simpleUsbLedGpio
 );
 //! Start USB execution
 void usb_start();

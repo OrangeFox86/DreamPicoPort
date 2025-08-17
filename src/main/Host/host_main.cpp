@@ -51,32 +51,8 @@ static std::vector<DreamcastNodeData> dcNodes;
 // The second core is in charge of handling communication with Dreamcast peripherals
 void core1()
 {
-    set_sys_clock_khz(CPU_FREQ_KHZ, true);
-
-    std::vector<std::shared_ptr<PrioritizedTxScheduler>> schedulers;
-    schedulers.reserve(dcNodes.size());
-    std::vector<std::shared_ptr<PlayerData>> playerData;
-    playerData.reserve(dcNodes.size());
-    std::vector<std::shared_ptr<DreamcastMainNode>> dreamcastMainNodes;
-    dreamcastMainNodes.reserve(dcNodes.size());
-    std::vector<uint8_t> mapleHostAddresses;
-    mapleHostAddresses.reserve(dcNodes.size());
-    for (const DreamcastNodeData& dcNode : dcNodes)
-    {
-        schedulers.push_back(dcNode.scheduler);
-        playerData.push_back(dcNode.playerData);
-        dreamcastMainNodes.push_back(dcNode.mainNode);
-        mapleHostAddresses.push_back(dcNode.playerDef.mapleHostAddr);
-    }
-
     // Initialize TTY and WebUsb parsers
-    std::unique_ptr<SerialStreamParser> ttyParser = make_tty_parser(
-        schedulers,
-        mapleHostAddresses,
-        playerData,
-        dreamcastMainNodes
-    );
-    setup_webusb_parsers(schedulers, mapleHostAddresses, playerData, dreamcastMainNodes);
+    std::unique_ptr<SerialStreamParser> ttyParser = make_parsers(dcNodes);
 
     // Done initialized
     core1Initialized = true;
@@ -84,10 +60,10 @@ void core1()
     while(true)
     {
         // Process each main node
-        for (auto& node : dreamcastMainNodes)
+        for (auto& node : dcNodes)
         {
             // Worst execution duration of below is ~350 us at 133 MHz when debug print is disabled
-            node->task(time_us_64());
+            node.mainNode->task(time_us_64());
         }
 
         // Process any waiting commands in the TTY parser
@@ -151,16 +127,18 @@ int main()
 
     for (uint8_t i = 0; i < MAX_DEVICES; ++i)
     {
-        PlayerDefinition playerDef;
         bool usbEnabled = is_usb_descriptor_gamepad_en(i);
         bool autoDetect = (currentDppSettings.playerDetectionModes[i] > DppSettings::PlayerDetectionMode::kAutoThreshold);
 
         if (usbEnabled || autoDetect)
         {
+            PlayerDefinition playerDef;
+
             playerDef.index = i;
             playerDef.mapleHostAddr = MAPLE_HOST_ADDRESSES[i];
-            playerDef.gpioA = MAPLE_PINS[i];
-            playerDef.gpioDir =  MAPLE_DIR_PINS[i];
+            playerDef.gpioA = currentDppSettings.gpioA[i];
+            playerDef.gpioDir =  currentDppSettings.gpioDir[i];
+            playerDef.dirOutHigh = currentDppSettings.gpioDirOutputHigh[i];
             playerDef.detectionMode = currentDppSettings.playerDetectionModes[i];
             playerDef.autoDetectOnly = !usbEnabled;
             if (usbEnabled)
@@ -176,12 +154,17 @@ int main()
             {
                 allMapleAutoDetect = false;
             }
-        }
 
-        playerDefs.push_back(std::move(playerDef));
+            playerDefs.push_back(std::move(playerDef));
+        }
     }
 
     dcNodes = setup_dreamcast_nodes(playerDefs);
+
+    if (allMapleAutoDetect && dcNodes.empty())
+    {
+        allMapleAutoDetect = false;
+    }
 
 #if SHOW_DEBUG_MESSAGES
     stdio_uart_init();
@@ -190,7 +173,13 @@ int main()
     Mutex fileMutex;
     Mutex cdcStdioMutex;
     Mutex webusbMutex;
-    usb_init(&fileMutex, &cdcStdioMutex, &webusbMutex);
+    usb_init(
+        &fileMutex,
+        &cdcStdioMutex,
+        &webusbMutex,
+        currentDppSettings.usbLedGpio,
+        currentDppSettings.simpleUsbLedGpio
+    );
 
     multicore_launch_core1(core1);
 

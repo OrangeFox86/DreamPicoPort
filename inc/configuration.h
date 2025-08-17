@@ -95,7 +95,6 @@
 // When USB connected:
 //   Default: ON
 //   When controller key pressed: OFF
-//   When controller disconnecting: Flashing slow
 // When USB disconnected:
 //   Default: OFF
 //   When controller key pressed: Flashing quick

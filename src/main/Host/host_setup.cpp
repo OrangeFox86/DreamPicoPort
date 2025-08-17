@@ -84,13 +84,25 @@ std::vector<DreamcastNodeData> setup_dreamcast_nodes(const std::vector<PlayerDef
     return dcNodeData;
 }
 
-std::unique_ptr<SerialStreamParser> make_tty_parser(
-    const std::vector<std::shared_ptr<PrioritizedTxScheduler>>& schedulers,
-    const std::vector<uint8_t>& mapleHostAddresses,
-    const std::vector<std::shared_ptr<PlayerData>>& playerData,
-    const std::vector<std::shared_ptr<DreamcastMainNode>>& dreamcastMainNodes
-)
+std::unique_ptr<SerialStreamParser> make_parsers(const std::vector<DreamcastNodeData>& dcNodes)
 {
+    // Make the necessary data containers
+    std::vector<std::shared_ptr<PrioritizedTxScheduler>> schedulers;
+    schedulers.reserve(dcNodes.size());
+    std::vector<std::shared_ptr<PlayerData>> playerData;
+    playerData.reserve(dcNodes.size());
+    std::vector<std::shared_ptr<DreamcastMainNode>> dreamcastMainNodes;
+    dreamcastMainNodes.reserve(dcNodes.size());
+    std::vector<uint8_t> mapleHostAddresses;
+    mapleHostAddresses.reserve(dcNodes.size());
+    for (const DreamcastNodeData& dcNode : dcNodes)
+    {
+        schedulers.push_back(dcNode.scheduler);
+        playerData.push_back(dcNode.playerData);
+        dreamcastMainNodes.push_back(dcNode.mainNode);
+        mapleHostAddresses.push_back(dcNode.playerDef.mapleHostAddr);
+    }
+
     // Initialize CDC to Maple Bus interfaces
     static Mutex ttyParserMutex;
     std::unique_ptr<SerialStreamParser> ttyParser = std::make_unique<SerialStreamParser>(ttyParserMutex, 'h');
@@ -113,23 +125,12 @@ std::unique_ptr<SerialStreamParser> make_tty_parser(
         )
     );
 
-    return ttyParser;
-}
-
-void setup_webusb_parsers(
-    const std::vector<std::shared_ptr<PrioritizedTxScheduler>>& schedulers,
-    const std::vector<uint8_t>& mapleHostAddresses,
-    const std::vector<std::shared_ptr<PlayerData>>& playerData,
-    const std::vector<std::shared_ptr<DreamcastMainNode>>& dreamcastMainNodes
-)
-{
-    // Initialize WebUsb parsers
+    // Initialize and register WebUsb parsers
     std::shared_ptr<MapleWebUsbParser> mapleWebUsbParser =
         std::make_shared<MapleWebUsbParser>(
             schedulers,
             mapleHostAddresses
         );
-    static PicoIdentification picoIdentification;
     std::shared_ptr<FlycastWebUsbParser> flycastWebUsbCommandParser =
         std::make_shared<FlycastWebUsbParser>(
             picoIdentification,
@@ -139,6 +140,8 @@ void setup_webusb_parsers(
         );
     webusb_add_parser(mapleWebUsbParser);
     webusb_add_parser(flycastWebUsbCommandParser);
+
+    return ttyParser;
 }
 
 void maple_detect(
