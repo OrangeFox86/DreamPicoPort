@@ -36,10 +36,12 @@ class DreamcastScreen : public DreamcastPeripheral
         //! @param[in] fd  Function definition from the device info for this peripheral
         //! @param[in] scheduler  The transmission scheduler this peripheral is to add to
         //! @param[in] playerData  Data tied to player which controls this screen
-        DreamcastScreen(uint8_t addr,
-                        uint32_t fd,
-                        std::shared_ptr<EndpointTxSchedulerInterface> scheduler,
-                        PlayerData playerData);
+        DreamcastScreen(
+            uint8_t addr,
+            uint32_t fd,
+            const std::shared_ptr<EndpointTxSchedulerInterface>& scheduler,
+            const std::shared_ptr<PlayerData>& playerData
+        );
 
         //! Virtual destructor
         virtual ~DreamcastScreen();
@@ -81,7 +83,7 @@ class DreamcastScreen : public DreamcastPeripheral
         //! been updated
         bool mUpdateRequired;
         //! Reference to screen data which is externally modified in internally read
-        ScreenData& mScreenData;
+        std::shared_ptr<ScreenData> mScreenData;
         //! Transmission ID of the last screen
         uint32_t mTransmissionId;
 };

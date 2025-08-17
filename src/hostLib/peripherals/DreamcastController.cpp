@@ -26,12 +26,14 @@
 #include <string.h>
 
 
-DreamcastController::DreamcastController(uint8_t addr,
-                                         uint32_t fd,
-                                         std::shared_ptr<EndpointTxSchedulerInterface> scheduler,
-                                         PlayerData playerData) :
-    DreamcastPeripheral("controller", addr, fd, scheduler, playerData.playerIndex),
-    mGamepad(playerData.gamepad),
+DreamcastController::DreamcastController(
+    uint8_t addr,
+    uint32_t fd,
+    const std::shared_ptr<EndpointTxSchedulerInterface>& scheduler,
+    const std::shared_ptr<PlayerData>& playerData
+) :
+    DreamcastPeripheral("controller", addr, fd, scheduler, playerData->playerIndex),
+    mGamepad(playerData->gamepad),
     mWaitingForData(false),
     mFirstTask(true),
     mConditionTxId(0)

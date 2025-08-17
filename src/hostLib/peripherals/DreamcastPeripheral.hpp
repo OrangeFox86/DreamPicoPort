@@ -38,11 +38,13 @@ class DreamcastPeripheral : public Transmitter
         //! @param[in] fd  Function definition from the device info for this peripheral
         //! @param[in] scheduler  The transmission scheduler this peripheral is to add to
         //! @param[in] playerIndex  Player index of this peripheral [0,3]
-        DreamcastPeripheral(const char* name,
-                            uint8_t addr,
-                            uint32_t fd,
-                            std::shared_ptr<EndpointTxSchedulerInterface> scheduler,
-                            uint32_t playerIndex) :
+        DreamcastPeripheral(
+            const char* name,
+            uint8_t addr,
+            uint32_t fd,
+            std::shared_ptr<EndpointTxSchedulerInterface> scheduler,
+            uint32_t playerIndex
+        ) :
             mName(name),
             mEndpointTxScheduler(scheduler),
             mPlayerIndex(playerIndex),

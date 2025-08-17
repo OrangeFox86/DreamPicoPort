@@ -23,11 +23,13 @@
 
 #include "DreamcastExMedia.hpp"
 
-DreamcastExMedia::DreamcastExMedia(uint8_t addr,
-                                   uint32_t fd,
-                                   std::shared_ptr<EndpointTxSchedulerInterface> scheduler,
-                                   PlayerData playerData) :
-    DreamcastPeripheral("exmedia", addr, fd, scheduler, playerData.playerIndex)
+DreamcastExMedia::DreamcastExMedia(
+    uint8_t addr,
+    uint32_t fd,
+    const std::shared_ptr<EndpointTxSchedulerInterface>& scheduler,
+    const std::shared_ptr<PlayerData>& playerData
+) :
+    DreamcastPeripheral("exmedia", addr, fd, scheduler, playerData->playerIndex)
 {}
 
 DreamcastExMedia::~DreamcastExMedia()

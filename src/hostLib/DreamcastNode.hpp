@@ -67,7 +67,7 @@ class DreamcastNode : public Transmitter
         //! @returns recipient address for this node
         inline uint8_t getRecipientAddress()
         {
-            return DreamcastPeripheral::getRecipientAddress(mPlayerData.playerIndex, mAddr);
+            return DreamcastPeripheral::getRecipientAddress(mPlayerData->playerIndex, mAddr);
         }
 
         //! Prints summary of connected devices
@@ -104,10 +104,15 @@ class DreamcastNode : public Transmitter
 
     protected:
         //! Main constructor with scheduler
-        DreamcastNode(uint8_t addr,
-                      std::shared_ptr<EndpointTxSchedulerInterface> scheduler,
-                      const PlayerData& playerData) :
-            mAddr(addr), mEndpointTxScheduler(scheduler), mPlayerData(playerData), mPeripherals()
+        DreamcastNode(
+            uint8_t addr,
+            const std::shared_ptr<EndpointTxSchedulerInterface>& scheduler,
+            const std::shared_ptr<PlayerData>& playerData
+        ) :
+            mAddr(addr),
+            mEndpointTxScheduler(scheduler),
+            mPlayerData(playerData),
+            mPeripherals()
         {}
 
         //! Copy constructor
@@ -222,7 +227,7 @@ class DreamcastNode : public Transmitter
         //! Keeps all scheduled transmissions for my bus
         const std::shared_ptr<EndpointTxSchedulerInterface> mEndpointTxScheduler;
         //! Player data on this node
-        PlayerData mPlayerData;
+        const std::shared_ptr<PlayerData> mPlayerData;
         //! The connected peripherals addressed to this node (usually 0 to 3 items)
         std::vector<std::shared_ptr<DreamcastPeripheral>> mPeripherals;
 };

@@ -81,14 +81,14 @@ void FlycastWebUsbParser::process(
                 for (std::shared_ptr<PlayerData>& playerData : mPlayerData)
                 {
                     ++count;
-                    playerData->screenData.resetToDefault();
+                    playerData->screenData->resetToDefault();
                 }
                 std::string s = std::to_string(count);
                 responseFn(kResponseSuccess, {{&count, 1}});
             }
             else if (static_cast<std::size_t>(idx) < mPlayerData.size())
             {
-                mPlayerData[idx]->screenData.resetToDefault();
+                mPlayerData[idx]->screenData->resetToDefault();
                 std::uint8_t count = 1;
                 responseFn(kResponseSuccess, {{&count, 1}});
             }
@@ -122,7 +122,7 @@ void FlycastWebUsbParser::process(
                 static_cast<std::size_t>(idxout) < ScreenData::NUM_DEFAULT_SCREENS
             )
             {
-                mPlayerData[idxin]->screenData.setDataToADefault(idxout);
+                mPlayerData[idxin]->screenData->setDataToADefault(idxout);
                 responseFn(kResponseSuccess, {});
             }
             else
@@ -239,7 +239,7 @@ void FlycastWebUsbParser::process(
                     {
                         screenWords[i] = MaplePacket::flipWordBytes(screenWords[i]);
                     }
-                    mPlayerData[rv.first]->screenData.setData(screenWords, 0, 0x30, false);
+                    mPlayerData[rv.first]->screenData->setData(screenWords, 0, 0x30, false);
                 }
             }
         }

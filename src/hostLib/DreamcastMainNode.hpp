@@ -45,8 +45,8 @@ class DreamcastMainNode : public DreamcastNode
         //! @param[in] prioritizedTxScheduler The scheduler handling Maple Bus commands
         //! @param[in] detectionOnly When true, poll the node until its presence is detected
         DreamcastMainNode(
-            MapleBusInterface& bus,
-            PlayerData playerData,
+            const std::shared_ptr<MapleBusInterface>& bus,
+            const std::shared_ptr<PlayerData>& playerData,
             std::shared_ptr<PrioritizedTxScheduler> prioritizedTxScheduler,
             bool detectionOnly = false
         );

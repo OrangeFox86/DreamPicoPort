@@ -259,14 +259,14 @@ void FlycastCommandParser::submit(const char* chars, uint32_t len)
                     for (std::shared_ptr<PlayerData>& playerData : mPlayerData)
                     {
                         ++count;
-                        playerData->screenData.resetToDefault();
+                        playerData->screenData->resetToDefault();
                     }
                     std::string s = std::to_string(count);
                     send_response(std::to_string(count));
                 }
                 else if (static_cast<std::size_t>(idx) < mPlayerData.size())
                 {
-                    mPlayerData[idx]->screenData.resetToDefault();
+                    mPlayerData[idx]->screenData->resetToDefault();
                     send_response("1\n");
                 }
                 else
@@ -292,7 +292,7 @@ void FlycastCommandParser::submit(const char* chars, uint32_t len)
                     idxout >= 0 &&
                     static_cast<std::size_t>(idxout) < ScreenData::NUM_DEFAULT_SCREENS)
                 {
-                    mPlayerData[idxin]->screenData.setDataToADefault(idxout);
+                    mPlayerData[idxin]->screenData->setDataToADefault(idxout);
                     send_response("1\n");
                 }
                 else
@@ -530,7 +530,7 @@ void FlycastCommandParser::submit(const char* chars, uint32_t len)
                     packet.payload[1] == 0)
                 {
                     // Save screen data
-                    mPlayerData[idx]->screenData.setData(&packet.payload[2], 0, 0x30, false);
+                    mPlayerData[idx]->screenData->setData(&packet.payload[2], 0, 0x30, false);
                 }
 
                 Transmitter* t;

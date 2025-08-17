@@ -28,8 +28,8 @@
 #include "EndpointTxScheduler.hpp"
 
 DreamcastMainNode::DreamcastMainNode(
-    MapleBusInterface& bus,
-    PlayerData playerData,
+    const std::shared_ptr<MapleBusInterface>& bus,
+    const std::shared_ptr<PlayerData>& playerData,
     std::shared_ptr<PrioritizedTxScheduler> prioritizedTxScheduler,
     bool detectionOnly
 ) :
@@ -39,7 +39,7 @@ DreamcastMainNode::DreamcastMainNode(
             prioritizedTxScheduler,
             PrioritizedTxScheduler::MAIN_TRANSMISSION_PRIORITY,
             DreamcastPeripheral::getRecipientAddress(
-                playerData.playerIndex,
+                playerData->playerIndex,
                 DreamcastPeripheral::MAIN_PERIPHERAL_ADDR_MASK
             )
         ),
@@ -65,7 +65,7 @@ DreamcastMainNode::DreamcastMainNode(
             std::make_shared<EndpointTxScheduler>(
                 prioritizedTxScheduler,
                 PrioritizedTxScheduler::SUB_TRANSMISSION_PRIORITY,
-                DreamcastPeripheral::getRecipientAddress(playerData.playerIndex, addr)),
+                DreamcastPeripheral::getRecipientAddress(playerData->playerIndex, addr)),
             mPlayerData));
     }
 }
@@ -257,7 +257,7 @@ void DreamcastMainNode::readTask(uint64_t currentTimeUs)
     }
     else if (currentTimeUs >= mChangeReleaseTime)
     {
-        mPlayerData.gamepad.setChangeCondition(false);
+        mPlayerData->gamepad.setChangeCondition(false);
         mChangeReleaseTime = 0;
     }
 }
@@ -403,6 +403,6 @@ void DreamcastMainNode::cancelInfoRequest()
 
 void DreamcastMainNode::peripheralChangeEvent(uint64_t currentTimeUs)
 {
-    mPlayerData.gamepad.setChangeCondition(true);
+    mPlayerData->gamepad.setChangeCondition(true);
     mChangeReleaseTime = currentTimeUs + (CONNECT_EVENT_SIGNAL_TIME_MS * 1000);
 }

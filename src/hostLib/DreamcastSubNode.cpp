@@ -25,9 +25,11 @@
 #include "dreamcast_constants.h"
 #include "utils.h"
 
-DreamcastSubNode::DreamcastSubNode(uint8_t addr,
-                                   std::shared_ptr<EndpointTxSchedulerInterface> scheduler,
-                                   const PlayerData& playerData) :
+DreamcastSubNode::DreamcastSubNode(
+    uint8_t addr,
+    std::shared_ptr<EndpointTxSchedulerInterface> scheduler,
+    const std::shared_ptr<PlayerData>& playerData
+) :
     DreamcastNode(addr, scheduler, playerData),
     mConnected(false),
     mScheduleId(-1)

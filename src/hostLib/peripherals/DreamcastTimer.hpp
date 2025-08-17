@@ -35,10 +35,12 @@ class DreamcastTimer : public DreamcastPeripheral
         //! @param[in] fd  Function definition from the device info for this peripheral
         //! @param[in] scheduler  The transmission scheduler this peripheral is to add to
         //! @param[in] playerData  Data tied to player which controls this timer device
-        DreamcastTimer(uint8_t addr,
-                       uint32_t fd,
-                       std::shared_ptr<EndpointTxSchedulerInterface> scheduler,
-                       PlayerData playerData);
+        DreamcastTimer(
+            uint8_t addr,
+            uint32_t fd,
+            const std::shared_ptr<EndpointTxSchedulerInterface>& scheduler,
+            const std::shared_ptr<PlayerData>& playerData
+        );
 
         //! Virtual destructor
         virtual ~DreamcastTimer();

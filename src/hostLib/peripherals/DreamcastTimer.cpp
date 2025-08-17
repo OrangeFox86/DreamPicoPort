@@ -24,12 +24,14 @@
 #include "DreamcastTimer.hpp"
 #include <memory.h>
 
-DreamcastTimer::DreamcastTimer(uint8_t addr,
-                               uint32_t fd,
-                               std::shared_ptr<EndpointTxSchedulerInterface> scheduler,
-                               PlayerData playerData) :
-    DreamcastPeripheral("timer", addr, fd, scheduler, playerData.playerIndex),
-    mGamepad(playerData.gamepad),
+DreamcastTimer::DreamcastTimer(
+    uint8_t addr,
+    uint32_t fd,
+    const std::shared_ptr<EndpointTxSchedulerInterface>& scheduler,
+    const std::shared_ptr<PlayerData>& playerData
+) :
+    DreamcastPeripheral("timer", addr, fd, scheduler, playerData->playerIndex),
+    mGamepad(playerData->gamepad),
     mButtonStatusId(0)
 {
     // Poll only the upper VMU button states

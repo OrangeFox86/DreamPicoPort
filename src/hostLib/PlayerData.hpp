@@ -33,19 +33,7 @@ struct PlayerData
 {
     const uint32_t playerIndex;
     DreamcastControllerObserver& gamepad;
-    ScreenData& screenData;
+    std::shared_ptr<ScreenData> screenData;
     ClockInterface& clock;
     UsbFileSystem& fileSystem;
-
-    PlayerData(uint32_t playerIndex,
-               DreamcastControllerObserver& gamepad,
-               ScreenData& screenData,
-               ClockInterface& clock,
-               UsbFileSystem& fileSystem) :
-        playerIndex(playerIndex),
-        gamepad(gamepad),
-        screenData(screenData),
-        clock(clock),
-        fileSystem(fileSystem)
-    {}
 };

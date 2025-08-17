@@ -24,15 +24,17 @@
 #include "DreamcastScreen.hpp"
 #include "dreamcast_constants.h"
 
-DreamcastScreen::DreamcastScreen(uint8_t addr,
-                                 uint32_t fd,
-                                 std::shared_ptr<EndpointTxSchedulerInterface> scheduler,
-                                 PlayerData playerData) :
-    DreamcastPeripheral("screen", addr, fd, scheduler, playerData.playerIndex),
+DreamcastScreen::DreamcastScreen(
+    uint8_t addr,
+    uint32_t fd,
+    const std::shared_ptr<EndpointTxSchedulerInterface>& scheduler,
+    const std::shared_ptr<PlayerData>& playerData
+) :
+    DreamcastPeripheral("screen", addr, fd, scheduler, playerData->playerIndex),
     mNextCheckTime(0),
     mWaitingForData(false),
     mUpdateRequired(true),
-    mScreenData(playerData.screenData),
+    mScreenData(playerData->screenData),
     mTransmissionId(0)
 {}
 
@@ -55,7 +57,7 @@ void DreamcastScreen::task(uint64_t currentTimeUs)
 {
     if (currentTimeUs > mNextCheckTime)
     {
-        if (mScreenData.isNewDataAvailable() || mUpdateRequired)
+        if (mScreenData->isNewDataAvailable() || mUpdateRequired)
         {
             // Write screen data
             static const uint8_t partitionNum = 0; // Always 0
@@ -64,7 +66,7 @@ void DreamcastScreen::task(uint64_t currentTimeUs)
             static const uint32_t writeAddrWord = (partitionNum << 24) | (sequenceNum << 16) | blockNum;
             uint8_t numPayloadWords = ScreenData::NUM_SCREEN_WORDS + 2;
             uint32_t payload[numPayloadWords] = {DEVICE_FN_LCD, writeAddrWord, 0};
-            mScreenData.readData(&payload[2]);
+            mScreenData->readData(&payload[2]);
 
             if (mTransmissionId > 0 && !mWaitingForData)
             {
