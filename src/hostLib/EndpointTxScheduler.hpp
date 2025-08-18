@@ -33,9 +33,11 @@ class EndpointTxScheduler : public EndpointTxSchedulerInterface
 {
 public:
     //! Default constructor
-    EndpointTxScheduler(std::shared_ptr<PrioritizedTxScheduler> prioritizedScheduler,
-                        uint8_t fixedPriority,
-                        uint8_t recipientAddr);
+    EndpointTxScheduler(
+        const std::shared_ptr<PrioritizedTxScheduler>& prioritizedScheduler,
+        uint8_t fixedPriority,
+        uint8_t recipientAddr
+    );
 
     //! Virtual destructor
     virtual ~EndpointTxScheduler();

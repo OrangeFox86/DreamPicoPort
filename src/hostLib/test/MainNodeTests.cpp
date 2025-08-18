@@ -48,7 +48,11 @@ using ::testing::AnyNumber;
 class MockedDreamcastSubNode : public DreamcastSubNode
 {
     public:
-        MockedDreamcastSubNode(uint8_t addr, std::shared_ptr<EndpointTxSchedulerInterface> scheduler, PlayerData playerData) :
+        MockedDreamcastSubNode(
+            uint8_t addr,
+            const std::shared_ptr<EndpointTxSchedulerInterface>& scheduler,
+            const std::shared_ptr<PlayerData>& playerData
+        ) :
             DreamcastSubNode(addr, scheduler, playerData)
         {}
 
@@ -73,9 +77,11 @@ class MockedDreamcastSubNode : public DreamcastSubNode
 class DreamcastMainNodeOverride : public DreamcastMainNode
 {
     public:
-        DreamcastMainNodeOverride(MapleBusInterface& bus,
-                                  PlayerData playerData,
-                                  std::shared_ptr<PrioritizedTxScheduler> scheduler) :
+        DreamcastMainNodeOverride(
+            const std::shared_ptr<MapleBusInterface>& bus,
+            const std::shared_ptr<PlayerData>& playerData,
+            const std::shared_ptr<PrioritizedTxScheduler>& scheduler
+        ) :
             DreamcastMainNode(bus, playerData, scheduler),
             mMockedSubNodes()
         {
@@ -136,9 +142,9 @@ class MainNodeTest : public ::testing::Test
         MainNodeTest() :
             mDreamcastControllerObserver(),
             mMutex(),
-            mScreenData(mMutex),
-            mPlayerData{0, mDreamcastControllerObserver, mScreenData, mClock, mUsbFileSystem},
-            mMapleBus(),
+            mScreenData(std::make_shared<ScreenData>(mMutex)),
+            mPlayerData(std::make_shared<PlayerData>(PlayerData{0, mDreamcastControllerObserver, mScreenData, mClock, mUsbFileSystem})),
+            mMapleBus(std::make_shared<MockMapleBus>()),
             mPrioritizedTxScheduler(std::make_shared<PrioritizedTxScheduler>(mMutex2, 0x00)),
             mDreamcastMainNode(mMapleBus, mPlayerData, mPrioritizedTxScheduler)
         {}
@@ -149,9 +155,9 @@ class MainNodeTest : public ::testing::Test
         MockMutex mMutex2;
         MockClock mClock;
         MockUsbFileSystem mUsbFileSystem;
-        ScreenData mScreenData;
-        PlayerData mPlayerData;
-        MockMapleBus mMapleBus;
+        std::shared_ptr<ScreenData> mScreenData;
+        std::shared_ptr<PlayerData> mPlayerData;
+        std::shared_ptr<MockMapleBus> mMapleBus;
         std::shared_ptr<PrioritizedTxScheduler> mPrioritizedTxScheduler;
         DreamcastMainNodeOverride mDreamcastMainNode;
 
@@ -173,14 +179,14 @@ class MainNodeTest : public ::testing::Test
 TEST_F(MainNodeTest, successfulInfoRequest)
 {
     // --- MOCKING ---
-    EXPECT_CALL(mMapleBus, isBusy).Times(AnyNumber()).WillRepeatedly(Return(false));
+    EXPECT_CALL(*mMapleBus, isBusy).Times(AnyNumber()).WillRepeatedly(Return(false));
     // The task will process events, and nothing meaningful will be returned
     MapleBusInterface::Status status;
-    EXPECT_CALL(mMapleBus, processEvents(1000000))
+    EXPECT_CALL(*mMapleBus, processEvents(1000000))
         .Times(1)
         .WillOnce(Return(status));
     // Since no peripherals are detected, the main node should do a info request, and it will be successful
-    EXPECT_CALL(mMapleBus,
+    EXPECT_CALL(*mMapleBus,
                 write(MaplePacket({.command=COMMAND_DEVICE_INFO_REQUEST,
                                   .recipientAddr=0x20},
                                   (const uint32_t*)NULL,
@@ -204,14 +210,14 @@ TEST_F(MainNodeTest, successfulInfoRequest)
 TEST_F(MainNodeTest, unsuccessfulInfoRequest)
 {
     // --- MOCKING ---
-    EXPECT_CALL(mMapleBus, isBusy).Times(AnyNumber()).WillRepeatedly(Return(false));
+    EXPECT_CALL(*mMapleBus, isBusy).Times(AnyNumber()).WillRepeatedly(Return(false));
     // The task will process events, and nothing meaningful will be returned
     MapleBusInterface::Status status;
-    EXPECT_CALL(mMapleBus, processEvents(1000000))
+    EXPECT_CALL(*mMapleBus, processEvents(1000000))
         .Times(1)
         .WillOnce(Return(status));
     // Since no peripherals are detected, the main node should do a info request, and it will be unsuccessful
-    EXPECT_CALL(mMapleBus,
+    EXPECT_CALL(*mMapleBus,
                 write(MaplePacket({.command=COMMAND_DEVICE_INFO_REQUEST,
                                   .recipientAddr=0x20},
                                   (const uint32_t*)NULL,
@@ -235,13 +241,13 @@ TEST_F(MainNodeTest, unsuccessfulInfoRequest)
 TEST_F(MainNodeTest, peripheralConnect)
 {
     // --- SETUP ---
-    EXPECT_CALL(mMapleBus, isBusy).Times(AnyNumber()).WillRepeatedly(Return(false));
+    EXPECT_CALL(*mMapleBus, isBusy).Times(AnyNumber()).WillRepeatedly(Return(false));
     // The mocked factory will add a mocked peripheral
     std::shared_ptr<MockDreamcastPeripheral> mockedDreamcastPeripheral =
-        std::make_shared<MockDreamcastPeripheral>(0x20, 0, mDreamcastMainNode.getEndpointTxScheduler(), mPlayerData.playerIndex);
+        std::make_shared<MockDreamcastPeripheral>(0x20, 0, mDreamcastMainNode.getEndpointTxScheduler(), mPlayerData->playerIndex);
     mDreamcastMainNode.mPeripheralsToAdd.push_back(mockedDreamcastPeripheral);
     // This is a bad way to do it, but I need mCurrentTx in TransmissionTimeliner to be set to something
-    EXPECT_CALL(mMapleBus, write).Times(AnyNumber()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*mMapleBus, write).Times(AnyNumber()).WillRepeatedly(Return(true));
     mDreamcastMainNode.getEndpointTxScheduler()->add(
         EndpointTxSchedulerInterface::TransmissionProperties{
             .txTime = 0,
@@ -261,7 +267,7 @@ TEST_F(MainNodeTest, peripheralConnect)
     status.readBuffer = data;
     status.readBufferLen = 5;
     status.phase = MapleBusInterface::Phase::READ_COMPLETE;
-    EXPECT_CALL(mMapleBus, processEvents(1000000))
+    EXPECT_CALL(*mMapleBus, processEvents(1000000))
         .Times(1)
         .WillOnce(Return(status));
     // The peripheralFactory method should be called with function code 0x00000001
@@ -281,7 +287,7 @@ TEST_F(MainNodeTest, peripheralConnect)
     EXPECT_CALL(*mDreamcastMainNode.mMockedSubNodes[3], task(1000000)).Times(1);
     EXPECT_CALL(*mDreamcastMainNode.mMockedSubNodes[4], task(1000000)).Times(1);
     // Don't care if write is called
-    EXPECT_CALL(mMapleBus, write).Times(AnyNumber());
+    EXPECT_CALL(*mMapleBus, write).Times(AnyNumber());
 
     // --- TEST EXECUTION ---
     mDreamcastMainNode.task(1000000);
@@ -292,13 +298,13 @@ TEST_F(MainNodeTest, peripheralConnect)
 TEST_F(MainNodeTest, peripheralDisconnect)
 {
     // --- SETUP ---
-    EXPECT_CALL(mMapleBus, isBusy).Times(AnyNumber()).WillRepeatedly(Return(false));
+    EXPECT_CALL(*mMapleBus, isBusy).Times(AnyNumber()).WillRepeatedly(Return(false));
     // A main peripheral is currently connected
     std::shared_ptr<MockDreamcastPeripheral> mockedDreamcastPeripheral =
-        std::make_shared<MockDreamcastPeripheral>(0x20, 0, mDreamcastMainNode.getEndpointTxScheduler(), mPlayerData.playerIndex);
+        std::make_shared<MockDreamcastPeripheral>(0x20, 0, mDreamcastMainNode.getEndpointTxScheduler(), mPlayerData->playerIndex);
     mDreamcastMainNode.getPeripherals().push_back(mockedDreamcastPeripheral);
     // Update write queue
-    EXPECT_CALL(mMapleBus, write).Times(AnyNumber()).WillRepeatedly(Return(true));
+    EXPECT_CALL(*mMapleBus, write).Times(AnyNumber()).WillRepeatedly(Return(true));
     for (uint32_t i = 0; i < DreamcastMainNode::MAX_FAILURE_DISCONNECT_COUNT; ++i)
     {
         mDreamcastMainNode.getEndpointTxScheduler()->add(
@@ -319,7 +325,7 @@ TEST_F(MainNodeTest, peripheralDisconnect)
     // The task will process events, and it will return read failure
     MapleBusInterface::Status status;
     status.phase = MapleBusInterface::Phase::READ_FAILED;
-    EXPECT_CALL(mMapleBus, processEvents(_))
+    EXPECT_CALL(*mMapleBus, processEvents(_))
         .Times(10)
         .WillRepeatedly(Return(status));
     // All sub node's task functions will be called with the current time

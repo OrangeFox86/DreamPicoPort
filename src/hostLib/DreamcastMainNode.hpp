@@ -47,7 +47,7 @@ class DreamcastMainNode : public DreamcastNode
         DreamcastMainNode(
             const std::shared_ptr<MapleBusInterface>& bus,
             const std::shared_ptr<PlayerData>& playerData,
-            std::shared_ptr<PrioritizedTxScheduler> prioritizedTxScheduler,
+            const std::shared_ptr<PrioritizedTxScheduler>& prioritizedTxScheduler,
             bool detectionOnly = false
         );
 

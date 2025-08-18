@@ -24,12 +24,13 @@
 #include "EndpointTxScheduler.hpp"
 
 EndpointTxScheduler::EndpointTxScheduler(
-    std::shared_ptr<PrioritizedTxScheduler> prioritizedScheduler,
+    const std::shared_ptr<PrioritizedTxScheduler>& prioritizedScheduler,
     uint8_t fixedPriority,
-    uint8_t recipientAddr):
-        mPrioritizedScheduler(prioritizedScheduler),
-        mFixedPriority(fixedPriority),
-        mRecipientAddr(recipientAddr)
+    uint8_t recipientAddr
+):
+    mPrioritizedScheduler(prioritizedScheduler),
+    mFixedPriority(fixedPriority),
+    mRecipientAddr(recipientAddr)
 {}
 
 EndpointTxScheduler::~EndpointTxScheduler()
