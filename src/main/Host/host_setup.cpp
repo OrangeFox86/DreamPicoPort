@@ -33,6 +33,7 @@
 
 #include "MapleWebUsbParser.hpp"
 #include "FlycastWebUsbParser.hpp"
+#include "SettingsWebUsbParser.hpp"
 
 #include "FlycastCommandParser.hpp"
 #include "PicoIdentification.hpp"
@@ -84,7 +85,9 @@ std::vector<DreamcastNodeData> setup_dreamcast_nodes(const std::vector<PlayerDef
     return dcNodeData;
 }
 
-std::unique_ptr<SerialStreamParser> make_parsers(const std::vector<DreamcastNodeData>& dcNodes)
+std::unique_ptr<SerialStreamParser> make_parsers(
+    const std::vector<DreamcastNodeData>& dcNodes
+)
 {
     // Make the necessary data containers
     std::vector<std::shared_ptr<PrioritizedTxScheduler>> schedulers;
@@ -131,6 +134,7 @@ std::unique_ptr<SerialStreamParser> make_parsers(const std::vector<DreamcastNode
             schedulers,
             mapleHostAddresses
         );
+    webusb_add_parser(mapleWebUsbParser);
     std::shared_ptr<FlycastWebUsbParser> flycastWebUsbCommandParser =
         std::make_shared<FlycastWebUsbParser>(
             picoIdentification,
@@ -138,8 +142,9 @@ std::unique_ptr<SerialStreamParser> make_parsers(const std::vector<DreamcastNode
             playerData,
             dreamcastMainNodes
         );
-    webusb_add_parser(mapleWebUsbParser);
     webusb_add_parser(flycastWebUsbCommandParser);
+    std::shared_ptr<SettingsWebUsbParser> settingsWebUsbParser = std::make_shared<SettingsWebUsbParser>();
+    webusb_add_parser(settingsWebUsbParser);
 
     return ttyParser;
 }

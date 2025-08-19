@@ -23,10 +23,61 @@
 
 #include "SettingsWebUsbParser.hpp"
 
-SettingsWebUsbParser::SettingsWebUsbParser(const DppSettings& loadedSettings) :
-    mLoadedSettings(loadedSettings),
-    mSettings(loadedSettings)
+#include <cstring>
+
+SettingsWebUsbParser::SettingsWebUsbParser() :
+    mLoadedSettings(DppSettings::getInitialSettings()),
+    mSettings(mLoadedSettings)
 {}
+
+static std::uint32_t flip_word_bytes(const uint32_t& word)
+{
+    return (word << 24) | (word << 8 & 0xFF0000) | (word >> 8 & 0xFF00) | (word >> 24);
+}
+
+static std::uint32_t flip_word_bytes(const int32_t& word)
+{
+    return (word << 24) | (word << 8 & 0xFF0000) | (word >> 8 & 0xFF00) | (word >> 24);
+}
+
+static std::string packSettings(const DppSettings& settings)
+{
+    std::string settingsData;
+
+    settingsData.reserve(50);
+    settingsData.push_back(static_cast<std::uint8_t>(settings.cdcEn ? 1 : 0));
+    settingsData.push_back(static_cast<std::uint8_t>(settings.mscEn ? 1 : 0));
+
+    for (std::uint8_t i = 0; i < DppSettings::kNumPlayers; ++i)
+    {
+        settingsData.push_back(static_cast<std::uint8_t>(settings.playerDetectionModes[i]));
+    }
+
+    for (std::uint8_t i = 0; i < DppSettings::kNumPlayers; ++i)
+    {
+        std::uint32_t val = flip_word_bytes(settings.gpioA[i]);
+        settingsData.append(reinterpret_cast<const char*>(&val), sizeof(val));
+    }
+
+    for (std::uint8_t i = 0; i < DppSettings::kNumPlayers; ++i)
+    {
+        std::int32_t val = flip_word_bytes(settings.gpioDir[i]);
+        settingsData.append(reinterpret_cast<const char*>(&val), sizeof(val));
+    }
+
+    for (std::uint8_t i = 0; i < DppSettings::kNumPlayers; ++i)
+    {
+        settingsData.push_back(static_cast<std::uint8_t>(settings.gpioDirOutputHigh[i]));
+    }
+
+    std::int32_t v = flip_word_bytes(settings.usbLedGpio);
+    settingsData.append(reinterpret_cast<const char*>(&v), sizeof(v));
+
+    v = flip_word_bytes(settings.simpleUsbLedGpio);
+    settingsData.append(reinterpret_cast<const char*>(&v), sizeof(v));
+
+    return settingsData;
+}
 
 void SettingsWebUsbParser::process(
     const std::uint8_t* payload,
@@ -47,14 +98,19 @@ void SettingsWebUsbParser::process(
 
     switch(*iter)
     {
-        // Get all settings
+        // Get all loaded settings
         case 'G':
         {
-            uint8_t settingsData[2] = {
-                static_cast<uint8_t>(mLoadedSettings.cdcEn ? 1 : 0),
-                static_cast<uint8_t>(mLoadedSettings.mscEn ? 1 : 0)
-            };
-            responseFn(kResponseSuccess, {{settingsData, sizeof(settingsData)}});
+            std::string settingsData = packSettings(mLoadedSettings);
+            responseFn(kResponseSuccess, {{settingsData.data(), settingsData.size()}});
+        }
+        return;
+
+        // Get all locally-stored settings
+        case 'g':
+        {
+            std::string settingsData = packSettings(mSettings);
+            responseFn(kResponseSuccess, {{settingsData.data(), settingsData.size()}});
         }
         return;
 
@@ -64,11 +120,13 @@ void SettingsWebUsbParser::process(
             ++iter;
             if (iter >= eol)
             {
-                responseFn(kResponseCmdInvalid, {});
+                std::uint8_t payload = 0;
+                responseFn(kResponseCmdInvalid, {{&payload, 1}});
                 return;
             }
 
             mSettings.cdcEn = (*iter != 0);
+            responseFn(kResponseSuccess, {});
         }
         return;
 
@@ -78,11 +136,157 @@ void SettingsWebUsbParser::process(
             ++iter;
             if (iter >= eol)
             {
-                responseFn(kResponseCmdInvalid, {});
+                std::uint8_t payload = 0;
+                responseFn(kResponseCmdInvalid, {{&payload, 1}});
                 return;
             }
 
             mSettings.mscEn = (*iter != 0);
+            responseFn(kResponseSuccess, {});
+        }
+        return;
+
+        // Player detection mode: P[0-3][PlayerDetectionMode (1 byte)]
+        case 'P':
+        {
+            ++iter;
+            if (eol - iter < 2)
+            {
+                std::uint8_t payload = 0;
+                responseFn(kResponseCmdInvalid, {{&payload, 1}});
+                return;
+            }
+
+            std::uint8_t playerIdx = (*iter);
+            if (playerIdx >= DppSettings::kNumPlayers)
+            {
+                std::uint8_t payload = 1;
+                responseFn(kResponseCmdInvalid, {{&payload, 1}});
+                return;
+            }
+
+            std::uint8_t playerDetectionMode = (*(iter + 1));
+            if (
+                playerDetectionMode >=
+                static_cast<std::uint8_t>(DppSettings::PlayerDetectionMode::kNumPlayerDetectionModes)
+            )
+            {
+                std::uint8_t payload = 2;
+                responseFn(kResponseCmdInvalid, {{&payload, 1}});
+                return;
+            }
+
+            mSettings.playerDetectionModes[playerIdx] =
+                static_cast<DppSettings::PlayerDetectionMode>(playerDetectionMode);
+            responseFn(kResponseSuccess, {});
+        }
+        return;
+
+        // Player I/O settings: I[0-3][GPIO A (4 byte)][GPIO DIR (4 byte)][DIR Output HIGH (1 byte)]
+        case 'I':
+        {
+            ++iter;
+            if (eol - iter < 10)
+            {
+                std::uint8_t payload = 0;
+                responseFn(kResponseCmdInvalid, {{&payload, 1}});
+                return;
+            }
+
+            std::uint8_t playerIdx = (*iter);
+            if (playerIdx >= DppSettings::kNumPlayers)
+            {
+                std::uint8_t payload = 1;
+                responseFn(kResponseCmdInvalid, {{&payload, 1}});
+                return;
+            }
+
+            std::int32_t gpioA;
+            memcpy(&gpioA, iter + 1, 4);
+            gpioA = flip_word_bytes(gpioA);
+            if (!DppSettings::isGpioValid(gpioA))
+            {
+                std::uint8_t payload = 2;
+                responseFn(kResponseCmdInvalid, {{&payload, 1}});
+                return;
+            }
+
+            std::int32_t gpioDir;
+            memcpy(&gpioDir, iter + 5, 4);
+            gpioDir = flip_word_bytes(gpioDir);
+            if (!DppSettings::isGpioValid(gpioDir))
+            {
+                std::uint8_t payload = 3;
+                responseFn(kResponseCmdInvalid, {{&payload, 1}});
+                return;
+            }
+
+            bool dirOutputHigh = ((*(iter + 9)) != 0);
+
+            if (gpioA < 0)
+            {
+                mSettings.playerDetectionModes[playerIdx] = DppSettings::PlayerDetectionMode::kDisable;
+            }
+            else
+            {
+                mSettings.gpioA[playerIdx] = gpioA;
+            }
+
+            mSettings.gpioDir[playerIdx] = gpioDir;
+            mSettings.gpioDirOutputHigh[playerIdx] = dirOutputHigh;
+            responseFn(kResponseSuccess, {});
+        }
+        return;
+
+        // LED setting L[LED Pin (4 byte)]
+        case 'L':
+        {
+            ++iter;
+            if (eol - iter < 4)
+            {
+                std::uint8_t payload = 0;
+                responseFn(kResponseCmdInvalid, {{&payload, 1}});
+                return;
+            }
+
+            std::int32_t usbLedGpio;
+            memcpy(&usbLedGpio, iter, 4);
+            usbLedGpio = flip_word_bytes(usbLedGpio);
+            if (!DppSettings::isGpioValid(usbLedGpio))
+            {
+                std::uint8_t payload = 1;
+                responseFn(kResponseCmdInvalid, {{&payload, 1}});
+                return;
+            }
+
+            mSettings.usbLedGpio = usbLedGpio;
+            responseFn(kResponseSuccess, {});
+        }
+        return;
+
+        // Simple LED setting l[LED Pin (4 byte)]
+        case 'l':
+        {
+            ++iter;
+            if (eol - iter < 4)
+            {
+                std::uint8_t payload = 0;
+                responseFn(kResponseCmdInvalid, {{&payload, 1}});
+                return;
+            }
+
+            std::int32_t simpleUsbLedGpio;
+            memcpy(&simpleUsbLedGpio, iter, 4);
+            simpleUsbLedGpio = flip_word_bytes(simpleUsbLedGpio);
+            if (!DppSettings::isGpioValid(simpleUsbLedGpio))
+            {
+                std::uint8_t payload = 1;
+                responseFn(kResponseCmdInvalid, {{&payload, 1}});
+                return;
+            }
+
+            mSettings.simpleUsbLedGpio = simpleUsbLedGpio;
+            responseFn(kResponseSuccess, {});
         }
         return;
 
@@ -92,8 +296,8 @@ void SettingsWebUsbParser::process(
             // Send response before saving
             responseFn(kResponseSuccess, {});
 
-            // This will save and reboot
-            mSettings.save();
+            // This will save and reboot - delay for 100 ms to allow the above message to go out
+            mSettings.save(100);
         }
         return;
 

@@ -46,7 +46,10 @@ struct DppSettings
         //! Auto detection, disabling and enabling as device is detected or removed
         kAutoDynamic,
         //! Auto detection, enabling as device is detected, only disabled upon power loss
-        kAutoDynamicNoDisable
+        kAutoDynamicNoDisable,
+
+        //! A count of number of modes
+        kNumPlayerDetectionModes
     };
 
     //! USB CDC enabled flag (default: true)
@@ -67,8 +70,8 @@ struct DppSettings
         P3_BUS_START_PIN,
         P4_BUS_START_PIN
     };
-    //! GPIO number of direction output
-    uint32_t gpioDir[kNumPlayers] = {
+    //! GPIO number of direction output (-1 to disable)
+    int32_t gpioDir[kNumPlayers] = {
         P1_DIR_PIN,
         P2_DIR_PIN,
         P3_DIR_PIN,
@@ -103,7 +106,15 @@ struct DppSettings
 
     //! Save settings to flash and reboots system
     //! @pre this must be called from core 0!
-    void save();
+    //! @param[in] delayMs Number of milliseconds to delay before rebooting
+    void save(uint32_t delayMs = 0);
+
+    //! @return true iff settings are valid
+    bool isValid() const;
+
+    //! Forces valid settings
+    //! @return true iff settings were already valid
+    bool makeValid();
 
     //! @pre DppSettings::initialize() must have been called
     //! @return the offset address in flash where settings are located
@@ -111,6 +122,12 @@ struct DppSettings
     {
         return kSettingsOffsetAddr;
     }
+
+    //! @return true iff the given gpio is valid
+    static bool isGpioValid(std::int32_t gpio);
+
+    //! @return true iff the given gpio is valid
+    static bool isGpioValid(std::uint32_t gpio);
 
     bool operator==(const DppSettings&) const = default;
     bool operator!=(const DppSettings&) const = default;

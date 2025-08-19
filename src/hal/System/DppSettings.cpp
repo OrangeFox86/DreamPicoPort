@@ -23,6 +23,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <unordered_set>
 
 #include <configuration.h>
 
@@ -115,6 +116,8 @@ const DppSettings& DppSettings::initialize()
         kLoadedSettings.gpioDirOutputHigh[i] = settingsMemory->gpioDirOutputHigh[i];
     }
 
+    kLoadedSettings.makeValid();
+
     return kLoadedSettings;
 }
 
@@ -123,7 +126,11 @@ const DppSettings& DppSettings::getInitialSettings()
     return kLoadedSettings;
 }
 
-void __no_inline_not_in_flash_func(save_settings_memory)(uint32_t offsetAddr, const SettingsMemory& mem)
+void __no_inline_not_in_flash_func(save_settings_memory)(
+    uint32_t offsetAddr,
+    const SettingsMemory& mem,
+    uint32_t delayMs
+)
 {
     // This function must be called by core0, and core1 is stopped to ensure nothing is accessing flash
     multicore_reset_core1();
@@ -153,10 +160,10 @@ void __no_inline_not_in_flash_func(save_settings_memory)(uint32_t offsetAddr, co
     restore_interrupts_from_disabled(savedInterrupts);
 
     // Reboot now to apply settings
-    watchdog_reboot(0, 0, 0);
+    watchdog_reboot(0, 0, delayMs);
 }
 
-void DppSettings::save()
+void DppSettings::save(uint32_t delayMs)
 {
     SettingsMemory mem{
         .magic = kMagic,
@@ -175,7 +182,147 @@ void DppSettings::save()
         mem.gpioDirOutputHigh[i] = gpioDirOutputHigh[i];
     }
     mem.crc = calc_crc32(&mem.crc + 1, mem.size - 1);
-    save_settings_memory(kSettingsOffsetAddr, mem);
+    save_settings_memory(kSettingsOffsetAddr, mem, delayMs);
+}
+
+static bool validate_gpio(std::unordered_set<std::uint32_t>& usedIo, std::uint32_t newIo)
+{
+    if (!DppSettings::isGpioValid(newIo))
+    {
+        // Invalid
+        return false;
+    }
+    else if (usedIo.find(newIo) != usedIo.end())
+    {
+        // Already exists
+        return false;
+    }
+
+    usedIo.insert(newIo);
+    return true;
+}
+
+static bool validate_gpio(std::unordered_set<std::uint32_t>& usedIo, std::int32_t newIo)
+{
+    if (newIo >= 0)
+    {
+        return validate_gpio(usedIo, static_cast<std::uint32_t>(newIo));
+    }
+
+    // Negative value is unset and therefore valid
+    return true;
+}
+
+bool DppSettings::isValid() const
+{
+    std::unordered_set<std::uint32_t> usedIo;
+
+    if (!validate_gpio(usedIo, usbLedGpio))
+    {
+        return false;
+    }
+
+    if (!validate_gpio(usedIo, simpleUsbLedGpio))
+    {
+        return false;
+    }
+
+    for (std::uint8_t i = 0; i < kNumPlayers; ++i)
+    {
+        if (!validate_gpio(usedIo, gpioA[i]) || !validate_gpio(usedIo, gpioA[i] + 1))
+        {
+            return false;
+        }
+
+        if (!validate_gpio(usedIo, gpioDir[i]))
+        {
+            return false;
+        }
+
+        if (
+            static_cast<std::uint8_t>(playerDetectionModes[i]) >=
+            static_cast<std::uint8_t>(PlayerDetectionMode::kNumPlayerDetectionModes)
+        )
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool DppSettings::makeValid()
+{
+    bool alreadyValid = true;
+    std::unordered_set<std::uint32_t> usedIo;
+
+    if (!validate_gpio(usedIo, usbLedGpio))
+    {
+        usbLedGpio = -1; // disable
+        alreadyValid = false;
+    }
+
+    if (!validate_gpio(usedIo, simpleUsbLedGpio))
+    {
+        simpleUsbLedGpio = -1; // disable
+        alreadyValid = false;
+    }
+
+    for (std::uint8_t i = 0; i < kNumPlayers; ++i)
+    {
+        // Copy to temporary set so it may be reverted
+        std::unordered_set<std::uint32_t> usedIoCopy = usedIo;
+
+        if (
+            !validate_gpio(usedIoCopy, gpioA[i]) ||
+            !validate_gpio(usedIoCopy, gpioA[i] + 1) ||
+            !validate_gpio(usedIoCopy, gpioDir[i])
+        )
+        {
+            // Disable this player
+            playerDetectionModes[i] = PlayerDetectionMode::kDisable;
+            gpioDir[i] = -1;
+            alreadyValid = false;
+        }
+        else
+        {
+            // Commit the changes
+            usedIo = std::move(usedIoCopy);
+
+            if (
+                static_cast<std::uint8_t>(playerDetectionModes[i]) >=
+                static_cast<std::uint8_t>(PlayerDetectionMode::kNumPlayerDetectionModes)
+            )
+            {
+                // This seems like the best option when this setting is invalid
+                playerDetectionModes[i] = PlayerDetectionMode::kAutoDynamicNoDisable;
+                alreadyValid = false;
+            }
+        }
+    }
+
+    return alreadyValid;
+}
+
+bool DppSettings::isGpioValid(std::int32_t gpio)
+{
+    if (gpio < 0)
+    {
+        // disabled
+        return true;
+    }
+
+    return isGpioValid(static_cast<std::uint32_t>(gpio));
+}
+
+bool DppSettings::isGpioValid(std::uint32_t gpio)
+{
+    if (gpio >= NUM_BANK0_GPIOS)
+    {
+        return false;
+    }
+
+    return true;
 }
 
 uint32_t DppSettings::kSettingsOffsetAddr = 0;

@@ -41,7 +41,7 @@
 class SettingsWebUsbParser : public WebUsbCommandParser
 {
 public:
-    SettingsWebUsbParser(const DppSettings& loadedSettings);
+    SettingsWebUsbParser();
 
     virtual ~SettingsWebUsbParser() = default;
 
