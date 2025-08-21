@@ -339,8 +339,9 @@ void webusb_init(MutexInterface* mutex)
     webusb_mutex = mutex;
 }
 
-void webusb_connection_event(uint16_t index, uint16_t value)
+void webusb_connection_event(uint16_t interfaceNumber, uint16_t value)
 {
+    uint8_t index = ITF_TO_WEBUSB_IDX(interfaceNumber);
     if (index < CFG_TUD_VENDOR)
     {
         bool connected = (value != 0);
@@ -359,12 +360,12 @@ void webusb_connection_event(uint16_t index, uint16_t value)
     }
 }
 
-void webusb_process(uint8_t itf, const uint8_t* buffer, uint16_t bufsize)
+void webusb_process(uint8_t itfIndex, const uint8_t* buffer, uint16_t bufsize)
 {
-    std::unordered_map<std::uint8_t, WebUsbInterface>::iterator iter = webusb_interfaces.find(itf);
+    std::unordered_map<std::uint8_t, WebUsbInterface>::iterator iter = webusb_interfaces.find(itfIndex);
     if (iter == webusb_interfaces.end())
     {
-        iter = webusb_interfaces.insert(std::make_pair(itf, WebUsbInterface(itf))).first;
+        iter = webusb_interfaces.insert(std::make_pair(itfIndex, WebUsbInterface(itfIndex))).first;
     }
 
     iter->second.process(buffer, bufsize);

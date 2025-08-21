@@ -49,6 +49,8 @@
 #define ITF_NUM_WEBUSB2 (8)
 #define NUM_ITF_WEBUSB (2)
 
+#define ITF_TO_WEBUSB_IDX(itf) (itf - ITF_NUM_WEBUSB1)
+
 #define ITF_COUNT(numGamepads, cdcEn, mscEn) (numGamepads + (mscEn ? NUM_ITF_MSC : 0) + (cdcEn ? NUM_ITF_CDC : 0) + NUM_ITF_WEBUSB)
 
 enum
