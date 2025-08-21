@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Dream Pico Port Settings</title>
+    <script src="serial.js"></script>
+    <script src="application.js"></script>
+    <link rel="stylesheet" href="application.css">
+  </head>
+  <body>
+    <div class="main-content">
+      <h1>Dream Pico Port Settings</h1>
+      <div class="connect-container">
+        <button id="connect" class="button black">Connect</button>
+        <span id="status"></span>
+      </div>
+      <div class="container">
+        <label for="enable-msc-check">Enable MSC</label>
+        <div>
+          <input type="checkbox" id="enable-msc-check" name="enableMsc" value="0">
+        </div>
+      </div>
+      <div class="save-container">
+        <button id="save" class="button black">Save</button>
+        <span id="save-status"></span>
+      </div>
+    </div>
+  </body>
+</html>
