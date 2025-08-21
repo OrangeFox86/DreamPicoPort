@@ -26,6 +26,6 @@
 #include <stdint.h>
 #include "hal/Usb/WebUsbCommandParser.hpp"
 
-constexpr const char* webusb_url = "example.tinyusb.org/webusb-serial/index.html";
+constexpr const char* webusb_url = "https://html-preview.github.io/?url=https://github.com/OrangeFox86/DreamPicoPort/blob/183-host-add-webusb/webusb/index.html";
 void webusb_connection_event(uint16_t interfaceNumber, uint16_t value);
 void webusb_process(uint8_t itfIndex, const uint8_t* buffer, uint16_t bufsize);
