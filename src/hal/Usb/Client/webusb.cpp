@@ -244,7 +244,8 @@ private:
 
         const std::uint16_t pktSize = address.size() + kSizeCommand + payloadLen + kSizeCrc;
         const std::uint16_t invPktSize = pktSize ^ 0xFFFF;
-        std::uint8_t header[kSizeMagic + kSizeSize + address.size() + kSizeCommand];
+        std::uint8_t headerSize = static_cast<std::uint8_t>(kSizeMagic + kSizeSize + address.size() + kSizeCommand);
+        std::uint8_t header[headerSize];
         memcpy(&header[0], k_webusb_magic_value, kSizeMagic);
         uint16ToBytes(&header[kSizeMagic], pktSize);
         uint16ToBytes(&header[kSizeMagic + sizeof(pktSize)], invPktSize);
@@ -252,7 +253,7 @@ private:
         header[kSizeMagic + kSizeSize + address.size()] = cmd;
 
         // Calculate CRC over message address, command, and payload (excluding CRC itself)
-        uint16_t crc = computeCrc16(header, sizeof(header));
+        uint16_t crc = computeCrc16(&header[kSizeMagic + kSizeSize], headerSize - (kSizeMagic + kSizeSize));
         for (const auto& it : payloadList)
         {
             crc = computeCrc16(crc, it.first, it.second);
@@ -263,7 +264,7 @@ private:
         {
             LockGuard lock(*webusb_mutex);
 
-            vendorWrite(itfIdx, header, sizeof(header));
+            vendorWrite(itfIdx, header, headerSize);
             for (const auto& it : payloadList)
             {
                 vendorWrite(itfIdx, it.first, it.second);
@@ -311,7 +312,7 @@ private:
 
     static std::uint16_t computeCrc16(const void* buffer, std::uint16_t bufLen)
     {
-        return computeCrc16(0xFFFF, buffer, bufLen);
+        return computeCrc16(0xFFFFU, buffer, bufLen);
     }
 
     void parseMagic(const uint8_t*& buffer, uint16_t& bufsize)
