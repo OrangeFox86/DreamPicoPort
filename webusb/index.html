@@ -162,14 +162,12 @@
         evt.currentTarget.className += " active";
       }
     }
-
-    // Open the "general" tab by default on page load
-    window.onpageshow = function() {
+    (function() {
       var firstTab = document.getElementsByClassName("tablinks")[0];
       if (firstTab) {
         openTab({ currentTarget: firstTab }, 'general');
       }
-    };
+    })();
     </script>
   </body>
 </html>
