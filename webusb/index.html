@@ -9,20 +9,167 @@
   <body>
     <div class="main-content">
       <h1>Dream Pico Port Settings</h1>
+
       <div class="connect-container">
         <button id="connect" class="button black">Connect</button>
         <span id="status"></span>
       </div>
-      <div class="container">
-        <label for="enable-msc-check">Enable MSC</label>
-        <div>
-          <input type="checkbox" id="enable-msc-check" name="enableMsc" value="0">
+
+      <div class="tab">
+        <button class="tablinks" onclick="openTab(event, 'general')">General Settings</button>
+        <button class="tablinks" onclick="openTab(event, 'memory')">VMU Memory</button>
+        <button class="tablinks" onclick="openTab(event, 'advanced')">Advanced Settings</button>
+      </div>
+
+      <!-- General Settings content -->
+      <div id="general" class="tabcontent">
+        <div class="container">
+          <table>
+            <tr>
+              <td>
+                <input type="checkbox" id="enable-msc-check" name="enableMsc" value="0">
+                <label for="enable-msc-check">Enable Mass Storage Class*</label>
+              </td>
+              <td>
+                <label for="player1-select">Controller A:</label>
+                <br>
+                <select id="player1-select" name="player1">
+                  <option value="0">Disable</option>
+                  <option value="1">Enable</option>
+                  <option value="2">Disable, Enable On Detect</option>
+                  <option value="3">Auto</option>
+                  <option value="4">Auto, No Disable</option>
+                </select>
+              </td>
+              <td>
+                <label for="player2-select">Controller B:</label>
+                <br>
+                <select id="player2-select" name="player2">
+                  <option value="0">Disable</option>
+                  <option value="1">Enable</option>
+                  <option value="2">Disable, Enable On Detect</option>
+                  <option value="3">Auto</option>
+                  <option value="4">Auto, No Disable</option>
+                </select>
+              </td>
+              <td>
+                <label for="player3-select">Controller C:</label>
+                <br>
+                <select id="player3-select" name="player3">
+                  <option value="0">Disable</option>
+                  <option value="1">Enable</option>
+                  <option value="2">Disable, Enable On Detect</option>
+                  <option value="3">Auto</option>
+                  <option value="4">Auto, No Disable</option>
+                </select>
+              </td>
+              <td>
+                <label for="player4-select">Controller D:</label>
+                <br>
+                <select id="player4-select" name="player4">
+                  <option value="0">Disable</option>
+                  <option value="1">Enable</option>
+                  <option value="2">Disable, Enable On Detect</option>
+                  <option value="3">Auto</option>
+                  <option value="4">Auto, No Disable</option>
+                </select>
+              </td>
+            </tr>
+          </table>
         </div>
+        <br>
+        <br>
+        <div class="save-container" style="text-align: center;">
+          <button id="save" class="button black">Save</button>
+          <span id="save-status"></span>
+        </div>
+        <br>
+        <br>
+        <label for="detection-types-table">Controller Detection Types:</label>
+        <table id="detection-types-table">
+          <tr style="height: 30px;">
+            <td style="text-align: right; width: 200px; background-color: #cfcfcf;">
+              <b>Disable:&nbsp;&nbsp;&nbsp;</b>
+            </td>
+            <td style="text-align: left; background-color: #f0f0f0;">
+              Always disable USB gamepad and all controller communication
+            </td>
+          </tr>
+          <tr style="height: 30px;">
+            <td style="text-align: right; width: 200px; background-color: #cfcfcf;">
+              <b>Enable:&nbsp;&nbsp;&nbsp;</b>
+            </td>
+            <td style="background-color: #f0f0f0;">
+              Always enable USB gamepad and controller detection/communication
+            </td>
+          </tr>
+          <tr style="height: 30px;">
+            <td style="text-align: right; width: 200px; background-color: #cfcfcf;">
+              <b>Disable, Enable On Detect:&nbsp;&nbsp;&nbsp;</b>
+            </td>
+            <td style="background-color: #f0f0f0;">
+              Disable USB gamepad on power up, listen for controller, switch to Enable and save on detection
+            </td>
+          </tr>
+          <tr style="height: 30px;">
+            <td style="text-align: right; width: 200px; background-color: #cfcfcf;">
+              <b>Auto:&nbsp;&nbsp;&nbsp;</b>
+            </td>
+            <td style="background-color: #f0f0f0;">
+              Automatically enable USB gamepad once detected and disable once removed
+            </td>
+          </tr>
+          <tr style="height: 30px;">
+            <td style="text-align: right; width: 200px; background-color: #cfcfcf;">
+              <b>Auto, No Disable:&nbsp;&nbsp;&nbsp;</b>
+            </td>
+            <td style="background-color: #f0f0f0;">
+              Automatically enable USB gamepad once detected, don't disable until power loss
+            </td>
+          </tr>
+        </table>
+        <br>
+        <br>
+        * Mass Storage Class is what causes a drive to pop up on Windows systems and some Linux systems. This is a problematic feature that is no longer supported.
+        Using controls in VMU Memory tab here replaces this feature.
       </div>
-      <div class="save-container">
-        <button id="save" class="button black">Save</button>
-        <span id="save-status"></span>
+
+      <!-- VMU Memory content -->
+      <div id="memory" class="tabcontent">
+        TODO: Fill with VMU memory stuff
       </div>
+
+      <!-- Advanced Settings content -->
+      <div id="advanced" class="tabcontent">
+        TODO: Fill with advanced settings stuff
+      </div>
+
     </div>
+
+    <script>
+    function openTab(evt, tabName) {
+      var i, tabcontent, tablinks;
+      tabcontent = document.getElementsByClassName("tabcontent");
+      for (i = 0; i < tabcontent.length; i++) {
+        tabcontent[i].style.display = "none";
+      }
+      tablinks = document.getElementsByClassName("tablinks");
+      for (i = 0; i < tablinks.length; i++) {
+        tablinks[i].className = tablinks[i].className.replace(" active", "");
+      }
+      document.getElementById(tabName).style.display = "block";
+      if (evt) {
+        evt.currentTarget.className += " active";
+      }
+    }
+
+    // Open the "general" tab by default on page load
+    window.onload = function() {
+      var firstTab = document.getElementsByClassName("tablinks")[0];
+      if (firstTab) {
+        openTab({ currentTarget: firstTab }, 'general');
+      }
+    };
+    </script>
   </body>
 </html>

@@ -6,6 +6,10 @@
     let statusDisplay = document.querySelector('#status');
     let saveButton = document.querySelector('#save');
     let mscCheckbox = document.querySelector('#enable-msc-check');
+    let player1 = document.querySelector('#player1-select');
+    let player2 = document.querySelector('#player2-select');
+    let player3 = document.querySelector('#player3-select');
+    let player4 = document.querySelector('#player4-select');
     let port;
 
     // CRC16-CCITT (XModem) implementation
@@ -25,7 +29,9 @@
       return crc;
     }
 
-    function makePkt(addr, cmd, payload) {
+    function send(addr, cmd, payload) {
+      console.info(`SND ADDR: 0x${addr.toString(16)}, CMD: 0x${cmd.toString(16)}, PAYLOAD: [${Array.from(payload).map(b => '0x' + b.toString(16).padStart(2, '0')).join(', ')}]`);
+
       // Pack addr as variable-length 64-bit unsigned integer, 7 bits per byte, MSb=1 if more bytes follow
       let tmp = BigInt(addr);
       let addrBytes = [];
@@ -63,17 +69,32 @@
       pkt.push((lenXor >> 8) & 0xFF, lenXor & 0xFF);
       pkt.push(...data);
 
-      return pkt
-    }
+      let pktData = new Uint8Array(pkt)
 
-    function send(addr, cmd, payload) {
-      console.info(`SND ADDR: 0x${addr.toString(16)}, CMD: 0x${cmd.toString(16)}, PAYLOAD: [${Array.from(payload).map(b => '0x' + b.toString(16).padStart(2, '0')).join(', ')}]`);
-      const pktData = new Uint8Array(makePkt(addr, cmd, payload));
       if (port && typeof port.send === 'function') {
         port.send(pktData);
       } else {
         console.error("Port is not connected or does not support send().");
       }
+    }
+
+    function handleIncomingMsg(addr, cmd, payload) {
+      console.info(`RCV ADDR: 0x${addr.toString(16)}, CMD: 0x${cmd.toString(16)}, PAYLOAD: [${Array.from(payload).map(b => '0x' + b.toString(16).padStart(2, '0')).join(', ')}]`);
+      if (addr == 123 && payload.length >= 6) {
+        // Retrieved settings
+        mscCheckbox.checked = (payload[1] !== 0);
+        player1.value = payload[2];
+        player2.value = payload[3];
+        player3.value = payload[4];
+        player4.value = payload[5];
+      }
+    }
+
+    function disconnect(reason = '') {
+        port.disconnect();
+        connectButton.textContent = 'Connect';
+        statusDisplay.textContent = reason;
+        port = null;
     }
 
     function connect() {
@@ -155,7 +176,7 @@
             // Parse data payload
             const dataPayload = payloadWithoutCrc.slice(addrLen + 1);
 
-            console.info(`RCV ADDR: 0x${addr.toString(16)}, CMD: 0x${cmd.toString(16)}, PAYLOAD: [${Array.from(dataPayload).map(b => '0x' + b.toString(16).padStart(2, '0')).join(', ')}]`);
+            handleIncomingMsg(addr, cmd, dataPayload);
 
             // Remove processed packet from buffer
             receiveBuffer = receiveBuffer.slice(8 + size);
@@ -172,17 +193,16 @@
           processPackets();
         };
 
-        // // Data to send
-        // const pkt = makePkt(0, 'X'.charCodeAt(0), [63, 0]);
-
-        // alert("Sending: " + Array.from(new Uint8Array(pkt)).map(b => b.toString(16).padStart(2, '0')).join(' '));
-
-        // sendTime = performance.now();
-        // port.send(new Uint8Array(pkt));
-
         port.onReceiveError = error => {
           console.error(error);
+          if (error && (error.name === 'NetworkError' || error.message === 'NetworkError')) {
+            if (port && typeof port.disconnect === 'function') {
+              disconnect('Lost connection with device');
+            }
+          }
         };
+
+        send(123, 'S'.charCodeAt(0), [103]);
       }, error => {
         statusDisplay.textContent = error;
       });
@@ -190,10 +210,7 @@
 
     connectButton.addEventListener('click', function() {
       if (port) {
-        port.disconnect();
-        connectButton.textContent = 'Connect';
-        statusDisplay.textContent = '';
-        port = null;
+        disconnect();
       } else {
         serial.requestPort().then(selectedPort => {
           port = selectedPort;
@@ -208,11 +225,17 @@
       const mscValue = mscCheckbox.checked ? 1 : 0;
       send(0, 'S'.charCodeAt(0), [77, mscValue]);
 
+      send(0, 'S'.charCodeAt(0), [80, 0, player1.value]);
+      send(0, 'S'.charCodeAt(0), [80, 1, player2.value]);
+      send(0, 'S'.charCodeAt(0), [80, 2, player3.value]);
+      send(0, 'S'.charCodeAt(0), [80, 3, player4.value]);
+
       send(0, 'S'.charCodeAt(0), [83]);
 
       // send(0, 'X'.charCodeAt(0), [63, 0]);
     });
 
+    // Don't automatically connect
     // serial.getPorts().then(ports => {
     //   if (ports.length === 0) {
     //     statusDisplay.textContent = 'No device found.';

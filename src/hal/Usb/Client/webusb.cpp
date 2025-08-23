@@ -37,6 +37,9 @@
 // Return address must keep growing until most significant bit is 0, 9 bytes are read, or size has elapsed
 // CRC covers return address, command, and payload
 
+// Note: the purpose of Return Address is to tag each command so the host knows where to direct the response without
+//       the need to serialize communication. The address may be up to 64 bits in size.
+
 //! The magic value that every packet must begin with
 static constexpr const std::uint8_t k_webusb_magic_value[] = {0xDB, 0x8B, 0xAF, 0xD5};
 

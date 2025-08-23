@@ -151,6 +151,7 @@ void __no_inline_not_in_flash_func(save_settings_memory)(
     memset(&page[sizeof(SettingsMemory)], 0xFF, sizeof(page) - sizeof(SettingsMemory));
 
     // WRITE IT!
+    // TODO: sometimes this fails faults?
     flash_range_program(offsetAddr, page, FLASH_PAGE_SIZE);
 
     // Wait a moment
