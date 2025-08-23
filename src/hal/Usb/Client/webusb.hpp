@@ -23,9 +23,13 @@
 
 #pragma once
 
+#include <cstring>
 #include <stdint.h>
 #include "hal/Usb/WebUsbCommandParser.hpp"
 
-constexpr const char* webusb_url = "https://html-preview.github.io/?url=https://github.com/OrangeFox86/DreamPicoPort/blob/183-host-add-webusb/webusb/index.html";
+// This is limited to 61 characters in length due to EP0 size of 64 and 3-byte WebUSB header
+constexpr const char* webusb_url = "orangefox86.github.io/DreamPicoPort/";
+static_assert(strlen(webusb_url) <= 61, "webusb_url is too large");
+
 void webusb_connection_event(uint16_t interfaceNumber, uint16_t value);
 void webusb_process(uint8_t itfIndex, const uint8_t* buffer, uint16_t bufsize);

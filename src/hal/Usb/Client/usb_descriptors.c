@@ -34,6 +34,10 @@
 
 #include <hal/Usb/client_usb_interface.h>
 
+// Going forward, I'm going to try to keep this consistent with GitHub release version
+#define DPP_RELEASE_VERSION_STR "1.2.0"
+#define DPP_RELEASE_VERSION_BCD 0x0120
+
 static uint8_t numberOfGamepads = 0;
 static bool enabledGamepads[MAX_NUMBER_OF_USB_GAMEPADS] = {};
 
@@ -162,7 +166,7 @@ tusb_desc_device_t const desc_device =
 {
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
-    .bcdUSB             = 0x0201, // at least 2.1 or 3.x for BOS & webUSB
+    .bcdUSB             = 0x0210, // (2.1.0) at least 2.0.1 or 3.x.x for BOS & webUSB
 
     // Use Interface Association Descriptor (IAD) for CDC
     // As required by USB Specs IAD's subclass must be common class (2) and protocol must be IAD (1)
@@ -177,7 +181,7 @@ tusb_desc_device_t const desc_device =
     .idVendor           = 0x1209,
     .idProduct          = 0x2F07,
 
-    .bcdDevice          = 0x0103,
+    .bcdDevice          = DPP_RELEASE_VERSION_BCD,
 
     .iManufacturer      = 0x01,
     .iProduct           = 0x02,
@@ -472,19 +476,20 @@ char const *string_desc_arr[] =
 {
     (const char[]) {0x09, 0x04}, // 0: is supported language is English (0x0409)
     "OrangeFox86",               // 1: Manufacturer
-    "DreamPicoPort",             // 2: Product
+    "DreamPicoPort-%s v" DPP_RELEASE_VERSION_STR, // 2: Product
     NULL,                        // 3: Serial (special case; get pico serial)
-    "DreamPicoPort A",           // 4: Gamepad 1
-    "DreamPicoPort B",           // 5: Gamepad 2
-    "DreamPicoPort C",           // 6: Gamepad 3
-    "DreamPicoPort D",           // 7: Gamepad 4
-    "DreamPicoPort MSC",         // 8: Mass Storage Class
-    "DreamPicoPort CDC",         // 9: Communication Device Class
-    "DreamPicoPort Vendor",      // 10: WebUSB1 interface (for interfacing with emulators)
-    "DreamPicoPort WebUSB",      // 11: WebUSB2 interface (for configuring)
+    "DreamPicoPort-%s A",           // 4: Gamepad 1
+    "DreamPicoPort-%s B",           // 5: Gamepad 2
+    "DreamPicoPort-%s C",           // 6: Gamepad 3
+    "DreamPicoPort-%s D",           // 7: Gamepad 4
+    "DreamPicoPort-%s MSC",         // 8: Mass Storage Class
+    "DreamPicoPort-%s CDC",         // 9: Communication Device Class
+    "DreamPicoPort-%s Vendor",      // 10: WebUSB1 interface (for interfacing with emulators)
+    "DreamPicoPort-%s WebUSB",      // 11: WebUSB2 interface (for configuring)
 };
 
-static uint16_t _desc_str[32] = {};
+#define MAX_DESC_SIZE 64
+static uint16_t _desc_str[MAX_DESC_SIZE] = {};
 
 // Invoked when received GET STRING DESCRIPTOR request
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
@@ -492,7 +497,7 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
     (void) langid;
 
     uint8_t chr_count;
-    char buffer[32] = {0};
+    char buffer[MAX_DESC_SIZE] = {0};
 
     if (index == 0) {
         memcpy(&_desc_str[1], string_desc_arr[0], 2);
@@ -530,10 +535,18 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
                 return NULL;
             }
         }
+        else if (strstr(str, "%s"))
+        {
+            // String contains %s tag - replace with serial
+            char serial[32];
+            pico_get_unique_board_id_string(serial, sizeof(serial));
+            snprintf(buffer, sizeof(buffer), str, serial);
+            str = buffer;
+        }
 
         // Cap at max char
         chr_count = strlen(str);
-        if (chr_count > 31) chr_count = 31;
+        if (chr_count > (MAX_DESC_SIZE - 1)) chr_count = (MAX_DESC_SIZE - 1);
 
         for (uint8_t i = 0; i < chr_count; i++) {
             _desc_str[1 + i] = str[i];
