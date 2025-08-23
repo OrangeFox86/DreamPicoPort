@@ -1,6 +1,21 @@
 (function() {
   'use strict';
 
+  if (!('usb' in navigator)) {
+    window.addEventListener('DOMContentLoaded', () => {
+      const warning = document.createElement('div');
+      warning.style.background = '#ffdddd';
+      warning.style.color = '#a00';
+      warning.style.padding = '1em';
+      warning.style.margin = '1em 0';
+      warning.style.border = '1px solid #a00';
+      warning.style.fontWeight = 'bold';
+      warning.textContent = 'This page is not supported by your browser. Use a Chromium-based browser such as Chrome, Edge, or Opera.';
+      document.body.insertBefore(warning, document.body.firstChild);
+    });
+    return;
+  }
+
   document.addEventListener('DOMContentLoaded', event => {
     let connectButton = document.querySelector("#connect");
     let statusDisplay = document.querySelector('#status');
