@@ -164,7 +164,7 @@
     }
 
     // Open the "general" tab by default on page load
-    window.onpagereveal = function() {
+    window.onpageshow = function() {
       var firstTab = document.getElementsByClassName("tablinks")[0];
       if (firstTab) {
         openTab({ currentTarget: firstTab }, 'general');
