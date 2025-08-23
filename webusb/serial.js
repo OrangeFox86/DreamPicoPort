@@ -23,6 +23,10 @@ var serial = {};
     this.interfaceNumber = 0;
     this.endpointIn = 0;
     this.endpointOut = 0;
+    this.serial = device.serialNumber;
+    this.major = device.deviceVersionMajor;
+    this.minor = device.deviceVersionMinor;
+    this.patch = device.deviceVersionSubminor;
   };
 
   serial.Port.prototype.connect = function() {
@@ -42,6 +46,7 @@ var serial = {};
           }
         })
         .then(() => {
+          // This will select the last interface which implements the VENDOR class
           var interfaces = this.device_.configuration.interfaces;
           interfaces.forEach(element => {
             element.alternates.forEach(elementalt => {

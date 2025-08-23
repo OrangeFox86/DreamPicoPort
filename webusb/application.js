@@ -11,6 +11,9 @@
     let player3 = document.querySelector('#player3-select');
     let player4 = document.querySelector('#player4-select');
     let port;
+    let receiveSm = null; // must define start(), process(), and timeout()
+    let receiveSmTimeoutId = -1;
+    const GET_SETTINGS_ADDR = 123;
 
     // CRC16-CCITT (XModem) implementation
     function crc16(arr) {
@@ -78,15 +81,83 @@
       }
     }
 
+    function smTimeout() {
+      if (receiveSm) {
+        receiveSm.timeout();
+        receiveSm = null;
+      }
+    }
+
+    function stopSmTimeout() {
+      if (receiveSmTimeoutId >= 0) {
+        clearTimeout(receiveSmTimeoutId);
+        receiveSmTimeoutId = -1;
+      }
+    }
+
+    function resetSmTimeout() {
+      stopSmTimeout();
+      receiveSmTimeoutId = setTimeout(smTimeout, 150);
+    }
+
+    function startSm(sm) {
+      receiveSm = sm;
+      receiveSm.start();
+      resetSmTimeout();
+    }
+
+    function startSaveSm() {
+      const SEND_MSC_ADDR = 10;
+      const SEND_CONTROLLER_A_ADDR = 11;
+      const SEND_CONTROLLER_B_ADDR = 12;
+      const SEND_CONTROLLER_C_ADDR = 13;
+      const SEND_CONTROLLER_D_ADDR = 14;
+      const SEND_SAVE_AND_RESTART_ADDR = 15;
+
+      var saveSm = {};
+      saveSm.timeout = function() {
+        disconnect('Save failed');
+      };
+      saveSm.start = function() {
+        const mscValue = mscCheckbox.checked ? 1 : 0;
+        send(SEND_MSC_ADDR, 'S'.charCodeAt(0), [77, mscValue]);
+      }
+      saveSm.process = function(addr, cmd, payload) {
+        if (addr == SEND_MSC_ADDR) {
+          send(SEND_CONTROLLER_A_ADDR, 'S'.charCodeAt(0), [80, 0, player1.value]);
+        } else if (addr == SEND_CONTROLLER_A_ADDR) {
+          send(SEND_CONTROLLER_B_ADDR, 'S'.charCodeAt(0), [80, 1, player2.value]);
+        } else if (addr == SEND_CONTROLLER_B_ADDR) {
+          send(SEND_CONTROLLER_C_ADDR, 'S'.charCodeAt(0), [80, 2, player3.value]);
+        } else if (addr == SEND_CONTROLLER_C_ADDR) {
+          send(SEND_CONTROLLER_D_ADDR, 'S'.charCodeAt(0), [80, 3, player4.value]);
+        } else if (addr == SEND_CONTROLLER_D_ADDR) {
+          send(SEND_SAVE_AND_RESTART_ADDR, 'S'.charCodeAt(0), [83]);
+        } else if (addr == SEND_SAVE_AND_RESTART_ADDR) {
+          disconnect('Save successful!');
+          receiveSm = null;
+          return;
+        }
+        resetSmTimeout();
+      }
+
+      startSm(saveSm);
+    }
+
     function handleIncomingMsg(addr, cmd, payload) {
       console.info(`RCV ADDR: 0x${addr.toString(16)}, CMD: 0x${cmd.toString(16)}, PAYLOAD: [${Array.from(payload).map(b => '0x' + b.toString(16).padStart(2, '0')).join(', ')}]`);
-      if (addr == 123 && cmd == 0x0a && payload.length >= 6) {
-        // Retrieved settings
-        mscCheckbox.checked = (payload[1] !== 0);
-        player1.value = payload[2];
-        player2.value = payload[3];
-        player3.value = payload[4];
-        player4.value = payload[5];
+      // receiveSm
+      if (addr == GET_SETTINGS_ADDR) {
+        if (cmd == 0x0a && payload.length >= 6) {
+          // Retrieved settings
+          mscCheckbox.checked = (payload[1] !== 0);
+          player1.value = payload[2];
+          player2.value = payload[3];
+          player3.value = payload[4];
+          player4.value = payload[5];
+        }
+      } else if (receiveSm) {
+        receiveSm.process(addr, cmd, payload);
       }
     }
 
@@ -99,7 +170,7 @@
 
     function connect() {
       port.connect().then(() => {
-        statusDisplay.textContent = '';
+        statusDisplay.textContent = `Connected to: ${port.serial} v${port.major}.${port.minor}.${port.patch}`;
         connectButton.textContent = 'Disconnect';
         let receiveBuffer = new Uint8Array(0);
 
@@ -202,7 +273,7 @@
           }
         };
 
-        send(123, 'S'.charCodeAt(0), [103]);
+        send(GET_SETTINGS_ADDR, 'S'.charCodeAt(0), [103]);
       }, error => {
         statusDisplay.textContent = error;
       });
@@ -222,17 +293,7 @@
     });
 
     saveButton.addEventListener('click', function() {
-      const mscValue = mscCheckbox.checked ? 1 : 0;
-      send(0, 'S'.charCodeAt(0), [77, mscValue]);
-
-      send(0, 'S'.charCodeAt(0), [80, 0, player1.value]);
-      send(0, 'S'.charCodeAt(0), [80, 1, player2.value]);
-      send(0, 'S'.charCodeAt(0), [80, 2, player3.value]);
-      send(0, 'S'.charCodeAt(0), [80, 3, player4.value]);
-
-      send(0, 'S'.charCodeAt(0), [83]);
-
-      // send(0, 'X'.charCodeAt(0), [63, 0]);
+      startSaveSm();
     });
 
     // Don't automatically connect
