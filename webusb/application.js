@@ -80,7 +80,7 @@
 
     function handleIncomingMsg(addr, cmd, payload) {
       console.info(`RCV ADDR: 0x${addr.toString(16)}, CMD: 0x${cmd.toString(16)}, PAYLOAD: [${Array.from(payload).map(b => '0x' + b.toString(16).padStart(2, '0')).join(', ')}]`);
-      if (addr == 123 && payload.length >= 6) {
+      if (addr == 123 && cmd == 0x0a && payload.length >= 6) {
         // Retrieved settings
         mscCheckbox.checked = (payload[1] !== 0);
         player1.value = payload[2];

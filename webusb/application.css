@@ -110,10 +110,11 @@ body {font-family: Arial;}
 
 .tab {
   overflow: hidden;
-  padding: 6px 12px;
+  padding: 0 0;
   border: 1px solid #ccc;
   background-color: #f1f1f1;
-  max-width: 1000px;
+  max-width: 1024px;
+  border-radius: 15px 15px 0 0;
 }
 
 .tab button {
@@ -129,10 +130,12 @@ body {font-family: Arial;}
 
 .tab button:hover {
   background-color: #ddd;
+  border-radius: 15px 15px 0 0;
 }
 
 .tab button.active {
   background-color: #ccc;
+  border-radius: 15px 15px 0 0;
 }
 
 .tabcontent {
@@ -141,6 +144,7 @@ body {font-family: Arial;}
   border: 1px solid #ccc;
   border-top: none;
   max-width: 1000px;
+  border-radius: 0 0 8px 8px;
 }
 
 table {
