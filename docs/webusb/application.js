@@ -30,6 +30,11 @@
     let receiveSmTimeoutId = -1;
     const GET_SETTINGS_ADDR = 123;
 
+    if (window.location.protocol === 'https:') {
+      let offlineHint = document.querySelector('#offline-hint');
+      offlineHint.innerHTML = "<strong>Hint:</strong> Press ctrl+s or cmd+s to save this page locally for offline usage.";
+    }
+
     // CRC16-CCITT (XModem) implementation
     function crc16(arr) {
       let crc = 0xffff;
