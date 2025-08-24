@@ -286,7 +286,7 @@
     }
 
     function startReadVmu(controllerIdx, vmuIndex) {
-      const READ_ADDR = 0xAA;
+      const READ_ADDR = 0x5A;
 
       var readVmuSm = {};
       readVmuSm.controllerIdx = controllerIdx;
@@ -309,7 +309,7 @@
         vmuProgressText.textContent = '0%';
       };
       readVmuSm.start = function() {
-        send(READ_ADDR, '0'.charCodeAt(0), [0x0B, readVmuSm.destAddr, readVmuSm.hostAddr, 2, 0, 0, 0, 2, 0, 0, 0, readVmuSm.currentBlock]);
+        send(READ_ADDR, 'X'.charCodeAt(0), [0x05, 0x0B, readVmuSm.destAddr, readVmuSm.hostAddr, 2, 0, 0, 0, 2, 0, 0, 0, readVmuSm.currentBlock]);
       };
       readVmuSm.process = function(addr, cmd, payload) {
         stopSm('Test Complete');
@@ -365,6 +365,10 @@
       port.connect().then(() => {
         let receiveBuffer = new Uint8Array(0);
 
+        function printPacket(pkt) {
+          console.info(`RCV PKT: [${Array.from(pkt).map(b => '0x' + b.toString(16).padStart(2, '0')).join(', ')}]`);
+        }
+
         function processPackets() {
           while (receiveBuffer.length >= 8) {
             // Check magic
@@ -396,6 +400,7 @@
 
             if (payload.length < 4) {
               console.warn("Payload too short");
+              printPacket(receiveBuffer.slice(0, 8 + size));
               receiveBuffer = receiveBuffer.slice(8 + size);
               continue;
             }
@@ -409,6 +414,7 @@
 
             if (receivedCrc !== computedCrc) {
               console.warn(`CRC mismatch: received ${receivedCrc.toString(16)}, computed ${computedCrc.toString(16)}`);
+              printPacket(receiveBuffer.slice(0, 8 + size));
               receiveBuffer = receiveBuffer.slice(8 + size);
               continue;
             }
@@ -428,6 +434,7 @@
             }
             if (addrLen === 0 || addrLen >= payloadWithoutCrc.length) {
               console.warn("Invalid address length");
+              printPacket(receiveBuffer.slice(0, 8 + size));
               receiveBuffer = receiveBuffer.slice(8 + size);
               continue;
             }
