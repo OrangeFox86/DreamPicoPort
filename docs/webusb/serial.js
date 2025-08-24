@@ -75,6 +75,7 @@ var serial = {};
             'request': 0x22,
             'value': 0x01,
             'index': this.interfaceNumber}))
+        .then(() => this.ready())
         .then(() => {
           readLoop();
         });

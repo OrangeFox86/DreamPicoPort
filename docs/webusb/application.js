@@ -17,7 +17,8 @@
   }
 
   document.addEventListener('DOMContentLoaded', event => {
-    let connectButton = document.querySelector("#connect");
+    let selectButton = document.querySelector("#select");
+    let selectedDevice = document.querySelector('#selected-device')
     let statusDisplay = document.querySelector('#status');
     let saveButton = document.querySelector('#save');
     let mscCheckbox = document.querySelector('#enable-msc-check');
@@ -26,11 +27,12 @@
     let player3 = document.querySelector('#player3-select');
     let player4 = document.querySelector('#player4-select');
     let port;
+    let selectedSerial = null;
     let receiveSm = null; // must define start(), process(), and timeout()
     let receiveSmTimeoutId = -1;
     const GET_SETTINGS_ADDR = 123;
 
-    if (window.location.protocol === 'https:') {
+    if (window.location.protocol !== "file:") {
       let offlineHint = document.querySelector('#offline-hint');
       offlineHint.innerHTML = "<strong>Hint:</strong> Press ctrl+s or cmd+s to save this page locally for offline usage.";
     }
@@ -120,13 +122,82 @@
       receiveSmTimeoutId = setTimeout(smTimeout, 150);
     }
 
-    function startSm(sm) {
-      receiveSm = sm;
-      receiveSm.start();
-      resetSmTimeout();
+    function connectionComplete() {
+      if (receiveSm) {
+        receiveSm.start();
+        resetSmTimeout();
+      }
     }
 
+    function connectionFailed(reason = 'Failed to connect to device') {
+      stopSmTimeout();
+      if (receiveSm) {
+        receiveSm = null;
+        disconnect(reason);
+      }
+    }
+
+    function startSm(sm, selectedPort = null) {
+      if (receiveSm) {
+        stopSm('Operation canceled');
+      } else {
+        stopSmTimeout();
+      }
+      receiveSm = sm;
+      if (!selectedSerial && !selectedPort) {
+        statusDisplay.textContent = 'Please select a device first';
+      }
+      let portOrSerialNumber = selectedSerial;
+      if (selectedPort) {
+        portOrSerialNumber = selectedPort;
+      }
+      if (startConnect(portOrSerialNumber)) {
+        resetSmTimeout();
+      } else {
+        disconnect('Failed to connect to device');
+        receiveSm = null;
+      }
+    }
+
+    function stopSm(reason) {
+      disconnect(reason);
+      receiveSm = null;
+      stopSmTimeout();
+    }
+
+    // Starts the state machine which loads the settings from the device
+    function startLoadSm(selectedPort) {
+      selectedSerial = selectedPort.serial;
+      selectedDevice.textContent = `Selected device: ${selectedPort.serial} v${selectedPort.major}.${selectedPort.minor}.${selectedPort.patch}`;
+      statusDisplay.textContent = "Loading settings..."
+      var loadSm = {};
+      loadSm.timeout = function() {
+        disconnect('Load failed');
+      };
+      loadSm.start = function() {
+        // Load the currently staged settings, not the settings on flash
+        send(GET_SETTINGS_ADDR, 'S'.charCodeAt(0), [103]);
+      }
+      loadSm.process = function(addr, cmd, payload) {
+        if (addr == GET_SETTINGS_ADDR) {
+          if (cmd == 0x0a && payload.length >= 6) {
+            // Retrieved settings
+            mscCheckbox.checked = (payload[1] !== 0);
+            player1.value = payload[2];
+            player2.value = payload[3];
+            player3.value = payload[4];
+            player4.value = payload[5];
+          }
+        }
+        stopSm('Settings loaded');
+      }
+
+      startSm(loadSm, selectedPort);
+    }
+
+    // Starts the state machine which saves the general settings
     function startSaveSm() {
+      statusDisplay.textContent = "Saving...";
       const SEND_MSC_ADDR = 10;
       const SEND_CONTROLLER_A_ADDR = 11;
       const SEND_CONTROLLER_B_ADDR = 12;
@@ -154,8 +225,7 @@
         } else if (addr == SEND_CONTROLLER_D_ADDR) {
           send(SEND_SAVE_AND_RESTART_ADDR, 'S'.charCodeAt(0), [83]);
         } else if (addr == SEND_SAVE_AND_RESTART_ADDR) {
-          disconnect('Save successful!');
-          receiveSm = null;
+          stopSm('Save successful!');
           return;
         }
         resetSmTimeout();
@@ -167,31 +237,48 @@
     function handleIncomingMsg(addr, cmd, payload) {
       console.info(`RCV ADDR: 0x${addr.toString(16)}, CMD: 0x${cmd.toString(16)}, PAYLOAD: [${Array.from(payload).map(b => '0x' + b.toString(16).padStart(2, '0')).join(', ')}]`);
       // receiveSm
-      if (addr == GET_SETTINGS_ADDR) {
-        if (cmd == 0x0a && payload.length >= 6) {
-          // Retrieved settings
-          mscCheckbox.checked = (payload[1] !== 0);
-          player1.value = payload[2];
-          player2.value = payload[3];
-          player3.value = payload[4];
-          player4.value = payload[5];
-        }
-      } else if (receiveSm) {
+      if (receiveSm) {
         receiveSm.process(addr, cmd, payload);
       }
     }
 
     function disconnect(reason = '') {
         port.disconnect();
-        connectButton.textContent = 'Connect';
         statusDisplay.textContent = reason;
         port = null;
     }
 
+    function setPortAndConnect(p) {
+      port = p;
+      port.ready = function () {
+        connectionComplete();
+      }
+      return connect();
+    }
+
+    function startConnect(portOrSerialNumber){
+      if (typeof(portOrSerialNumber) === 'string') {
+        serial.getPorts().then(ports => {
+          port = null;
+          for (let i = 0; i < ports.length; i++) {
+            if (ports[i].serial == portOrSerialNumber) {
+              if (!setPortAndConnect(ports[i]))
+              {
+                connectionFailed();
+              }
+              return;
+            }
+          }
+          connectionFailed('Could not find selected device');
+        });
+        return true;
+      } else {
+        return setPortAndConnect(portOrSerialNumber);
+      }
+    }
+
     function connect() {
       port.connect().then(() => {
-        statusDisplay.textContent = `Connected to: ${port.serial} v${port.major}.${port.minor}.${port.patch}`;
-        connectButton.textContent = 'Disconnect';
         let receiveBuffer = new Uint8Array(0);
 
         function processPackets() {
@@ -292,53 +379,38 @@
             }
           }
         };
-
-        send(GET_SETTINGS_ADDR, 'S'.charCodeAt(0), [103]);
       }, error => {
         statusDisplay.textContent = error;
+        return false;
       });
+
+      return true;
     }
 
-    connectButton.addEventListener('click', function() {
-      if (port) {
-        disconnect();
-      } else {
-        serial.requestPort().then(selectedPort => {
-          port = selectedPort;
-          connect();
-        }).catch(error => {
+    selectButton.addEventListener('click', function (){
+      statusDisplay.textContent = '';
+      serial.requestPort().then(selectedPort => {
+        if (selectedPort) {
+          startLoadSm(selectedPort);
+        }
+      }).catch(error => {
+        if (!(error instanceof NotFoundError))
+        {
           statusDisplay.textContent = error;
-        });
-      }
+        }
+      });
     });
 
     saveButton.addEventListener('click', function() {
       startSaveSm();
     });
 
-    // Don't automatically connect
-    // serial.getPorts().then(ports => {
-    //   if (ports.length === 0) {
-    //     statusDisplay.textContent = 'No device found.';
-    //   } else {
-    //     statusDisplay.textContent = 'Connecting...';
-    //     port = ports[0];
-    //     connect();
-    //   }
-    // });
+    // Select first device on load
+    serial.getPorts().then(ports => {
+      if (ports.length > 0) {
+        startLoadSm(ports[0]);
+      }
+    });
 
-
-    // let commandLine = document.getElementById("command_line");
-
-    // commandLine.addEventListener("keypress", function(event) {
-    //   if (event.keyCode === 13) {
-    //     if (commandLine.value.length > 0) {
-    //       addLine('sender_lines', commandLine.value);
-    //       commandLine.value = '';
-    //     }
-    //   }
-
-    //   port.send(new TextEncoder('utf-8').encode(String.fromCharCode(event.which || event.keyCode)));
-    // });
   });
 })();
