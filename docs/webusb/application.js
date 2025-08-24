@@ -41,6 +41,7 @@
     let vmu2DRadio = document.querySelector('#vmu2-d-radio');
     let readVmuButton = document.querySelector('#read-vmu');
     let writeVmuButton = document.querySelector('#write-vmu');
+    let vmuProgressContainer = document.querySelector('#vmu-progress-container');
     let vmuProgress = document.querySelector('#vmu-progress')
     let vmuProgressText = document.querySelector('#vmu-progress-label')
     const CMD_OK = 0x0A; // Command success
@@ -136,7 +137,7 @@
     function resetSmTimeout() {
       stopSmTimeout();
       if (receiveSm) {
-        receiveSmTimeoutId = setTimeout(smTimeout, 150);
+        receiveSmTimeoutId = setTimeout(smTimeout, 500);
       }
     }
 
@@ -286,11 +287,13 @@
     }
 
     function startReadVmu(controllerIdx, vmuIndex) {
-      const READ_ADDR = 0x5A;
+      const READ_ADDR = 0xAA;
 
       var readVmuSm = {};
       readVmuSm.controllerIdx = controllerIdx;
       readVmuSm.vmuIndex = vmuIndex;
+      readVmuSm.vmuData = new Uint8Array(128 * 1024); // 128KB VMU storage
+      readVmuSm.dataOffset = 0;
       if (controllerIdx == 3) {
         readVmuSm.hostAddr = 0xC0;
       } else if (controllerIdx == 2) {
@@ -303,16 +306,51 @@
       readVmuSm.destAddr = readVmuSm.hostAddr | (1 << vmuIndex);
       readVmuSm.currentBlock = 0;
       readVmuSm.timeout = function() {
-        disconnect('VMU read failed');
+        disconnect('VMU read failed - timeout');
         vmuProgress.value = 0;
-        vmuProgress.style.display = 'none';
+        vmuProgressContainer.style.display = 'none';
         vmuProgressText.textContent = '0%';
       };
       readVmuSm.start = function() {
-        send(READ_ADDR, 'X'.charCodeAt(0), [0x05, 0x0B, readVmuSm.destAddr, readVmuSm.hostAddr, 2, 0, 0, 0, 2, 0, 0, 0, readVmuSm.currentBlock]);
+        vmuProgressContainer.style.display = 'block';
+        vmuProgressContainer.style.visibility = 'visible';
+        vmuProgress.value = 0;
+        vmuProgressText.textContent = '0%';
+        send(READ_ADDR, '0'.charCodeAt(0), [0x0B, readVmuSm.destAddr, readVmuSm.hostAddr, 2, 0, 0, 0, 2, 0, 0, 0, readVmuSm.currentBlock]);
       };
       readVmuSm.process = function(addr, cmd, payload) {
-        stopSm('Test Complete');
+        if (addr == READ_ADDR && cmd == CMD_OK && payload.length > 0) {
+          // Copy received data to VMU buffer
+          readVmuSm.vmuData.set(payload, readVmuSm.dataOffset);
+          readVmuSm.dataOffset += payload.length;
+          readVmuSm.currentBlock++;
+
+          // Update progress
+          const progress = (readVmuSm.currentBlock / 256) * 100;
+          vmuProgress.value = progress;
+          vmuProgressText.textContent = Math.round(progress) + '%';
+
+          if (readVmuSm.currentBlock < 256) {
+            // Read next block
+            send(READ_ADDR, '0'.charCodeAt(0), [0x0B, readVmuSm.destAddr, readVmuSm.hostAddr, 2, 0, 0, 0, 2, 0, 0, 0, readVmuSm.currentBlock]);
+          } else {
+            // Reading complete, save file
+            const blob = new Blob([readVmuSm.vmuData], { type: 'application/octet-stream' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `vmu_controller${readVmuSm.controllerIdx + 1}_slot${readVmuSm.vmuIndex + 1}.vms`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            vmuProgressContainer.style.display = 'none';
+            stopSm('VMU read complete');
+          }
+        } else {
+          stopSm('VMU read failed');
+        }
       };
 
       startSm(readVmuSm);
@@ -327,9 +365,9 @@
     }
 
     function disconnect(reason = '') {
-        port.disconnect();
-        statusDisplay.textContent = reason;
-        port = null;
+      port.disconnect();
+      statusDisplay.textContent = reason;
+      port = null;
     }
 
     function setPortAndConnect(p) {
