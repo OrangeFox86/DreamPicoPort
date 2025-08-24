@@ -157,13 +157,16 @@ public:
 
                 if (calc_crc == pkt_crc)
                 {
-                    // No need to process address into uint64 as it's not used internally
-                    std::string address;
-                    address.reserve(kMaxSizeAddress);
+                    uint64_t address = 0;
                     uint8_t addrIdx = 0;
                     do
                     {
-                        address.push_back(mBuffer[addrIdx]);
+                        uint8_t byte = mBuffer[addrIdx];
+                        if (addrIdx != (kMaxSizeAddress - 1))
+                        {
+                            byte &= 0x7f;
+                        }
+                        address |= (byte << (addrIdx * 7));
                     } while (
                         (mBuffer[addrIdx++] & 0x80) != 0 &&
                         addrIdx < kMaxSizeAddress &&
@@ -193,7 +196,7 @@ public:
     }
 
 private:
-    void processPkt(const std::string& address, const uint8_t cmd, const uint8_t* payload, uint16_t payloadLen)
+    void processPkt(const uint64_t address, const uint8_t cmd, const uint8_t* payload, uint16_t payloadLen)
     {
         std::unordered_map<std::uint8_t, std::shared_ptr<WebUsbCommandParser>>::iterator iter = mParsers.find(cmd);
         if (iter != mParsers.end() && iter->second)
@@ -234,7 +237,7 @@ private:
 
     static void sendPkt(
         const uint8_t itfIdx,
-        const std::string& address,
+        uint64_t address,
         const uint8_t cmd,
         const std::list<std::pair<const void*, std::uint16_t>>& payloadList
     )
@@ -245,15 +248,30 @@ private:
             payloadLen += it.second;
         }
 
-        const std::uint16_t pktSize = address.size() + kSizeCommand + payloadLen + kSizeCrc;
+        // Unpack address
+        std::string addrBytes;
+        addrBytes.reserve(kMaxSizeAddress);
+        uint8_t addrIdx = 0;
+        do
+        {
+            uint8_t byte = address;
+            if (addrIdx != (kMaxSizeAddress - 1))
+            {
+                byte &= 0x7f;
+                address >>= 8;
+            }
+            addrBytes.push_back(byte);
+        } while (++addrIdx < kMaxSizeAddress && address != 0);
+
+        const std::uint16_t pktSize = addrBytes.size() + kSizeCommand + payloadLen + kSizeCrc;
         const std::uint16_t invPktSize = pktSize ^ 0xFFFF;
-        std::uint8_t headerSize = static_cast<std::uint8_t>(kSizeMagic + kSizeSize + address.size() + kSizeCommand);
+        std::uint8_t headerSize = static_cast<std::uint8_t>(kSizeMagic + kSizeSize + addrBytes.size() + kSizeCommand);
         std::uint8_t header[headerSize];
         memcpy(&header[0], k_webusb_magic_value, kSizeMagic);
         uint16ToBytes(&header[kSizeMagic], pktSize);
         uint16ToBytes(&header[kSizeMagic + sizeof(pktSize)], invPktSize);
-        memcpy(&header[kSizeMagic + kSizeSize], address.data(), address.size());
-        header[kSizeMagic + kSizeSize + address.size()] = cmd;
+        memcpy(&header[kSizeMagic + kSizeSize], addrBytes.data(), addrBytes.size());
+        header[kSizeMagic + kSizeSize + addrBytes.size()] = cmd;
 
         // Calculate CRC over message address, command, and payload (excluding CRC itself)
         uint16_t crc = computeCrc16(&header[kSizeMagic + kSizeSize], headerSize - (kSizeMagic + kSizeSize));

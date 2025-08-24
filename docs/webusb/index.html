@@ -28,7 +28,8 @@
       <div class="tab">
         <button class="tablinks" onclick="openTab(event, 'general')">General Settings</button>
         <button class="tablinks" onclick="openTab(event, 'memory')">VMU Memory</button>
-        <button class="tablinks" onclick="openTab(event, 'advanced')">Advanced Settings</button>
+        <button class="tablinks" onclick="openTab(event, 'advanced')">GPIO Settings</button>
+        <button class="tablinks" onclick="openTab(event, 'reset')">Reset Settings</button>
       </div>
 
       <!-- General Settings content -->
@@ -146,13 +147,217 @@
 
       <!-- VMU Memory content -->
       <div id="memory" class="tabcontent">
-        TODO: Fill with VMU memory stuff
+        <table>
+          <tr>
+            <td style="text-align: center;">
+              Controller A
+            </td>
+            <td style="text-align: center;">
+              Controller B
+            </td>
+            <td style="text-align: center;">
+              Controller C
+            </td>
+            <td style="text-align: center;">
+              Controller D
+            </td>
+          </tr>
+          <tr>
+            <td style="text-align: center;">
+              <input type="radio" id="vmu1-a-radio" name="vmu" value="vmu1-a" checked>
+              <label for="vmu1-a-radio">VMU1</label>
+            </td>
+            <td style="text-align: center;">
+              <input type="radio" id="vmu1-b-radio" name="vmu" value="vmu1-b">
+              <label for="vmu1-b-radio">VMU1</label>
+            </td>
+            <td style="text-align: center;">
+              <input type="radio" id="vmu1-c-radio" name="vmu" value="vmu1-c">
+              <label for="vmu1-c-radio">VMU1</label>
+            </td>
+            <td style="text-align: center;">
+              <input type="radio" id="vmu1-d-radio" name="vmu" value="vmu1-d">
+              <label for="vmu1-d-radio">VMU1</label>
+            </td>
+          </tr>
+          <tr>
+            <td style="text-align: center;">
+              <input type="radio" id="vmu2-a-radio" name="vmu" value="vmu2-a">
+              <label for="vmu2-a-radio">VMU2</label>
+            </td>
+            <td style="text-align: center;">
+              <input type="radio" id="vmu2-b-radio" name="vmu" value="vmu2-b">
+              <label for="vmu2-b-radio">VMU2</label>
+            </td>
+            <td style="text-align: center;">
+              <input type="radio" id="vmu2-c-radio" name="vmu" value="vmu2-c">
+              <label for="vmu2-c-radio">VMU2</label>
+            </td>
+            <td style="text-align: center;">
+              <input type="radio" id="vmu2-d-radio" name="vmu" value="vmu2-d">
+              <label for="vmu2-d-radio">VMU2</label>
+            </td>
+          </tr>
+        </table>
+        <br>
+        <br>
+        <div style="text-align: center;">
+            <button id="read-vmu" class="button black">Read Selected VMU</button>&nbsp;&nbsp;&nbsp;
+            <button id="write-vmu" class="button black">Write Selected VMU</button>
+            <br>
+            <div id="vmu-progress-container" style="width: 60%; margin: 20px auto; display: none;">
+              <progress id="vmu-progress" value="0" max="100" style="width: 100%; height: 24px;"></progress>
+              <span id="vmu-progress-label" style="margin-left: 12px;">0%</span>
+            </div>
+        </div>
       </div>
 
       <!-- Advanced Settings content -->
       <div id="advanced" class="tabcontent">
-        TODO: Fill with advanced settings stuff
+        <div style="text-align: center;">
+          <h2>WARNING: Do not change these settings unless you know what you are doing!</h2>
+          <b>Damage to the GPIO may occur if these settings don't match your hardware configuration.</b>
+        </div>
+        <br>
+        <br>
+        <table>
+          <tr>
+            <td style="text-align: center;">
+              Controller A
+            </td>
+            <td style="text-align: center;">
+              Controller B
+            </td>
+            <td style="text-align: center;">
+              Controller C
+            </td>
+            <td style="text-align: center;">
+              Controller D
+            </td>
+          </tr>
+          <tr>
+            <td style="text-align: center;">
+              <label for="gpio-a">SDCK-A:</label>
+              <input type="text" id="gpio-a" name="gpio-a" minlength="0" maxlength="3" size="4" value="10" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+            </td>
+            <td style="text-align: center;">
+              <label for="gpio-b">SDCK-A:</label>
+              <input type="text" id="gpio-b" name="gpio-b" minlength="0" maxlength="3" size="4" value="12" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+            </td>
+            <td style="text-align: center;">
+              <label for="gpio-c">SDCK-A:</label>
+              <input type="text" id="gpio-c" name="gpio-c" minlength="0" maxlength="3" size="4" value="18" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+            </td>
+            <td style="text-align: center;">
+              <label for="gpio-d">SDCK-A:</label>
+              <input type="text" id="gpio-d" name="gpio-d" minlength="0" maxlength="3" size="4" value="20" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+            </td>
+          </tr>
+          <tr>
+            <td style="text-align: center;">
+              <label for="gpio-a-sdck-b">SDCK-B:</label>
+              <span id="gpio-a-sdck-b" style="text-align: left; width: 8ch; display: inline-block;">11</span>
+              <script>
+              document.getElementById('gpio-a').addEventListener('input', function() {
+                var val = parseInt(this.value, 10);
+                document.getElementById('gpio-a-sdck-b').textContent = isNaN(val) ? '' : (val + 1);
+              });
+              </script>
+            </td>
+            <td style="text-align: center;">
+              <label for="gpio-b-sdck-b">SDCK-B:</label>
+              <span id="gpio-b-sdck-b" style="text-align: left; width: 8ch; display: inline-block;">13</span>
+              <script>
+              document.getElementById('gpio-b').addEventListener('input', function() {
+                var val = parseInt(this.value, 10);
+                document.getElementById('gpio-b-sdck-b').textContent = isNaN(val) ? '' : (val + 1);
+              });
+              </script>
+            </td>
+            <td style="text-align: center;">
+              <label for="gpio-c-sdck-b">SDCK-B:</label>
+              <span id="gpio-c-sdck-b" style="text-align: left; width: 8ch; display: inline-block;">19</span>
+              <script>
+              document.getElementById('gpio-c').addEventListener('input', function() {
+                var val = parseInt(this.value, 10);
+                document.getElementById('gpio-c-sdck-b').textContent = isNaN(val) ? '' : (val + 1);
+              });
+              </script>
+            </td>
+            <td style="text-align: center;">
+              <label for="gpio-d-sdck-b">SDCK-B:</label>
+              <span id="gpio-d-sdck-b" style="text-align: left; width: 8ch; display: inline-block;">21</span>
+              <script>
+              document.getElementById('gpio-d').addEventListener('input', function() {
+                var val = parseInt(this.value, 10);
+                document.getElementById('gpio-d-sdck-b').textContent = isNaN(val) ? '' : (val + 1);
+              });
+              </script>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="text-align: center;">
+              <label for="gpio-dir-a">GPIO DIR:</label>
+              <input type="text" id="gpio-dir-a" name="gpio-dir-a" minlength="0" maxlength="3" size="4" value="6" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+            </td>
+            <td style="text-align: center;">
+              <label for="gpio-dir-b">GPIO DIR:</label>
+              <input type="text" id="gpio-dir-b" name="gpio-dir-b" minlength="0" maxlength="3" size="4" value="7" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+            </td>
+            <td style="text-align: center;">
+              <label for="gpio-dir-c">GPIO DIR:</label>
+              <input type="text" id="gpio-dir-c" name="gpio-dir-c" minlength="0" maxlength="3" size="4" value="26" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+            </td>
+            <td style="text-align: center;">
+              <label for="gpio-dir-d">GPIO DIR:</label>
+              <input type="text" id="gpio-dir-d" name="gpio-dir-d" minlength="0" maxlength="3" size="4" value="27" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+            </td>
+          </tr>
+          <tr>
+            <td style="text-align: center;">
+              <input type="checkbox" id="dir-out-high-a" name="dir-out-high-a" checked>
+              <label for="dir-out-high-a">DIR Output HIGH</label>
+            </td>
+            <td style="text-align: center;">
+              <input type="checkbox" id="dir-out-high-b" name="dir-out-high-b" checked>
+              <label for="dir-out-high-b">DIR Output HIGH</label>
+            </td>
+            <td style="text-align: center;">
+              <input type="checkbox" id="dir-out-high-c" name="dir-out-high-c" checked>
+              <label for="dir-out-high-c">DIR Output HIGH</label>
+            </td>
+            <td style="text-align: center;">
+              <input type="checkbox" id="dir-out-high-d" name="dir-out-high-d" checked>
+              <label for="dir-out-high-d">DIR Output HIGH</label>
+            </td>
+          </tr>
+        </table>
+        <br>
+        <div style="text-align: center;">
+          <label for="gpio-led">GPIO LED:</label>
+          <input type="text" id="gpio-led" name="gpio-led" minlength="0" maxlength="3" size="4" value="25" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+          &nbsp;&nbsp;&nbsp;
+          <label for="gpio-simple-led">GPIO SIMPLE LED:</label>
+          <input type="text" id="gpio-simple-led" name="gpio-simple-led" minlength="0" maxlength="3" size="4" value="" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+        </div>
+        <br>
+        <br>
+        <div style="text-align: center;">
+            <button id="save-advanced" class="button black">Save</button>
+          <br>
+          <br>
+          <b>For any GPIO setting, leave blank to disable.</b>
+        </div>
       </div>
+
+      <!-- Reset Settings content -->
+      <div id="reset" class="tabcontent">
+        <div style="text-align: center;">
+            <button id="reset-settings" class="button black">Reset All Settings</button>
+        </div>
+      </div>
+
 
       <br>
       <div id="offline-hint"></div>

@@ -55,7 +55,7 @@ std::pair<int32_t, MaplePacket::Frame> MapleWebUsbParser::processMaplePacket(
         return std::make_pair(static_cast<int32_t>(-1), MaplePacket::Frame::defaultFrame());
     }
 
-    std::uint16_t size = payloadLen - 1;
+    std::uint16_t size = payloadLen;
 
     uint16_t wordLen = size / 4;
     if (wordLen < 1 || wordLen > 256 || (size - (wordLen * 4) != 0))

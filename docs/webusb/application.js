@@ -28,9 +28,24 @@
     let player4 = document.querySelector('#player4-select');
     let port;
     let selectedSerial = null;
-    let receiveSm = null; // must define start(), process(), and timeout()
+    let receiveSm = null; // must define start(), process(), and timeout() in the object
     let receiveSmTimeoutId = -1;
     let offlineHint = document.querySelector('#offline-hint');
+    let vmu1ARadio = document.querySelector('#vmu1-a-radio');
+    let vmu2ARadio = document.querySelector('#vmu2-a-radio');
+    let vmu1BRadio = document.querySelector('#vmu1-b-radio');
+    let vmu2BRadio = document.querySelector('#vmu2-b-radio');
+    let vmu1CRadio = document.querySelector('#vmu1-c-radio');
+    let vmu2CRadio = document.querySelector('#vmu2-c-radio');
+    let vmu1DRadio = document.querySelector('#vmu1-d-radio');
+    let vmu2DRadio = document.querySelector('#vmu2-d-radio');
+    let readVmuButton = document.querySelector('#read-vmu');
+    let writeVmuButton = document.querySelector('#write-vmu');
+    let vmuProgress = document.querySelector('#vmu-progress')
+    let vmuProgressText = document.querySelector('#vmu-progress-label')
+    const CMD_OK = 0x0A; // Command success
+    const CMD_FAIL = 0x0F; // Command failed
+    const CMD_INVALID = 0xFE; // Command had no target
 
     if (window.location.protocol !== "file:") {
       offlineHint.innerHTML = "<strong>Hint:</strong> Press ctrl+s or cmd+s to save this page locally for offline usage.";
@@ -120,7 +135,9 @@
 
     function resetSmTimeout() {
       stopSmTimeout();
-      receiveSmTimeoutId = setTimeout(smTimeout, 150);
+      if (receiveSm) {
+        receiveSmTimeoutId = setTimeout(smTimeout, 150);
+      }
     }
 
     function connectionComplete() {
@@ -182,16 +199,18 @@
       }
       loadSm.process = function(addr, cmd, payload) {
         if (addr == GET_SETTINGS_ADDR) {
-          if (cmd == 0x0a && payload.length >= 6) {
+          if (cmd == CMD_OK && payload.length >= 6) {
             // Retrieved settings
             mscCheckbox.checked = (payload[1] !== 0);
             player1.value = payload[2];
             player2.value = payload[3];
             player3.value = payload[4];
             player4.value = payload[5];
+            stopSm('Settings loaded');
+            return;
           }
         }
-        stopSm('Settings loaded');
+        stopSm('Failed to load settings')
       }
 
       startSm(loadSm, selectedPort);
@@ -217,23 +236,86 @@
       }
       saveSm.process = function(addr, cmd, payload) {
         if (addr == SEND_MSC_ADDR) {
-          send(SEND_CONTROLLER_A_ADDR, 'S'.charCodeAt(0), [80, 0, player1.value]);
+          if (cmd == CMD_OK) {
+            send(SEND_CONTROLLER_A_ADDR, 'S'.charCodeAt(0), [80, 0, player1.value]);
+          } else {
+            stopSm('Failed to set Mass Storage Class setting');
+            return;
+          }
         } else if (addr == SEND_CONTROLLER_A_ADDR) {
-          send(SEND_CONTROLLER_B_ADDR, 'S'.charCodeAt(0), [80, 1, player2.value]);
+          if (cmd == CMD_OK) {
+            send(SEND_CONTROLLER_B_ADDR, 'S'.charCodeAt(0), [80, 1, player2.value]);
+          } else {
+            stopSm('Failed to set controller A setting');
+            return;
+          }
         } else if (addr == SEND_CONTROLLER_B_ADDR) {
-          send(SEND_CONTROLLER_C_ADDR, 'S'.charCodeAt(0), [80, 2, player3.value]);
+          if (cmd == CMD_OK) {
+            send(SEND_CONTROLLER_C_ADDR, 'S'.charCodeAt(0), [80, 2, player3.value]);
+          } else {
+            stopSm('Failed to set controller B setting');
+            return;
+          }
         } else if (addr == SEND_CONTROLLER_C_ADDR) {
-          send(SEND_CONTROLLER_D_ADDR, 'S'.charCodeAt(0), [80, 3, player4.value]);
+          if (cmd == CMD_OK) {
+            send(SEND_CONTROLLER_D_ADDR, 'S'.charCodeAt(0), [80, 3, player4.value]);
+          } else {
+            stopSm('Failed to set controller C setting');
+            return;
+          }
         } else if (addr == SEND_CONTROLLER_D_ADDR) {
-          send(SEND_SAVE_AND_RESTART_ADDR, 'S'.charCodeAt(0), [83]);
+          if (cmd == CMD_OK) {
+            send(SEND_SAVE_AND_RESTART_ADDR, 'S'.charCodeAt(0), [83]);
+          } else {
+            stopSm('Failed to set controller D setting');
+            return;
+          }
         } else if (addr == SEND_SAVE_AND_RESTART_ADDR) {
-          stopSm('Save successful!');
-          return;
+          if (cmd == CMD_OK) {
+            stopSm('Save successful!');
+            return;
+          } else {
+            stopSm('Failed save settings');
+            return;
+          }
         }
         resetSmTimeout();
       }
 
       startSm(saveSm);
+    }
+
+    function startReadVmu(controllerIdx, vmuIndex) {
+      const READ_ADDR = 0xAA;
+
+      var readVmuSm = {};
+      readVmuSm.controllerIdx = controllerIdx;
+      readVmuSm.vmuIndex = vmuIndex;
+      if (controllerIdx == 3) {
+        readVmuSm.hostAddr = 0xC0;
+      } else if (controllerIdx == 2) {
+        readVmuSm.hostAddr = 0x80;
+      } else if (controllerIdx == 1) {
+        readVmuSm.hostAddr = 0x40;
+      } else {
+        readVmuSm.hostAddr = 0x00;
+      }
+      readVmuSm.destAddr = readVmuSm.hostAddr | (1 << vmuIndex);
+      readVmuSm.currentBlock = 0;
+      readVmuSm.timeout = function() {
+        disconnect('VMU read failed');
+        vmuProgress.value = 0;
+        vmuProgress.style.display = 'none';
+        vmuProgressText.textContent = '0%';
+      };
+      readVmuSm.start = function() {
+        send(READ_ADDR, '0'.charCodeAt(0), [0x0B, readVmuSm.destAddr, readVmuSm.hostAddr, 2, 0, 0, 0, 2, 0, 0, 0, readVmuSm.currentBlock]);
+      };
+      readVmuSm.process = function(addr, cmd, payload) {
+        stopSm('Test Complete');
+      };
+
+      startSm(readVmuSm);
     }
 
     function handleIncomingMsg(addr, cmd, payload) {
@@ -407,6 +489,11 @@
       startSaveSm();
     });
 
+    readVmuButton.addEventListener('click', function(){
+      startReadVmu(0, 0);
+    });
+
+    // TODO: this isn't getting activated properly on https
     // Select first device on load
     serial.getPorts().then(ports => {
       if (ports.length > 0) {

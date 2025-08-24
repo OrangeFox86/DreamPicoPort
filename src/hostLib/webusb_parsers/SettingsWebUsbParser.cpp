@@ -121,7 +121,7 @@ void SettingsWebUsbParser::process(
             if (iter >= eol)
             {
                 std::uint8_t payload = 0;
-                responseFn(kResponseCmdInvalid, {{&payload, 1}});
+                responseFn(kResponseFailure, {{&payload, 1}});
                 return;
             }
 
@@ -137,7 +137,7 @@ void SettingsWebUsbParser::process(
             if (iter >= eol)
             {
                 std::uint8_t payload = 0;
-                responseFn(kResponseCmdInvalid, {{&payload, 1}});
+                responseFn(kResponseFailure, {{&payload, 1}});
                 return;
             }
 
@@ -153,7 +153,7 @@ void SettingsWebUsbParser::process(
             if (eol - iter < 2)
             {
                 std::uint8_t payload = 0;
-                responseFn(kResponseCmdInvalid, {{&payload, 1}});
+                responseFn(kResponseFailure, {{&payload, 1}});
                 return;
             }
 
@@ -161,7 +161,7 @@ void SettingsWebUsbParser::process(
             if (playerIdx >= DppSettings::kNumPlayers)
             {
                 std::uint8_t payload = 1;
-                responseFn(kResponseCmdInvalid, {{&payload, 1}});
+                responseFn(kResponseFailure, {{&payload, 1}});
                 return;
             }
 
@@ -172,7 +172,7 @@ void SettingsWebUsbParser::process(
             )
             {
                 std::uint8_t payload = 2;
-                responseFn(kResponseCmdInvalid, {{&payload, 1}});
+                responseFn(kResponseFailure, {{&payload, 1}});
                 return;
             }
 
@@ -189,7 +189,7 @@ void SettingsWebUsbParser::process(
             if (eol - iter < 10)
             {
                 std::uint8_t payload = 0;
-                responseFn(kResponseCmdInvalid, {{&payload, 1}});
+                responseFn(kResponseFailure, {{&payload, 1}});
                 return;
             }
 
@@ -197,7 +197,7 @@ void SettingsWebUsbParser::process(
             if (playerIdx >= DppSettings::kNumPlayers)
             {
                 std::uint8_t payload = 1;
-                responseFn(kResponseCmdInvalid, {{&payload, 1}});
+                responseFn(kResponseFailure, {{&payload, 1}});
                 return;
             }
 
@@ -207,7 +207,7 @@ void SettingsWebUsbParser::process(
             if (!DppSettings::isGpioValid(gpioA))
             {
                 std::uint8_t payload = 2;
-                responseFn(kResponseCmdInvalid, {{&payload, 1}});
+                responseFn(kResponseFailure, {{&payload, 1}});
                 return;
             }
 
@@ -217,7 +217,7 @@ void SettingsWebUsbParser::process(
             if (!DppSettings::isGpioValid(gpioDir))
             {
                 std::uint8_t payload = 3;
-                responseFn(kResponseCmdInvalid, {{&payload, 1}});
+                responseFn(kResponseFailure, {{&payload, 1}});
                 return;
             }
 
@@ -245,7 +245,7 @@ void SettingsWebUsbParser::process(
             if (eol - iter < 4)
             {
                 std::uint8_t payload = 0;
-                responseFn(kResponseCmdInvalid, {{&payload, 1}});
+                responseFn(kResponseFailure, {{&payload, 1}});
                 return;
             }
 
@@ -255,7 +255,7 @@ void SettingsWebUsbParser::process(
             if (!DppSettings::isGpioValid(usbLedGpio))
             {
                 std::uint8_t payload = 1;
-                responseFn(kResponseCmdInvalid, {{&payload, 1}});
+                responseFn(kResponseFailure, {{&payload, 1}});
                 return;
             }
 
@@ -271,7 +271,7 @@ void SettingsWebUsbParser::process(
             if (eol - iter < 4)
             {
                 std::uint8_t payload = 0;
-                responseFn(kResponseCmdInvalid, {{&payload, 1}});
+                responseFn(kResponseFailure, {{&payload, 1}});
                 return;
             }
 
@@ -281,7 +281,7 @@ void SettingsWebUsbParser::process(
             if (!DppSettings::isGpioValid(simpleUsbLedGpio))
             {
                 std::uint8_t payload = 1;
-                responseFn(kResponseCmdInvalid, {{&payload, 1}});
+                responseFn(kResponseFailure, {{&payload, 1}});
                 return;
             }
 
@@ -293,11 +293,19 @@ void SettingsWebUsbParser::process(
         // Save all settings and reboot
         case 'S':
         {
-            // Send response before saving
-            responseFn(kResponseSuccess, {});
+            if (mSettings.makeValid())
+            {
+                // Send response before saving
+                responseFn(kResponseSuccess, {});
 
-            // This will save and reboot - delay for 100 ms to allow the above message to go out
-            mSettings.save(100);
+                // This will save and reboot - delay for 100 ms to allow the above message to go out
+                mSettings.save(100);
+            }
+            else
+            {
+                // Settings had to be adjusted to be valid (execute 'g' to get adjusted settings)
+                responseFn(kResponseFailure, {});
+            }
         }
         return;
 
