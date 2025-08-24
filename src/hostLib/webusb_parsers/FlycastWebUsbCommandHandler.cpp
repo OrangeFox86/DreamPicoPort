@@ -21,7 +21,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "FlycastWebUsbParser.hpp"
+#include "FlycastWebUsbCommandHandler.hpp"
 
 #include "hal/MapleBus/MaplePacket.hpp"
 #include "hal/System/LockGuard.hpp"
@@ -29,21 +29,21 @@
 #include <cstring>
 #include <cinttypes>
 
-const std::uint8_t FlycastWebUsbParser::kInterfaceVersion[2] = {1, 0};
+const std::uint8_t FlycastWebUsbCommandHandler::kInterfaceVersion[2] = {1, 0};
 
-FlycastWebUsbParser::FlycastWebUsbParser(
+FlycastWebUsbCommandHandler::FlycastWebUsbCommandHandler(
     SystemIdentification& identification,
-    const std::shared_ptr<MapleWebUsbParser>& mapleWebUsbParser,
+    const std::shared_ptr<MapleWebUsbCommandHandler>& mapleWebUsbCommandHandler,
     const std::vector<std::shared_ptr<PlayerData>>& playerData,
     const std::vector<std::shared_ptr<DreamcastMainNode>>& nodes
 ) :
     mIdentification(identification),
-    mMapleWebUsbParser(mapleWebUsbParser),
+    mMapleWebUsbCommandHandler(mapleWebUsbCommandHandler),
     mPlayerData(playerData),
     nodes(nodes)
 {}
 
-void FlycastWebUsbParser::process(
+void FlycastWebUsbCommandHandler::process(
     const std::uint8_t* payload,
     std::uint16_t payloadLen,
     const std::function<
@@ -212,8 +212,8 @@ void FlycastWebUsbParser::process(
             ++iter;
             std::uint16_t size = payloadLen - 1;
 
-            // Process through the MapleWebUsbParser
-            auto rv = mMapleWebUsbParser->processMaplePacket(iter, size, responseFn);
+            // Process through the MapleWebUsbCommandHandler
+            auto rv = mMapleWebUsbCommandHandler->processMaplePacket(iter, size, responseFn);
 
             if (rv.first < 0 || !rv.second.isValid())
             {

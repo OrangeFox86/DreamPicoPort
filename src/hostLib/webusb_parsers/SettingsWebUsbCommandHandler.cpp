@@ -21,11 +21,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "SettingsWebUsbParser.hpp"
+#include "SettingsWebUsbCommandHandler.hpp"
 
 #include <cstring>
 
-SettingsWebUsbParser::SettingsWebUsbParser() :
+SettingsWebUsbCommandHandler::SettingsWebUsbCommandHandler() :
     mLoadedSettings(DppSettings::getInitialSettings()),
     mSettings(mLoadedSettings)
 {}
@@ -79,7 +79,7 @@ static std::string packSettings(const DppSettings& settings)
     return settingsData;
 }
 
-void SettingsWebUsbParser::process(
+void SettingsWebUsbCommandHandler::process(
     const std::uint8_t* payload,
     std::uint16_t payloadLen,
     const std::function<

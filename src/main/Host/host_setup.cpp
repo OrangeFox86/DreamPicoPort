@@ -28,14 +28,13 @@
 #include "hal/Usb/usb_interface.hpp"
 #include "hal/Usb/client_usb_interface.h"
 
-#include "MaplePassthroughCommandParser.hpp"
-#include "FlycastCommandParser.hpp"
+#include "MaplePassthroughTtyCommandHandler.hpp"
+#include "FlycastTtyCommandHandler.hpp"
 
-#include "MapleWebUsbParser.hpp"
-#include "FlycastWebUsbParser.hpp"
-#include "SettingsWebUsbParser.hpp"
+#include "MapleWebUsbCommandHandler.hpp"
+#include "FlycastWebUsbCommandHandler.hpp"
+#include "SettingsWebUsbCommandHandler.hpp"
 
-#include "FlycastCommandParser.hpp"
 #include "PicoIdentification.hpp"
 #include "CriticalSectionMutex.hpp"
 #include "Mutex.hpp"
@@ -110,16 +109,16 @@ std::unique_ptr<SerialStreamParser> make_parsers(
     static Mutex ttyParserMutex;
     std::unique_ptr<SerialStreamParser> ttyParser = std::make_unique<SerialStreamParser>(ttyParserMutex, 'h');
     usb_cdc_set_parser(ttyParser.get());
-    ttyParser->addCommandParser(
-        std::make_shared<MaplePassthroughCommandParser>(
+    ttyParser->addTtyCommandHandler(
+        std::make_shared<MaplePassthroughTtyCommandHandler>(
             schedulers, mapleHostAddresses
         )
     );
     static PicoIdentification picoIdentification;
-    static Mutex flycastCommandParserMutex;
-    ttyParser->addCommandParser(
-        std::make_shared<FlycastCommandParser>(
-            flycastCommandParserMutex,
+    static Mutex flycastTtyCommandHandlerMutex;
+    ttyParser->addTtyCommandHandler(
+        std::make_shared<FlycastTtyCommandHandler>(
+            flycastTtyCommandHandlerMutex,
             picoIdentification,
             schedulers,
             mapleHostAddresses,
@@ -129,22 +128,22 @@ std::unique_ptr<SerialStreamParser> make_parsers(
     );
 
     // Initialize and register WebUsb parsers
-    std::shared_ptr<MapleWebUsbParser> mapleWebUsbParser =
-        std::make_shared<MapleWebUsbParser>(
+    std::shared_ptr<MapleWebUsbCommandHandler> mapleWebUsbCommandHandler =
+        std::make_shared<MapleWebUsbCommandHandler>(
             schedulers,
             mapleHostAddresses
         );
-    webusb_add_parser(mapleWebUsbParser);
-    std::shared_ptr<FlycastWebUsbParser> flycastWebUsbCommandParser =
-        std::make_shared<FlycastWebUsbParser>(
+    webusb_add_parser(mapleWebUsbCommandHandler);
+    std::shared_ptr<FlycastWebUsbCommandHandler> flycastWebUsbCommandParser =
+        std::make_shared<FlycastWebUsbCommandHandler>(
             picoIdentification,
-            mapleWebUsbParser,
+            mapleWebUsbCommandHandler,
             playerData,
             dreamcastMainNodes
         );
     webusb_add_parser(flycastWebUsbCommandParser);
-    std::shared_ptr<SettingsWebUsbParser> settingsWebUsbParser = std::make_shared<SettingsWebUsbParser>();
-    webusb_add_parser(settingsWebUsbParser);
+    std::shared_ptr<SettingsWebUsbCommandHandler> settingsWebUsbCommandHandler = std::make_shared<SettingsWebUsbCommandHandler>();
+    webusb_add_parser(settingsWebUsbCommandHandler);
 
     return ttyParser;
 }

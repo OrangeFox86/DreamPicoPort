@@ -23,33 +23,33 @@
 
 #pragma once
 
-#include "hal/Usb/CommandParser.hpp"
-
-#include "PrioritizedTxScheduler.hpp"
-
+#include <stdint.h>
+#include <vector>
 #include <memory>
+
+#include "hal/System/MutexInterface.hpp"
 
 // Command structure: [whitespace]<command-char>[command]<\n>
 
 //! Command parser for processing commands from a TTY stream
-class MaplePassthroughCommandParser : public CommandParser
+class TtyCommandHandler
 {
 public:
-    MaplePassthroughCommandParser(
-        const std::vector<std::shared_ptr<PrioritizedTxScheduler>>& schedulers,
-        const std::vector<uint8_t>& senderAddresses
-    );
+    virtual ~TtyCommandHandler() = default;
 
     //! @returns the string of command characters this parser handles
-    virtual const char* getCommandChars() final;
+    virtual const char* getCommandChars() = 0;
 
     //! Called when newline reached; submit command and reset
-    virtual void submit(const char* chars, uint32_t len) final;
+    virtual void submit(const char* chars, uint32_t len) = 0;
 
     //! Prints help message for this command
-    virtual void printHelp() final;
+    virtual void printHelp() = 0;
 
-private:
-    const std::vector<std::shared_ptr<PrioritizedTxScheduler>> mSchedulers;
-    const std::vector<uint8_t> mSenderAddresses;
+    //! When this character is seen, then binary data will proceed
+    //! For binary commands, 2-byte size followed by payload then final \n character
+    static const char BINARY_START_CHAR = 0x05;
 };
+
+void usb_cdc_write(const char *buf, int length);
+void usb_cdc_set_echo(bool on);

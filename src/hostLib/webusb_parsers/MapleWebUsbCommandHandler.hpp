@@ -23,10 +23,9 @@
 
 #pragma once
 
-#include "hal/Usb/WebUsbCommandParser.hpp"
+#include "hal/Usb/WebUsbCommandHandler.hpp"
 #include "hal/System/SystemIdentification.hpp"
 #include "hal/System/MutexInterface.hpp"
-#include "hal/System/DppSettings.hpp"
 
 #include "PrioritizedTxScheduler.hpp"
 
@@ -38,20 +37,37 @@
 #include <array>
 #include <functional>
 
-class SettingsWebUsbParser : public WebUsbCommandParser
+class MapleWebUsbCommandHandler : public WebUsbCommandHandler
 {
 public:
-    SettingsWebUsbParser();
+    MapleWebUsbCommandHandler(
+        const std::vector<std::shared_ptr<PrioritizedTxScheduler>>& schedulers,
+        const std::vector<uint8_t>& senderAddresses
+    );
 
-    virtual ~SettingsWebUsbParser() = default;
+    virtual ~MapleWebUsbCommandHandler() = default;
 
-    //! Inherited from WebUsbCommandParser
+    //! Inherited from WebUsbCommandHandler
     inline std::uint8_t getSupportedCommand() const override
     {
-        return static_cast<std::uint8_t>('S');
+        return static_cast<std::uint8_t>('0');
     }
 
-    //! Inherited from WebUsbCommandParser
+    //! Processes a raw maple packet
+    //! @param[in] payload Full maple packet payload, excluding CRC
+    //! @param[in] payloadLen The length of \p payload
+    //! @param[in] responseFn The function to respond on
+    //! @return [-1, MaplePacket::Frame::defaultFrame()] on failure
+    //! @return pair where the first value is the player index and the second value is the frame word transmitted
+    std::pair<int32_t, MaplePacket::Frame> processMaplePacket(
+        const std::uint8_t* payload,
+        std::uint16_t payloadLen,
+        const std::function<
+            void(std::uint8_t responseCmd, const std::list<std::pair<const void*, std::uint16_t>>& payloadList)
+        >& responseFn
+    );
+
+    //! Inherited from WebUsbCommandHandler
     void process(
         const std::uint8_t* payload,
         std::uint16_t payloadLen,
@@ -61,6 +77,6 @@ public:
     ) override;
 
 private:
-    const DppSettings mLoadedSettings;
-    DppSettings mSettings;
+    const std::vector<std::shared_ptr<PrioritizedTxScheduler>> mSchedulers;
+    const std::vector<uint8_t> mSenderAddresses;
 };

@@ -1,4 +1,4 @@
-#include "FlycastCommandParser.hpp"
+#include "FlycastTtyCommandHandler.hpp"
 #include "hal/MapleBus/MaplePacket.hpp"
 #include "hal/System/LockGuard.hpp"
 
@@ -13,7 +13,7 @@
 // Format: X[modifier-char]<cmd-data>\n
 // This parser must always return a single line of data
 
-const char* FlycastCommandParser::INTERFACE_VERSION = "1.00";
+const char* FlycastTtyCommandHandler::INTERFACE_VERSION = "1.00";
 
 static void send_response(const std::string& response)
 {
@@ -111,7 +111,7 @@ void FlycastBinaryEchoTransmitter::txComplete(
 {
     LockGuard lock(mMutex);
 
-    send_response(CommandParser::BINARY_START_CHAR);
+    send_response(TtyCommandHandler::BINARY_START_CHAR);
     uint16_t len = 4 + (packet->payload.size() * 4);
     send_response(static_cast<uint8_t>(len >> 8));
     send_response(static_cast<uint8_t>(len & 0xFF));
@@ -132,7 +132,7 @@ void FlycastBinaryEchoTransmitter::txComplete(
     send_response('\n');
 }
 
-FlycastCommandParser::FlycastCommandParser(
+FlycastTtyCommandHandler::FlycastTtyCommandHandler(
     MutexInterface& m,
     SystemIdentification& identification,
     const std::vector<std::shared_ptr<PrioritizedTxScheduler>>& schedulers,
@@ -146,13 +146,13 @@ FlycastCommandParser::FlycastCommandParser(
     mSenderAddresses(senderAddresses),
     mPlayerData(playerData),
     nodes(nodes),
-    mSummaryCallback(std::bind(&FlycastCommandParser::summaryCallback, this, std::placeholders::_1))
+    mSummaryCallback(std::bind(&FlycastTtyCommandHandler::summaryCallback, this, std::placeholders::_1))
 {
     mFlycastEchoTransmitter = std::make_unique<FlycastEchoTransmitter>(mMutex);
     mFlycastBinaryEchoTransmitter = std::make_unique<FlycastBinaryEchoTransmitter>(mMutex);
 }
 
-const char* FlycastCommandParser::getCommandChars()
+const char* FlycastTtyCommandHandler::getCommandChars()
 {
     // X is reserved for command from flycast emulator
     return "X";
@@ -197,7 +197,7 @@ uint32_t parseWord(const char*& iter, const char* eol, uint32_t& i)
     return 0;
 }
 
-void FlycastCommandParser::submit(const char* chars, uint32_t len)
+void FlycastTtyCommandHandler::submit(const char* chars, uint32_t len)
 {
     if (len == 0)
     {
@@ -576,12 +576,12 @@ void FlycastCommandParser::submit(const char* chars, uint32_t len)
     }
 }
 
-void FlycastCommandParser::printHelp()
+void FlycastTtyCommandHandler::printHelp()
 {
     send_response("X: commands from a flycast emulator\n");
 }
 
-void FlycastCommandParser::summaryCallback(const std::list<std::list<std::array<uint32_t, 2>>>& summary)
+void FlycastTtyCommandHandler::summaryCallback(const std::list<std::list<std::array<uint32_t, 2>>>& summary)
 {
     std::string summaryString;
     summaryString.reserve(512);

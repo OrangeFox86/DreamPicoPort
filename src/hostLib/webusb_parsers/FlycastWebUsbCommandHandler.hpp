@@ -23,7 +23,7 @@
 
 #pragma once
 
-#include "hal/Usb/WebUsbCommandParser.hpp"
+#include "hal/Usb/WebUsbCommandHandler.hpp"
 #include "hal/System/SystemIdentification.hpp"
 #include "hal/System/MutexInterface.hpp"
 
@@ -32,32 +32,32 @@
 #include "PlayerData.hpp"
 #include "DreamcastMainNode.hpp"
 
-#include "MapleWebUsbParser.hpp"
+#include "MapleWebUsbCommandHandler.hpp"
 
 #include <memory>
 #include <list>
 #include <array>
 #include <functional>
 
-class FlycastWebUsbParser : public WebUsbCommandParser
+class FlycastWebUsbCommandHandler : public WebUsbCommandHandler
 {
 public:
-    FlycastWebUsbParser(
+    FlycastWebUsbCommandHandler(
         SystemIdentification& identification,
-        const std::shared_ptr<MapleWebUsbParser>& mapleWebUsbParser,
+        const std::shared_ptr<MapleWebUsbCommandHandler>& mapleWebUsbCommandHandler,
         const std::vector<std::shared_ptr<PlayerData>>& playerData,
         const std::vector<std::shared_ptr<DreamcastMainNode>>& nodes
     );
 
-    virtual ~FlycastWebUsbParser() = default;
+    virtual ~FlycastWebUsbCommandHandler() = default;
 
-    //! Inherited from WebUsbCommandParser
+    //! Inherited from WebUsbCommandHandler
     inline std::uint8_t getSupportedCommand() const override
     {
         return static_cast<std::uint8_t>('X');
     }
 
-    //! Inherited from WebUsbCommandParser
+    //! Inherited from WebUsbCommandHandler
     void process(
         const std::uint8_t* payload,
         std::uint16_t payloadLen,
@@ -69,7 +69,7 @@ public:
 private:
     static const std::uint8_t kInterfaceVersion[2];
     SystemIdentification& mIdentification;
-    std::shared_ptr<MapleWebUsbParser> mMapleWebUsbParser;
+    std::shared_ptr<MapleWebUsbCommandHandler> mMapleWebUsbCommandHandler;
     std::vector<std::shared_ptr<PlayerData>> mPlayerData;
     std::vector<std::shared_ptr<DreamcastMainNode>> nodes;
 };

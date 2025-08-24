@@ -21,7 +21,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "MapleWebUsbParser.hpp"
+#include "MapleWebUsbCommandHandler.hpp"
 
 #include "hal/MapleBus/MaplePacket.hpp"
 #include "hal/System/LockGuard.hpp"
@@ -30,7 +30,7 @@
 #include <vector>
 #include <cinttypes>
 
-MapleWebUsbParser::MapleWebUsbParser(
+MapleWebUsbCommandHandler::MapleWebUsbCommandHandler(
     const std::vector<std::shared_ptr<PrioritizedTxScheduler>>& schedulers,
     const std::vector<uint8_t>& senderAddresses
 ) :
@@ -38,7 +38,7 @@ MapleWebUsbParser::MapleWebUsbParser(
     mSenderAddresses(senderAddresses)
 {}
 
-std::pair<int32_t, MaplePacket::Frame> MapleWebUsbParser::processMaplePacket(
+std::pair<int32_t, MaplePacket::Frame> MapleWebUsbCommandHandler::processMaplePacket(
     const std::uint8_t* payload,
     std::uint16_t payloadLen,
     const std::function<
@@ -179,7 +179,7 @@ std::pair<int32_t, MaplePacket::Frame> MapleWebUsbParser::processMaplePacket(
     return std::make_pair(idx, frame);
 }
 
-void MapleWebUsbParser::process(
+void MapleWebUsbCommandHandler::process(
     const std::uint8_t* payload,
     std::uint16_t payloadLen,
     const std::function<

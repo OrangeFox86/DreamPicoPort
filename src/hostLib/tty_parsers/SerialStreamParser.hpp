@@ -31,7 +31,7 @@
 
 #include "hal/System/MutexInterface.hpp"
 #include "hal/Usb/TtyParser.hpp"
-#include "hal/Usb/CommandParser.hpp"
+#include "hal/Usb/TtyCommandHandler.hpp"
 
 // Command structure: [whitespace]<command-char>[command]<\n>
 
@@ -42,7 +42,7 @@ public:
     //! Constructor
     SerialStreamParser(MutexInterface& m, char helpChar);
     //! Adds a command parser to my list of parsers - must be done before any other function called
-    virtual void addCommandParser(std::shared_ptr<CommandParser> parser) override final;
+    virtual void addTtyCommandHandler(std::shared_ptr<TtyCommandHandler> parser) override final;
     //! Called from the process receiving characters on the TTY
     void addChars(const char* chars, uint32_t len) override final;
     //! Called from the process handling maple bus execution
@@ -73,7 +73,7 @@ private:
     //! The command character which prints help for all commands
     const char mHelpChar;
     //! Parsers that may handle data
-    std::vector<std::shared_ptr<CommandParser>> mParsers;
+    std::vector<std::shared_ptr<TtyCommandHandler>> mParsers;
     //! true when overflow in mParserRx
     bool mOverflowDetected;
 

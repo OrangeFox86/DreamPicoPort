@@ -32,11 +32,11 @@
 #include <list>
 
 //! Command parser for processing commands from a WebUSB serial stream
-class WebUsbCommandParser
+class WebUsbCommandHandler
 {
 public:
     //! Virtual destructor
-    virtual ~WebUsbCommandParser() = default;
+    virtual ~WebUsbCommandHandler() = default;
 
     //! @returns the command byte this parser handles
     virtual std::uint8_t getSupportedCommand() const = 0;
@@ -60,4 +60,4 @@ public:
 };
 
 void webusb_init(MutexInterface* mutex);
-void webusb_add_parser(std::shared_ptr<WebUsbCommandParser> parser);
+void webusb_add_parser(std::shared_ptr<WebUsbCommandHandler> parser);

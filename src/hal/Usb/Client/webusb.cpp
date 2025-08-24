@@ -70,7 +70,7 @@ public:
         mBuffer.shrink_to_fit();
     }
 
-    static void addParser(const std::shared_ptr<WebUsbCommandParser>& parser)
+    static void addParser(const std::shared_ptr<WebUsbCommandHandler>& parser)
     {
         if (parser)
         {
@@ -195,7 +195,7 @@ public:
 private:
     void processPkt(const std::string& address, const uint8_t cmd, const uint8_t* payload, uint16_t payloadLen)
     {
-        std::unordered_map<std::uint8_t, std::shared_ptr<WebUsbCommandParser>>::iterator iter = mParsers.find(cmd);
+        std::unordered_map<std::uint8_t, std::shared_ptr<WebUsbCommandHandler>>::iterator iter = mParsers.find(cmd);
         if (iter != mParsers.end() && iter->second)
         {
             const uint8_t itf = mItf;
@@ -340,7 +340,7 @@ private:
 
 private:
     //! All parsers
-    static std::unordered_map<std::uint8_t, std::shared_ptr<WebUsbCommandParser>> mParsers;
+    static std::unordered_map<std::uint8_t, std::shared_ptr<WebUsbCommandHandler>> mParsers;
 
     //! The USB vendor interface number
     const uint8_t mItf;
@@ -359,7 +359,7 @@ private:
 };
 
 // definition of mParsers
-std::unordered_map<std::uint8_t, std::shared_ptr<WebUsbCommandParser>> WebUsbInterface::mParsers;
+std::unordered_map<std::uint8_t, std::shared_ptr<WebUsbCommandHandler>> WebUsbInterface::mParsers;
 
 //! All available interfaces, mapped by interface number
 static std::unordered_map<std::uint8_t, WebUsbInterface> webusb_interfaces;
@@ -401,7 +401,7 @@ void webusb_process(uint8_t itfIndex, const uint8_t* buffer, uint16_t bufsize)
     iter->second.process(buffer, bufsize);
 }
 
-void webusb_add_parser(std::shared_ptr<WebUsbCommandParser> parser)
+void webusb_add_parser(std::shared_ptr<WebUsbCommandHandler> parser)
 {
     WebUsbInterface::addParser(parser);
 }

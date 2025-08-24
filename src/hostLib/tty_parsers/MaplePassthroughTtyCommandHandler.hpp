@@ -23,18 +23,33 @@
 
 #pragma once
 
-#include <hal/Usb/CommandParser.hpp>
+#include "hal/Usb/TtyCommandHandler.hpp"
 
-#include <gtest/gtest.h>
-#include <gmock/gmock.h>
+#include "PrioritizedTxScheduler.hpp"
 
-class MockCommandParser : public CommandParser
+#include <memory>
+
+// Command structure: [whitespace]<command-char>[command]<\n>
+
+//! Command parser for processing commands from a TTY stream
+class MaplePassthroughTtyCommandHandler : public TtyCommandHandler
 {
 public:
-    MockCommandParser() = default;
-    virtual ~MockCommandParser() = default;
+    MaplePassthroughTtyCommandHandler(
+        const std::vector<std::shared_ptr<PrioritizedTxScheduler>>& schedulers,
+        const std::vector<uint8_t>& senderAddresses
+    );
 
-    MOCK_METHOD(const char*, getCommandChars, (), (override));
-    MOCK_METHOD(void, submit, (const char* chars, uint32_t len), (override));
-    MOCK_METHOD(void, printHelp, (), (override));
+    //! @returns the string of command characters this parser handles
+    virtual const char* getCommandChars() final;
+
+    //! Called when newline reached; submit command and reset
+    virtual void submit(const char* chars, uint32_t len) final;
+
+    //! Prints help message for this command
+    virtual void printHelp() final;
+
+private:
+    const std::vector<std::shared_ptr<PrioritizedTxScheduler>> mSchedulers;
+    const std::vector<uint8_t> mSenderAddresses;
 };

@@ -46,7 +46,7 @@ SerialStreamParser::SerialStreamParser(MutexInterface& m, char helpChar) :
     mNumBinaryLeft(0)
 {}
 
-void SerialStreamParser::addCommandParser(std::shared_ptr<CommandParser> parser)
+void SerialStreamParser::addTtyCommandHandler(std::shared_ptr<TtyCommandHandler> parser)
 {
     mParsers.push_back(parser);
 }
@@ -195,7 +195,7 @@ void SerialStreamParser::process()
                            "COMMANDS:\n");
                     printf("%c: Prints this help\n", mHelpChar);
                     // Print help for all commands
-                    for (std::vector<std::shared_ptr<CommandParser>>::iterator iter = mParsers.begin();
+                    for (std::vector<std::shared_ptr<TtyCommandHandler>>::iterator iter = mParsers.begin();
                         iter != mParsers.end();
                         ++iter)
                     {
@@ -206,7 +206,7 @@ void SerialStreamParser::process()
                 {
                     // Find command parser that can process this command
                     bool processed = false;
-                    for (std::vector<std::shared_ptr<CommandParser>>::iterator iter = mParsers.begin();
+                    for (std::vector<std::shared_ptr<TtyCommandHandler>>::iterator iter = mParsers.begin();
                         iter != mParsers.end() && !processed;
                         ++iter)
                     {

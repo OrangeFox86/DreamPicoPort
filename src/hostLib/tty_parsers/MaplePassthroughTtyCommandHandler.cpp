@@ -21,7 +21,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "MaplePassthroughCommandParser.hpp"
+#include "MaplePassthroughTtyCommandHandler.hpp"
 #include "hal/MapleBus/MaplePacket.hpp"
 
 #include <stdio.h>
@@ -62,7 +62,7 @@ public:
     }
 } echoTransmitter;
 
-MaplePassthroughCommandParser::MaplePassthroughCommandParser(
+MaplePassthroughTtyCommandHandler::MaplePassthroughTtyCommandHandler(
     const std::vector<std::shared_ptr<PrioritizedTxScheduler>>& schedulers,
     const std::vector<uint8_t>& senderAddresses
 ) :
@@ -70,13 +70,13 @@ MaplePassthroughCommandParser::MaplePassthroughCommandParser(
     mSenderAddresses(senderAddresses)
 {}
 
-const char* MaplePassthroughCommandParser::getCommandChars()
+const char* MaplePassthroughTtyCommandHandler::getCommandChars()
 {
     // Anything beginning with a hex character should be considered a passthrough command
     return "0123456789ABCDEFabcdef";
 }
 
-void MaplePassthroughCommandParser::submit(const char* chars, uint32_t len)
+void MaplePassthroughTtyCommandHandler::submit(const char* chars, uint32_t len)
 {
     bool valid = false;
     const char* const eol = chars + len;
@@ -178,7 +178,7 @@ void MaplePassthroughCommandParser::submit(const char* chars, uint32_t len)
     }
 }
 
-void MaplePassthroughCommandParser::printHelp()
+void MaplePassthroughTtyCommandHandler::printHelp()
 {
     printf("0-1 a-f A-F: the beginning of a hex value to send to maple bus without CRC\n");
 }

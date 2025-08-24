@@ -25,7 +25,7 @@
 
 #include <cstring>
 #include <stdint.h>
-#include "hal/Usb/WebUsbCommandParser.hpp"
+#include "hal/Usb/WebUsbCommandHandler.hpp"
 
 // This is limited to 61 characters in length due to EP0 size of 64 and 3-byte WebUSB header
 constexpr const char* webusb_url = "orangefox86.github.io/DreamPicoPort/webusb";

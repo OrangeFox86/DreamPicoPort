@@ -27,7 +27,7 @@
 #include <memory>
 
 #include <SerialStreamParser.hpp>
-#include "MockCommandParser.hpp"
+#include "MockTtyCommandHandler.hpp"
 #include "MockMutex.hpp"
 
 using ::testing::_;
@@ -42,7 +42,7 @@ class SerialStreamParserTest : public ::testing::Test
 {
 protected:
     std::unique_ptr<SerialStreamParser> serialStreamParser;
-    std::shared_ptr<MockCommandParser> mockCmdParser;
+    std::shared_ptr<MockTtyCommandHandler> mockCmdParser;
     MockMutex mockMutex;
 
     SerialStreamParserTest() = default;
@@ -52,10 +52,10 @@ protected:
         EXPECT_CALL(mockMutex, lock).Times(AnyNumber());
         EXPECT_CALL(mockMutex, tryLock).Times(AnyNumber()).WillRepeatedly(Return(1));
         EXPECT_CALL(mockMutex, unlock).Times(AnyNumber());
-        mockCmdParser = std::make_shared<MockCommandParser>();
+        mockCmdParser = std::make_shared<MockTtyCommandHandler>();
         serialStreamParser = std::make_unique<SerialStreamParser>(mockMutex, 'h');
         EXPECT_CALL(*mockCmdParser, getCommandChars).WillRepeatedly(Return("XYZ"));
-        serialStreamParser->addCommandParser(mockCmdParser);
+        serialStreamParser->addTtyCommandHandler(mockCmdParser);
     }
 };
 

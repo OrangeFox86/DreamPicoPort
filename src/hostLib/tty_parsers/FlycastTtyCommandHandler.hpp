@@ -1,6 +1,6 @@
 #pragma once
 
-#include "hal/Usb/CommandParser.hpp"
+#include "hal/Usb/TtyCommandHandler.hpp"
 #include "hal/System/SystemIdentification.hpp"
 #include "hal/System/MutexInterface.hpp"
 
@@ -58,10 +58,10 @@ private:
 };
 
 //! Command parser for commands from flycast emulator
-class FlycastCommandParser : public CommandParser
+class FlycastTtyCommandHandler : public TtyCommandHandler
 {
 public:
-    FlycastCommandParser(
+    FlycastTtyCommandHandler(
         MutexInterface& m,
         SystemIdentification& identification,
         const std::vector<std::shared_ptr<PrioritizedTxScheduler>>& schedulers,
