@@ -148,7 +148,7 @@
       }
     }
 
-    function connectionFailed(reason = 'Failed to connect to device') {
+    function connectionFailed(reason = 'Operation failed: failed to connect to device') {
       stopSmTimeout();
       if (receiveSm) {
         receiveSm = null;
@@ -365,7 +365,9 @@
     }
 
     function disconnect(reason = '') {
-      port.disconnect();
+      if (port) {
+        port.disconnect();
+      }
       statusDisplay.textContent = reason;
       port = null;
     }
@@ -391,7 +393,7 @@
               return;
             }
           }
-          connectionFailed('Could not find selected device');
+          connectionFailed('Operation failed: could not find selected device');
         });
         return true;
       } else {
@@ -516,7 +518,7 @@
       return true;
     }
 
-    selectButton.addEventListener('click', function (){
+    function selectDevice() {
       statusDisplay.textContent = '';
       serial.requestPort().then(selectedPort => {
         if (selectedPort) {
@@ -528,6 +530,10 @@
           statusDisplay.textContent = error;
         }
       });
+    }
+
+    selectButton.addEventListener('click', function (){
+      selectDevice();
     });
 
     saveButton.addEventListener('click', function() {
@@ -538,12 +544,17 @@
       startReadVmu(0, 0);
     });
 
-    // TODO: this isn't getting activated properly on https
     // Select first device on load
     serial.getPorts().then(ports => {
       if (ports.length > 0) {
         startLoadSm(ports[0]);
+      } else {
+        statusDisplay.textContent = 'No Dream Pico Port devices found';
       }
+    }).catch(error => {
+      // Ignore permission errors when auto-detecting ports on server
+      console.log('Auto port detection failed (expected on server):', error);
+      selectDevice();
     });
 
   });
