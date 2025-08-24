@@ -138,7 +138,7 @@
     function resetSmTimeout() {
       stopSmTimeout();
       if (receiveSm) {
-        receiveSmTimeoutId = setTimeout(smTimeout, 500);
+        receiveSmTimeoutId = setTimeout(smTimeout, 150);
       }
     }
 
@@ -300,6 +300,7 @@
       const READ_ADDR = 0xAA;
 
       var readVmuSm = {};
+      readVmuSm.retries = 0;
       readVmuSm.controllerIdx = controllerIdx;
       readVmuSm.vmuIndex = vmuIndex;
       readVmuSm.vmuData = new Uint8Array(128 * 1024); // 128KB VMU storage
@@ -316,24 +317,38 @@
       readVmuSm.destAddr = readVmuSm.hostAddr | (1 << vmuIndex);
       readVmuSm.currentBlock = 0;
       readVmuSm.timeout = function() {
-        disconnect('VMU read failed - timeout');
-        vmuProgress.value = 0;
-        vmuProgressContainer.style.display = 'none';
-        vmuProgressText.textContent = '0%';
+        if (readVmuSm.retries++ < 2) {
+            // Re-read current block
+            readVmuSm.sendCurrentBlock();
+        } else {
+          disconnect('VMU read failed - timeout');
+          vmuProgress.value = 0;
+          vmuProgressContainer.style.display = 'none';
+          vmuProgressText.textContent = '0%';
+        }
+      };
+      readVmuSm.sendCurrentBlock = function () {
+        // TODO: embedding the current block into the address is not necessary since the address is already in the maple packet response
+        send(READ_ADDR | (readVmuSm.currentBlock << 8), '0'.charCodeAt(0), [0x0B, readVmuSm.destAddr, readVmuSm.hostAddr, 2, 0, 0, 0, 2, 0, 0, 0, readVmuSm.currentBlock]);
       };
       readVmuSm.start = function() {
         vmuProgressContainer.style.display = 'block';
         vmuProgressContainer.style.visibility = 'visible';
         vmuProgress.value = 0;
         vmuProgressText.textContent = '0%';
-        send(READ_ADDR, '0'.charCodeAt(0), [0x0B, readVmuSm.destAddr, readVmuSm.hostAddr, 2, 0, 0, 0, 2, 0, 0, 0, readVmuSm.currentBlock]);
+        readVmuSm.startTime = Date.now();
+        readVmuSm.sendCurrentBlock();
       };
       readVmuSm.process = function(addr, cmd, payload) {
-        if (addr == READ_ADDR && cmd == CMD_OK && payload.length > 0) {
+        let fnType = Number(addr & BigInt(0xff));
+        let receivedBlock = Number((addr >> BigInt(8)) & BigInt(0xff));
+        if (fnType == READ_ADDR && receivedBlock == readVmuSm.currentBlock && cmd == CMD_OK && payload.length > 0) {
           // Copy received data to VMU buffer
-          readVmuSm.vmuData.set(payload, readVmuSm.dataOffset);
-          readVmuSm.dataOffset += payload.length;
+          // TODO: verify maple packet header
+          readVmuSm.vmuData.set(payload.slice(12, payload.length), readVmuSm.dataOffset);
+          readVmuSm.dataOffset += payload.length - 12;
           readVmuSm.currentBlock++;
+          readVmuSm.retries = 0;
 
           // Update progress
           const progress = (readVmuSm.currentBlock / 256) * 100;
@@ -342,7 +357,8 @@
 
           if (readVmuSm.currentBlock < 256) {
             // Read next block
-            send(READ_ADDR, '0'.charCodeAt(0), [0x0B, readVmuSm.destAddr, readVmuSm.hostAddr, 2, 0, 0, 0, 2, 0, 0, 0, readVmuSm.currentBlock]);
+            readVmuSm.sendCurrentBlock();
+            resetSmTimeout();
           } else {
             // Reading complete, save file
             const blob = new Blob([readVmuSm.vmuData], { type: 'application/octet-stream' });
@@ -357,6 +373,8 @@
 
             vmuProgressContainer.style.display = 'none';
             stopSm('VMU read complete');
+            const readTime = Date.now() - readVmuSm.startTime;
+            console.log(`VMU read completed in ${readTime}ms`);
           }
         } else {
           stopSm('VMU read failed');
