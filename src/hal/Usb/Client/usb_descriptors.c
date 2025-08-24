@@ -30,13 +30,20 @@
 #include "class/hid/hid_device.h"
 #include "pico/unique_id.h"
 #include "configuration.h"
+#include "dpp_version.h"
 #include <string.h>
 
 #include <hal/Usb/client_usb_interface.h>
 
-// Going forward, I'm going to try to keep this consistent with GitHub release version
-#define DPP_RELEASE_VERSION_STR "1.2.0"
-#define DPP_RELEASE_VERSION_BCD 0x0120
+#define DPP_STRINGIFY(x) #x
+#define DPP_EXPAND_AND_STRINGIFY(x) DPP_STRINGIFY(x)
+#define DPP_RELEASE_VERSION_STR DPP_EXPAND_AND_STRINGIFY(DPP_RELEASE_VERSION_MAJOR) "." DPP_EXPAND_AND_STRINGIFY(DPP_RELEASE_VERSION_MINOR) "." DPP_EXPAND_AND_STRINGIFY(DPP_RELEASE_VERSION_PATCH)
+
+static_assert(DPP_RELEASE_VERSION_MAJOR < 100, "Cannot pack DPP_RELEASE_VERSION_MAJOR into version BCD");
+static_assert(DPP_RELEASE_VERSION_MINOR < 10, "Cannot pack DPP_RELEASE_VERSION_MINOR into version BCD");
+static_assert(DPP_RELEASE_VERSION_PATCH < 10, "Cannot pack DPP_RELEASE_VERSION_PATCH into version BCD");
+
+#define DPP_RELEASE_VERSION_BCD ((DPP_RELEASE_VERSION_MAJOR << 8) | (DPP_RELEASE_VERSION_MINOR << 4) | DPP_RELEASE_VERSION_PATCH)
 
 static uint8_t numberOfGamepads = 0;
 static bool enabledGamepads[MAX_NUMBER_OF_USB_GAMEPADS] = {};

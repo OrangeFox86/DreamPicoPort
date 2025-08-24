@@ -527,8 +527,6 @@
       return true;
     }
 
-
-
     selectButton.addEventListener('click', function (){
       statusDisplay.textContent = '';
       // This can only be activated as a response to a user action
@@ -537,7 +535,7 @@
           startLoadSm(selectedPort);
         }
       }).catch(error => {
-        if (!(error instanceof NotFoundError))
+        if (error.name !== 'NotFoundError')
         {
           statusDisplay.textContent = error;
         }
