@@ -160,9 +160,9 @@ std::pair<int32_t, MaplePacket::Frame> MapleWebUsbParser::processMaplePacket(
             );
         }
 
-        const std::function<
+        std::function<
             void(std::uint8_t responseCmd, const std::list<std::pair<const void*, std::uint16_t>>& payloadList)
-        >& mResponseFn;
+        > mResponseFn;
     };
 
     mSchedulers[idx]->add(
