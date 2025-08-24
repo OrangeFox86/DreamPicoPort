@@ -297,7 +297,7 @@ void tud_hid_set_report_cb(uint8_t instance,
 
 void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize)
 {
-  webusb_process(itf, buffer, bufsize);
+  webusb_rx(itf, buffer, bufsize);
 
   // if using RX buffered is enabled, we need to flush the buffer to make room for new data
   #if CFG_TUD_VENDOR_RX_BUFSIZE > 0

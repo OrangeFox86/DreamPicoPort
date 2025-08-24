@@ -164,7 +164,7 @@ void __no_inline_not_in_flash_func(save_settings_memory)(
     watchdog_reboot(0, 0, delayMs);
 }
 
-void DppSettings::save(uint32_t delayMs)
+void DppSettings::save(uint32_t delayMs) const
 {
     SettingsMemory mem{
         .magic = kMagic,

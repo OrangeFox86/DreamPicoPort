@@ -107,7 +107,7 @@ struct DppSettings
     //! Save settings to flash and reboots system
     //! @pre this must be called from core 0!
     //! @param[in] delayMs Number of milliseconds to delay before rebooting
-    void save(uint32_t delayMs = 0);
+    void save(uint32_t delayMs = 0) const;
 
     //! @return true iff settings are valid
     bool isValid() const;

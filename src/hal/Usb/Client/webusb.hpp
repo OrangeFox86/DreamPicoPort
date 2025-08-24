@@ -32,4 +32,4 @@ constexpr const char* webusb_url = "orangefox86.github.io/DreamPicoPort/webusb";
 static_assert(strlen(webusb_url) <= 61, "webusb_url is too large");
 
 void webusb_connection_event(uint16_t interfaceNumber, uint16_t value);
-void webusb_process(uint8_t itfIndex, const uint8_t* buffer, uint16_t bufsize);
+void webusb_rx(uint8_t itfIndex, const uint8_t* buffer, uint16_t bufsize);

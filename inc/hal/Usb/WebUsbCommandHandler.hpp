@@ -61,3 +61,4 @@ public:
 
 void webusb_init(MutexInterface* mutex);
 void webusb_add_parser(std::shared_ptr<WebUsbCommandHandler> parser);
+void webusb_process();

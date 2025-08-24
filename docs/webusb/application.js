@@ -45,8 +45,9 @@
     let vmuProgress = document.querySelector('#vmu-progress')
     let vmuProgressText = document.querySelector('#vmu-progress-label')
     const CMD_OK = 0x0A; // Command success
-    const CMD_FAIL = 0x0F; // Command failed
-    const CMD_INVALID = 0xFE; // Command had no target
+    const CMD_FAIL = 0x0F; // Command failed - data was parsed but execution failed
+    const CMD_INVALID = 0xFE; // Command was missing data
+    const CMD_BAD = 0xFF; // Command had to target
 
     if (window.location.protocol !== "file:") {
       offlineHint.innerHTML = "<strong>Hint:</strong> Press ctrl+s or cmd+s to save this page locally for offline usage.";

@@ -36,6 +36,7 @@
 
 #include "hal/Usb/usb_interface.hpp"
 #include "hal/Usb/client_usb_interface.h"
+#include "hal/Usb/WebUsbCommandHandler.hpp"
 
 #include "host_setup.hpp"
 
@@ -63,6 +64,9 @@ void core1()
 
         // Process any waiting commands in the TTY parser
         ttyParser->process();
+
+        // Process any waiting commands in the WebUSB parser
+        webusb_process();
     }
 }
 

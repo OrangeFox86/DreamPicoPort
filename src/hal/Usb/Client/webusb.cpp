@@ -30,6 +30,9 @@
 #include <cstdint>
 #include <cstddef>
 #include <unordered_map>
+#include <array>
+#include <vector>
+#include <atomic>
 
 // Packet format (big endian order):
 // Magic Bytes [4] | Size [2] | Inverse Size [2] | Return Address [1-9] | Command [1] | Payload [0-N] | CRC [2]
@@ -63,6 +66,11 @@ public:
 
     WebUsbInterface(uint8_t itf) : mItf(itf) {}
 
+    void signalReset()
+    {
+        mResetSignaled = true;
+    }
+
     void reset()
     {
         mRcvIdx = -kSizeMagic;
@@ -79,8 +87,49 @@ public:
         }
     }
 
-    void process(const uint8_t* buffer, uint16_t bufsize)
+    void addData(const uint8_t* buffer, uint16_t bufsize)
     {
+        if (bufsize > 0)
+        {
+            LockGuard lock(*webusb_mutex);
+
+            // Limit bufsize if overflow will occur
+            if (mIncomingBuffer.size() + bufsize > kMaxBufferSize)
+            {
+                // Just throw data away - rely on magic and CRC to recover
+                bufsize = kMaxBufferSize - mIncomingBuffer.size();
+            }
+
+            mIncomingBuffer.insert(mIncomingBuffer.end(), buffer, buffer + bufsize);
+        }
+    }
+
+    void process()
+    {
+        std::vector<std::uint8_t> newData;
+
+        {
+            LockGuard lock(*webusb_mutex);
+
+            if (mResetSignaled.exchange(false))
+            {
+                reset();
+                mIncomingBuffer.clear();
+                mIncomingBuffer.shrink_to_fit();
+                return;
+            }
+
+            if (!mIncomingBuffer.empty())
+            {
+                newData = std::move(mIncomingBuffer);
+                mIncomingBuffer.clear();
+                mIncomingBuffer.shrink_to_fit();
+            }
+        }
+
+        const uint8_t* buffer = newData.data();
+        std::size_t bufsize = newData.size();
+
         while (bufsize > 0)
         {
             if (mRcvIdx < kSizeSize)
@@ -110,11 +159,12 @@ public:
                     // Size bytes invalid - reset counter, parse size bytes for another magic, and continue
                     reset();
                     const uint8_t* tmpBuffer = mSizeBytes;
-                    uint16_t tmpBufSize = sizeof(mSizeBytes);
+                    std::size_t tmpBufSize = sizeof(mSizeBytes);
                     parseMagic(tmpBuffer, tmpBufSize);
                     continue;
                 }
 
+                mBuffer.clear(); // Should already be clear, done for good measure
                 mBuffer.reserve(mRcvSize);
 
                 if (bufsize == 0)
@@ -124,6 +174,8 @@ public:
                 }
             }
 
+            // mRcvIdx is guaranteed to be >= kSizeSize here
+
             std::uint16_t payloadIdx = mRcvIdx - kSizeSize;
             std::uint16_t bytesToConsume = mRcvSize - payloadIdx;
             if (bufsize < bytesToConsume)
@@ -131,7 +183,7 @@ public:
                 bytesToConsume = bufsize;
             }
 
-            mBuffer.append(buffer, buffer + bytesToConsume);
+            mBuffer.insert(mBuffer.begin(), buffer, buffer + bytesToConsume);
 
             mRcvIdx += bytesToConsume;
             bufsize -= bytesToConsume;
@@ -319,7 +371,7 @@ private:
         return computeCrc16(0xFFFFU, buffer, bufLen);
     }
 
-    void parseMagic(const uint8_t*& buffer, uint16_t& bufsize)
+    void parseMagic(const uint8_t*& buffer, std::size_t& bufsize)
     {
         while (mRcvIdx < 0 && bufsize > 0)
         {
@@ -338,12 +390,18 @@ private:
         }
     }
 
+public:
+    static constexpr const std::size_t kMaxBufferSize = 1050;
+
 private:
     //! All parsers
     static std::unordered_map<std::uint8_t, std::shared_ptr<WebUsbCommandHandler>> mParsers;
 
     //! The USB vendor interface number
     const uint8_t mItf;
+
+    //! Set when reset is signaled by connection event, to be processed later
+    std::atomic<bool> mResetSignaled = false;
 
     //! Current receive index
     std::int32_t mRcvIdx = -kSizeMagic;
@@ -354,15 +412,21 @@ private:
     //! Received size
     std::uint16_t mRcvSize = 0;
 
+    //! Received data yet to be processed
+    std::vector<std::uint8_t> mIncomingBuffer = std::vector<std::uint8_t>();
+
     //! Current receive buffer
-    std::string mBuffer = std::string();
+    std::vector<std::uint8_t> mBuffer = std::vector<std::uint8_t>();
 };
 
 // definition of mParsers
 std::unordered_map<std::uint8_t, std::shared_ptr<WebUsbCommandHandler>> WebUsbInterface::mParsers;
 
-//! All available interfaces, mapped by interface number
-static std::unordered_map<std::uint8_t, WebUsbInterface> webusb_interfaces;
+//! All available interfaces, mapped by interface number [0, CFG_TUD_VENDOR)
+static std::array<WebUsbInterface, CFG_TUD_VENDOR> webusb_interfaces = {
+    WebUsbInterface(0),
+    WebUsbInterface(1)
+};
 
 void webusb_init(MutexInterface* mutex)
 {
@@ -371,34 +435,31 @@ void webusb_init(MutexInterface* mutex)
 
 void webusb_connection_event(uint16_t interfaceNumber, uint16_t value)
 {
+    // Called from USB core (core 0)
     uint8_t index = ITF_TO_WEBUSB_IDX(interfaceNumber);
-    if (index < CFG_TUD_VENDOR)
+    if (index < webusb_interfaces.size() && value < 2)
     {
-        bool connected = (value != 0);
-        if (connected)
-        {
-            std::unordered_map<std::uint8_t, WebUsbInterface>::iterator iter = webusb_interfaces.find(index);
-            if (iter != webusb_interfaces.end())
-            {
-                iter->second.reset();
-            }
-        }
-        else
-        {
-            webusb_interfaces.erase(index);
-        }
+        // Connected or disconnected. In either case, reset state.
+        webusb_interfaces[index].signalReset();
     }
 }
 
-void webusb_process(uint8_t itfIndex, const uint8_t* buffer, uint16_t bufsize)
+void webusb_rx(uint8_t itfIndex, const uint8_t* buffer, uint16_t bufsize)
 {
-    std::unordered_map<std::uint8_t, WebUsbInterface>::iterator iter = webusb_interfaces.find(itfIndex);
-    if (iter == webusb_interfaces.end())
+    // Called from USB core (core 0)
+    if (itfIndex < webusb_interfaces.size())
     {
-        iter = webusb_interfaces.insert(std::make_pair(itfIndex, WebUsbInterface(itfIndex))).first;
+        webusb_interfaces[itfIndex].addData(buffer, bufsize);
     }
+}
 
-    iter->second.process(buffer, bufsize);
+void webusb_process()
+{
+    // Called from Maple core (core 1)
+    for (WebUsbInterface& itf : webusb_interfaces)
+    {
+        itf.process();
+    }
 }
 
 void webusb_add_parser(std::shared_ptr<WebUsbCommandHandler> parser)
