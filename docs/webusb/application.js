@@ -184,10 +184,19 @@
       stopSmTimeout();
     }
 
+    function enableAllControls() {
+      let tabcontent = document.getElementsByClassName("tabcontent");
+      for (let i = 0; i < tabcontent.length; i++) {
+        tabcontent[i].style.pointerEvents = 'auto';
+        tabcontent[i].style.opacity = 1.0;
+      }
+    }
+
     // Starts the state machine which loads the settings from the device
     function startLoadSm(selectedPort) {
       selectedSerial = selectedPort.serial;
       selectedDevice.textContent = `Selected device: ${selectedPort.serial} v${selectedPort.major}.${selectedPort.minor}.${selectedPort.patch}`;
+      enableAllControls();
       statusDisplay.textContent = "Loading settings..."
       const GET_SETTINGS_ADDR = 123;
       var loadSm = {};
@@ -518,8 +527,11 @@
       return true;
     }
 
-    function selectDevice() {
+
+
+    selectButton.addEventListener('click', function (){
       statusDisplay.textContent = '';
+      // This can only be activated as a response to a user action
       serial.requestPort().then(selectedPort => {
         if (selectedPort) {
           startLoadSm(selectedPort);
@@ -530,10 +542,6 @@
           statusDisplay.textContent = error;
         }
       });
-    }
-
-    selectButton.addEventListener('click', function (){
-      selectDevice();
     });
 
     saveButton.addEventListener('click', function() {
@@ -543,21 +551,5 @@
     readVmuButton.addEventListener('click', function(){
       startReadVmu(0, 0);
     });
-
-    // Select first device on load
-    serial.getPorts().then(ports => {
-      if (ports.length > 0) {
-        startLoadSm(ports[0]);
-      } else {
-        // Show device selection which will automatically refresh on connection of a device
-        statusDisplay.textContent = 'Select a Dream Pico Port device';
-        selectDevice();
-      }
-    }).catch(error => {
-      // Ignore permission errors when auto-detecting ports on server
-      console.log('Auto port detection failed (expected on server):', error);
-      selectDevice();
-    });
-
   });
 })();
