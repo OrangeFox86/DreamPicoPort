@@ -30,11 +30,12 @@
     let selectedSerial = null;
     let receiveSm = null; // must define start(), process(), and timeout()
     let receiveSmTimeoutId = -1;
-    const GET_SETTINGS_ADDR = 123;
+    let offlineHint = document.querySelector('#offline-hint');
 
     if (window.location.protocol !== "file:") {
-      let offlineHint = document.querySelector('#offline-hint');
       offlineHint.innerHTML = "<strong>Hint:</strong> Press ctrl+s or cmd+s to save this page locally for offline usage.";
+    } else {
+      offlineHint.innerHTML = "";
     }
 
     // CRC16-CCITT (XModem) implementation
@@ -170,6 +171,7 @@
       selectedSerial = selectedPort.serial;
       selectedDevice.textContent = `Selected device: ${selectedPort.serial} v${selectedPort.major}.${selectedPort.minor}.${selectedPort.patch}`;
       statusDisplay.textContent = "Loading settings..."
+      const GET_SETTINGS_ADDR = 123;
       var loadSm = {};
       loadSm.timeout = function() {
         disconnect('Load failed');
