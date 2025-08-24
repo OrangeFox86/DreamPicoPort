@@ -549,7 +549,9 @@
       if (ports.length > 0) {
         startLoadSm(ports[0]);
       } else {
-        statusDisplay.textContent = 'No Dream Pico Port devices found';
+        // Show device selection which will automatically refresh on connection of a device
+        statusDisplay.textContent = 'Select a Dream Pico Port device';
+        selectDevice();
       }
     }).catch(error => {
       // Ignore permission errors when auto-detecting ports on server
