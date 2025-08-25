@@ -402,12 +402,14 @@
       startSm(readVmuSm);
     }
 
+    // Starts the state machine which writes to a selected VMU
     function startWriteVmu(controllerIdx, vmuIdx, fileData) {
-      setStatus("Reading VMU...");
+      setStatus("Writing VMU...");
       const WRITE_ADDR = 0x55;
       const NUM_PHASES_PER_BLOCK = 4;
       const BLOCK_SIZE = 512;
       const PHASE_SIZE = BLOCK_SIZE / NUM_PHASES_PER_BLOCK;
+      const TOTAL_BLOCKS = 256;
 
       var writeVmuSm = {};
       writeVmuSm.retries = 0;
@@ -482,7 +484,7 @@
           if (++writeVmuSm.currentPhase > 4)
           {
             writeVmuSm.currentPhase = 0;
-            if (++writeVmuSm.currentBlock >= 256)
+            if (++writeVmuSm.currentBlock >= TOTAL_BLOCKS)
             {
               // Done!
               stopSm('VMU write complete');
@@ -492,6 +494,12 @@
               return;
             }
           }
+
+          // Update progress
+          writeVmuSm.retries = 0;
+          const progress = (writeVmuSm.currentBlock / TOTAL_BLOCKS) * 100;
+          vmuProgress.value = progress;
+          vmuProgressText.textContent = Math.round(progress) + '%';
 
           if (writeVmuSm.currentPhase > 3)
           {
