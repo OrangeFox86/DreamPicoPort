@@ -183,7 +183,7 @@ public:
                 bytesToConsume = bufsize;
             }
 
-            mBuffer.insert(mBuffer.begin(), buffer, buffer + bytesToConsume);
+            mBuffer.insert(mBuffer.end(), buffer, buffer + bytesToConsume);
 
             mRcvIdx += bytesToConsume;
             bufsize -= bytesToConsume;

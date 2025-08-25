@@ -315,14 +315,6 @@ void FlycastTtyCommandHandler::submit(const char* chars, uint32_t len)
             }
             return;
 
-            case 'X':
-            {
-                const uint32_t* settingsMemory = (const uint32_t*)(
-                    0x10000000 + 0x200000 - 0x1000);
-                printf("%08lX %08lX %08lX %08lX\n", settingsMemory[0], settingsMemory[1], settingsMemory[2], settingsMemory[3]);
-            }
-            return;
-
             // X?0, X?1, X?2, or X?3 will print summary for the given node index
             case '?':
             {

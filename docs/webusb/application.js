@@ -302,6 +302,19 @@
       vmuProgressText.textContent = '0%';
     }
 
+    function getMapleHostAddr(controllerIdx) {
+      if (controllerIdx == 3) {
+        return 0xC0;
+      } else if (controllerIdx == 2) {
+        return 0x80;
+      } else if (controllerIdx == 1) {
+        return 0x40;
+      } else {
+        return 0x00;
+      }
+    }
+
+    // Starts the state machine which reads all VMU data
     function startReadVmu(controllerIdx, vmuIndex) {
       setStatus("Reading VMU...");
       const READ_ADDR = 0xAA;
@@ -312,28 +325,20 @@
       readVmuSm.vmuIndex = vmuIndex;
       readVmuSm.vmuData = new Uint8Array(128 * 1024); // 128KB VMU storage
       readVmuSm.dataOffset = 0;
-      if (controllerIdx == 3) {
-        readVmuSm.hostAddr = 0xC0;
-      } else if (controllerIdx == 2) {
-        readVmuSm.hostAddr = 0x80;
-      } else if (controllerIdx == 1) {
-        readVmuSm.hostAddr = 0x40;
-      } else {
-        readVmuSm.hostAddr = 0x00;
-      }
+      readVmuSm.hostAddr = getMapleHostAddr(controllerIdx);
       readVmuSm.destAddr = readVmuSm.hostAddr | (1 << vmuIndex);
       readVmuSm.currentBlock = 0;
+      function sendCurrentBlock() {
+        send(READ_ADDR, '0'.charCodeAt(0), [0x0B, readVmuSm.destAddr, readVmuSm.hostAddr, 2, 0, 0, 0, 2, 0, 0, 0, readVmuSm.currentBlock]);
+      };
       readVmuSm.timeout = function() {
         if (readVmuSm.retries++ < 2) {
             // Re-read current block
-            readVmuSm.sendCurrentBlock();
+            sendCurrentBlock();
         } else {
           disconnect('VMU read failed - timeout', 'red', 'bold');
           resetProgressBar();
         }
-      };
-      readVmuSm.sendCurrentBlock = function () {
-        send(READ_ADDR, '0'.charCodeAt(0), [0x0B, readVmuSm.destAddr, readVmuSm.hostAddr, 2, 0, 0, 0, 2, 0, 0, 0, readVmuSm.currentBlock]);
       };
       readVmuSm.start = function() {
         vmuProgressContainer.style.display = 'block';
@@ -341,7 +346,7 @@
         vmuProgress.value = 0;
         vmuProgressText.textContent = '0%';
         readVmuSm.startTime = Date.now();
-        readVmuSm.sendCurrentBlock();
+        sendCurrentBlock();
       };
       readVmuSm.process = function(addr, cmd, payload) {
         let fnType = Number(addr & BigInt(0xff));
@@ -365,7 +370,7 @@
 
           if (readVmuSm.currentBlock < 256) {
             // Read next block
-            readVmuSm.sendCurrentBlock();
+            sendCurrentBlock();
             resetSmTimeout();
           } else {
             // Reading complete, save file
@@ -386,7 +391,7 @@
           }
         } else if (readVmuSm.retries++ < 2) {
             // Re-read current block
-            readVmuSm.sendCurrentBlock();
+            sendCurrentBlock();
             resetSmTimeout();
         } else {
           stopSm('VMU read failed', 'red', 'bold');
@@ -395,6 +400,120 @@
       };
 
       startSm(readVmuSm);
+    }
+
+    function startWriteVmu(controllerIdx, vmuIdx, fileData) {
+      setStatus("Reading VMU...");
+      const WRITE_ADDR = 0x55;
+      const NUM_PHASES_PER_BLOCK = 4;
+      const BLOCK_SIZE = 512;
+      const PHASE_SIZE = BLOCK_SIZE / NUM_PHASES_PER_BLOCK;
+
+      var writeVmuSm = {};
+      writeVmuSm.retries = 0;
+      writeVmuSm.controllerIdx = controllerIdx;
+      writeVmuSm.vmuIndex = vmuIdx;
+      writeVmuSm.hostAddr = getMapleHostAddr(controllerIdx);
+      writeVmuSm.destAddr = writeVmuSm.hostAddr | (1 << vmuIdx);
+      writeVmuSm.currentBlock = 0;
+      writeVmuSm.currentPhase = 0; // [0,4] // commit on 4
+      writeVmuSm.writeDelayMs = 10; // delay between writes, grows on each retry
+
+      function writeCurrentPhase() {
+        const locationWord = [0, writeVmuSm.currentPhase, 0, writeVmuSm.currentBlock];
+        const dataOffset = (writeVmuSm.currentBlock * BLOCK_SIZE) + (writeVmuSm.currentPhase * PHASE_SIZE);
+        const dataChunk = fileData.slice(dataOffset, dataOffset + PHASE_SIZE);
+        send(WRITE_ADDR | (writeVmuSm.currentBlock << 8) | (writeVmuSm.currentPhase << 16), '0'.charCodeAt(0), [0x0C, writeVmuSm.destAddr, writeVmuSm.hostAddr, 34, 0, 0, 0, 2, ...locationWord, ...dataChunk]);
+      }
+
+      function writeCommit() {
+        const locationWord = [0, writeVmuSm.currentPhase, 0, writeVmuSm.currentBlock];
+        send(WRITE_ADDR | (writeVmuSm.currentBlock << 8) | (writeVmuSm.currentPhase << 16), '0'.charCodeAt(0), [0x0D, writeVmuSm.destAddr, writeVmuSm.hostAddr, 2, 0, 0, 0, 2, ...locationWord]);
+      }
+
+      function retry() {
+        if (++writeVmuSm.retries > 2) {
+          return false;
+        }
+
+        resetSmTimeout();
+        writeVmuSm.currentPhase = 0;
+        writeVmuSm.writeDelayMs += 5;
+        if (writeVmuSm.writeDelayMs > 30) {
+          writeVmuSm.writeDelayMs = 30;
+        }
+
+        setTimeout(() => {
+          writeCurrentPhase();
+        }, writeVmuSm.writeDelayMs);
+
+        return true;
+      }
+
+      writeVmuSm.timeout = function() {
+        if (!retry()) {
+          disconnect('VMU write failed - timeout', 'red', 'bold');
+          resetProgressBar();
+        }
+      };
+
+      writeVmuSm.start = function() {
+        vmuProgressContainer.style.display = 'block';
+        vmuProgressContainer.style.visibility = 'visible';
+        vmuProgress.value = 0;
+        vmuProgressText.textContent = '0%';
+        writeVmuSm.startTime = Date.now();
+        writeCurrentPhase();
+      };
+
+      writeVmuSm.process = function(addr, cmd, payload) {
+        let fnType = Number(addr & BigInt(0xff));
+        let forBlock = Number((addr >> BigInt(8)) & BigInt(0xff));
+        let forPhase = Number((addr >> BigInt(16)) & BigInt(0xff));
+
+        if (
+          fnType == WRITE_ADDR &&
+          cmd == CMD_OK &&
+          forBlock == writeVmuSm.currentBlock &&
+          forPhase == writeVmuSm.currentPhase &&
+          payload.length >= 1 &&
+          payload[0] == 0x07 // Acknowledge from Maple Bus
+        ) {
+          if (++writeVmuSm.currentPhase > 4)
+          {
+            writeVmuSm.currentPhase = 0;
+            if (++writeVmuSm.currentBlock >= 256)
+            {
+              // Done!
+              stopSm('VMU write complete');
+              resetProgressBar();
+              const readTime = Date.now() - writeVmuSm.startTime;
+              console.log(`VMU read completed in ${readTime}ms`);
+              return;
+            }
+          }
+
+          if (writeVmuSm.currentPhase > 3)
+          {
+            resetSmTimeout();
+            setTimeout(() => {
+              writeCommit();
+            }, writeVmuSm.writeDelayMs);
+          } else {
+            resetSmTimeout();
+            setTimeout(() => {
+              writeCurrentPhase();
+            }, writeVmuSm.writeDelayMs);
+          }
+        } else {
+          if (!retry()) {
+            stopSm('VMU write failed', 'red', 'bold');
+            resetProgressBar();
+          }
+        }
+      };
+
+      startSm(writeVmuSm);
     }
 
     function handleIncomingMsg(addr, cmd, payload) {
@@ -584,7 +703,7 @@
       startSaveSm();
     });
 
-    readVmuButton.addEventListener('click', function(){
+    function getSelectedVmuIndices() {
       let controllerIdx = 0;
       let vmuIdx = 0;
 
@@ -614,7 +733,43 @@
         vmuIdx = 1;
       }
 
+      return { controllerIdx, vmuIdx };
+    }
+
+    readVmuButton.addEventListener('click', function() {
+      const { controllerIdx, vmuIdx } = getSelectedVmuIndices();
       startReadVmu(controllerIdx, vmuIdx);
+    });
+
+    writeVmuButton.addEventListener('click', function() {
+      const { controllerIdx, vmuIdx } = getSelectedVmuIndices();
+
+      // Create file input dialog
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = '.bin';
+      fileInput.style.display = 'none';
+
+      fileInput.addEventListener('change', function(event) {
+        const file = event.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            const fileData = new Uint8Array(e.target.result);
+            if (fileData.length !== 128 * 1024) {
+              setStatus('Invalid file size. VMU files must be exactly 128KB.', 'red', 'bold');
+              return;
+            }
+            // Start write VMU process with the loaded file data
+            startWriteVmu(controllerIdx, vmuIdx, fileData);
+          };
+          reader.readAsArrayBuffer(file);
+        }
+      });
+
+      document.body.appendChild(fileInput);
+      fileInput.click();
+      document.body.removeChild(fileInput);
     });
   });
 })();
