@@ -165,7 +165,7 @@
       }
       receiveSm = sm;
       if (!selectedSerial && !selectedPort) {
-        statusDisplay.textContent = 'Please select a device first';
+        setStatus('Please select a device first');
       }
       let portOrSerialNumber = selectedSerial;
       if (selectedPort) {
@@ -174,13 +174,13 @@
       if (startConnect(portOrSerialNumber)) {
         resetSmTimeout();
       } else {
-        disconnect('Failed to connect to device');
+        disconnect('Failed to connect to device', 'red', 'bold');
         receiveSm = null;
       }
     }
 
-    function stopSm(reason) {
-      disconnect(reason);
+    function stopSm(reason, color = 'black', fontWeight = 'normal') {
+      disconnect(reason, color, fontWeight);
       receiveSm = null;
       stopSmTimeout();
     }
@@ -198,11 +198,11 @@
       selectedSerial = selectedPort.serial;
       selectedDevice.textContent = `Selected device: ${selectedPort.serial} v${selectedPort.major}.${selectedPort.minor}.${selectedPort.patch}`;
       enableAllControls();
-      statusDisplay.textContent = "Loading settings..."
+      setStatus("Loading settings...");
       const GET_SETTINGS_ADDR = 123;
       var loadSm = {};
       loadSm.timeout = function() {
-        disconnect('Load failed');
+        disconnect('Load failed', 'red', 'bold');
       };
       loadSm.start = function() {
         // Load the currently staged settings, not the settings on flash
@@ -221,7 +221,7 @@
             return;
           }
         }
-        stopSm('Failed to load settings')
+        stopSm('Failed to load settings', 'red', 'bold')
       }
 
       startSm(loadSm, selectedPort);
@@ -229,7 +229,7 @@
 
     // Starts the state machine which saves the general settings
     function startSaveSm() {
-      statusDisplay.textContent = "Saving...";
+      setStatus("Saving...");
       const SEND_MSC_ADDR = 10;
       const SEND_CONTROLLER_A_ADDR = 11;
       const SEND_CONTROLLER_B_ADDR = 12;
@@ -239,7 +239,7 @@
 
       var saveSm = {};
       saveSm.timeout = function() {
-        disconnect('Save failed');
+        disconnect('Save failed', 'red', 'bold');
       };
       saveSm.start = function() {
         const mscValue = mscCheckbox.checked ? 1 : 0;
@@ -250,35 +250,35 @@
           if (cmd == CMD_OK) {
             send(SEND_CONTROLLER_A_ADDR, 'S'.charCodeAt(0), [80, 0, player1.value]);
           } else {
-            stopSm('Failed to set Mass Storage Class setting');
+            stopSm('Failed to set Mass Storage Class setting', 'red', 'bold');
             return;
           }
         } else if (addr == SEND_CONTROLLER_A_ADDR) {
           if (cmd == CMD_OK) {
             send(SEND_CONTROLLER_B_ADDR, 'S'.charCodeAt(0), [80, 1, player2.value]);
           } else {
-            stopSm('Failed to set controller A setting');
+            stopSm('Failed to set controller A setting', 'red', 'bold');
             return;
           }
         } else if (addr == SEND_CONTROLLER_B_ADDR) {
           if (cmd == CMD_OK) {
             send(SEND_CONTROLLER_C_ADDR, 'S'.charCodeAt(0), [80, 2, player3.value]);
           } else {
-            stopSm('Failed to set controller B setting');
+            stopSm('Failed to set controller B setting', 'red', 'bold');
             return;
           }
         } else if (addr == SEND_CONTROLLER_C_ADDR) {
           if (cmd == CMD_OK) {
             send(SEND_CONTROLLER_D_ADDR, 'S'.charCodeAt(0), [80, 3, player4.value]);
           } else {
-            stopSm('Failed to set controller C setting');
+            stopSm('Failed to set controller C setting', 'red', 'bold');
             return;
           }
         } else if (addr == SEND_CONTROLLER_D_ADDR) {
           if (cmd == CMD_OK) {
             send(SEND_SAVE_AND_RESTART_ADDR, 'S'.charCodeAt(0), [83]);
           } else {
-            stopSm('Failed to set controller D setting');
+            stopSm('Failed to set controller D setting', 'red', 'bold');
             return;
           }
         } else if (addr == SEND_SAVE_AND_RESTART_ADDR) {
@@ -286,7 +286,7 @@
             stopSm('Save successful!');
             return;
           } else {
-            stopSm('Failed save settings');
+            stopSm('Failed save settings', 'red', 'bold');
             return;
           }
         }
@@ -296,7 +296,14 @@
       startSm(saveSm);
     }
 
+    function resetProgressBar() {
+      vmuProgress.value = 0;
+      vmuProgressContainer.style.display = 'none';
+      vmuProgressText.textContent = '0%';
+    }
+
     function startReadVmu(controllerIdx, vmuIndex) {
+      setStatus("Reading VMU...");
       const READ_ADDR = 0xAA;
 
       var readVmuSm = {};
@@ -321,15 +328,12 @@
             // Re-read current block
             readVmuSm.sendCurrentBlock();
         } else {
-          disconnect('VMU read failed - timeout');
-          vmuProgress.value = 0;
-          vmuProgressContainer.style.display = 'none';
-          vmuProgressText.textContent = '0%';
+          disconnect('VMU read failed - timeout', 'red', 'bold');
+          resetProgressBar();
         }
       };
       readVmuSm.sendCurrentBlock = function () {
-        // TODO: embedding the current block into the address is not necessary since the address is already in the maple packet response
-        send(READ_ADDR | (readVmuSm.currentBlock << 8), '0'.charCodeAt(0), [0x0B, readVmuSm.destAddr, readVmuSm.hostAddr, 2, 0, 0, 0, 2, 0, 0, 0, readVmuSm.currentBlock]);
+        send(READ_ADDR, '0'.charCodeAt(0), [0x0B, readVmuSm.destAddr, readVmuSm.hostAddr, 2, 0, 0, 0, 2, 0, 0, 0, readVmuSm.currentBlock]);
       };
       readVmuSm.start = function() {
         vmuProgressContainer.style.display = 'block';
@@ -341,8 +345,12 @@
       };
       readVmuSm.process = function(addr, cmd, payload) {
         let fnType = Number(addr & BigInt(0xff));
-        let receivedBlock = Number((addr >> BigInt(8)) & BigInt(0xff));
-        if (fnType == READ_ADDR && receivedBlock == readVmuSm.currentBlock && cmd == CMD_OK && payload.length > 0) {
+        let receivedBlock = -1;
+        if (payload.length >= 12)
+        {
+          receivedBlock = payload[11];
+        }
+        if (fnType == READ_ADDR && receivedBlock == readVmuSm.currentBlock && cmd == CMD_OK && payload.length == 524) {
           // Copy received data to VMU buffer
           // TODO: verify maple packet header
           readVmuSm.vmuData.set(payload.slice(12, payload.length), readVmuSm.dataOffset);
@@ -365,19 +373,24 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `vmu_controller${readVmuSm.controllerIdx + 1}_slot${readVmuSm.vmuIndex + 1}.vms`;
+            a.download = `vmu_controller${String.fromCharCode(65 + readVmuSm.controllerIdx)}_slot${readVmuSm.vmuIndex + 1}.bin`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
 
-            vmuProgressContainer.style.display = 'none';
             stopSm('VMU read complete');
+            resetProgressBar();
             const readTime = Date.now() - readVmuSm.startTime;
             console.log(`VMU read completed in ${readTime}ms`);
           }
+        } else if (readVmuSm.retries++ < 2) {
+            // Re-read current block
+            readVmuSm.sendCurrentBlock();
+            resetSmTimeout();
         } else {
-          stopSm('VMU read failed');
+          stopSm('VMU read failed', 'red', 'bold');
+          resetProgressBar();
         }
       };
 
@@ -392,11 +405,17 @@
       }
     }
 
-    function disconnect(reason = '') {
+    function setStatus(str, color = 'black', fontWeight = 'normal') {
+      statusDisplay.textContent = str;
+      statusDisplay.style.color = color;
+      statusDisplay.style.fontWeight = fontWeight;
+    }
+
+    function disconnect(reason = '', color = 'black', fontWeight = 'normal') {
       if (port) {
         port.disconnect();
       }
-      statusDisplay.textContent = reason;
+      setStatus(reason, color, fontWeight);
       port = null;
     }
 
@@ -534,12 +553,12 @@
           console.error(error);
           if (error && (error.name === 'NetworkError' || error.message === 'NetworkError')) {
             if (port && typeof port.disconnect === 'function') {
-              disconnect('Lost connection with device');
+              disconnect('Lost connection with device', 'red', 'bold');
             }
           }
         };
       }, error => {
-        statusDisplay.textContent = error;
+        setStatus(error, 'red', 'bold');
         return false;
       });
 
@@ -547,7 +566,7 @@
     }
 
     selectButton.addEventListener('click', function (){
-      statusDisplay.textContent = '';
+      setStatus('');
       // This can only be activated as a response to a user action
       serial.requestPort().then(selectedPort => {
         if (selectedPort) {
@@ -556,7 +575,7 @@
       }).catch(error => {
         if (error.name !== 'NotFoundError')
         {
-          statusDisplay.textContent = error;
+          setStatus(error, 'red', 'bold');
         }
       });
     });
@@ -566,7 +585,36 @@
     });
 
     readVmuButton.addEventListener('click', function(){
-      startReadVmu(0, 0);
+      let controllerIdx = 0;
+      let vmuIdx = 0;
+
+      if (vmu1ARadio.checked) {
+        controllerIdx = 0;
+        vmuIdx = 0;
+      } else if (vmu2ARadio.checked) {
+        controllerIdx = 0;
+        vmuIdx = 1;
+      } else if (vmu1BRadio.checked) {
+        controllerIdx = 1;
+        vmuIdx = 0;
+      } else if (vmu2BRadio.checked) {
+        controllerIdx = 1;
+        vmuIdx = 1;
+      } else if (vmu1CRadio.checked) {
+        controllerIdx = 2;
+        vmuIdx = 0;
+      } else if (vmu2CRadio.checked) {
+        controllerIdx = 2;
+        vmuIdx = 1;
+      } else if (vmu1DRadio.checked) {
+        controllerIdx = 3;
+        vmuIdx = 0;
+      } else if (vmu2DRadio.checked) {
+        controllerIdx = 3;
+        vmuIdx = 1;
+      }
+
+      startReadVmu(controllerIdx, vmuIdx);
     });
   });
 })();

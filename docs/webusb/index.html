@@ -139,6 +139,8 @@
             </td>
           </tr>
         </table>
+        Take note that the entire USB interface needs to be refreshed in order to change the number of controllers
+        available to the host system over USB. You will experience interruptions in communication during these operations.
         <br>
         <br>
         * Mass Storage Class is what causes a drive to pop up. This is a problematic feature that is no longer supported.
@@ -229,34 +231,34 @@
         <table>
           <tr>
             <td style="text-align: center;">
-              Controller A
+              Controller A GPIO Values
             </td>
             <td style="text-align: center;">
-              Controller B
+              Controller B GPIO Values
             </td>
             <td style="text-align: center;">
-              Controller C
+              Controller C GPIO Values
             </td>
             <td style="text-align: center;">
-              Controller D
+              Controller D GPIO Values
             </td>
           </tr>
           <tr>
             <td style="text-align: center;">
               <label for="gpio-a">SDCK-A:</label>
-              <input type="text" id="gpio-a" name="gpio-a" minlength="0" maxlength="3" size="4" value="10" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+              <input type="text" id="gpio-a" name="gpio-a" minlength="0" maxlength="3" size="4" value="10" inputmode="numeric" pattern="[0-9]*" placeholder="Disabled" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
             </td>
             <td style="text-align: center;">
               <label for="gpio-b">SDCK-A:</label>
-              <input type="text" id="gpio-b" name="gpio-b" minlength="0" maxlength="3" size="4" value="12" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+              <input type="text" id="gpio-b" name="gpio-b" minlength="0" maxlength="3" size="4" value="12" inputmode="numeric" pattern="[0-9]*" placeholder="Disabled" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
             </td>
             <td style="text-align: center;">
               <label for="gpio-c">SDCK-A:</label>
-              <input type="text" id="gpio-c" name="gpio-c" minlength="0" maxlength="3" size="4" value="18" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+              <input type="text" id="gpio-c" name="gpio-c" minlength="0" maxlength="3" size="4" value="18" inputmode="numeric" pattern="[0-9]*" placeholder="Disabled" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
             </td>
             <td style="text-align: center;">
               <label for="gpio-d">SDCK-A:</label>
-              <input type="text" id="gpio-d" name="gpio-d" minlength="0" maxlength="3" size="4" value="20" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+              <input type="text" id="gpio-d" name="gpio-d" minlength="0" maxlength="3" size="4" value="20" inputmode="numeric" pattern="[0-9]*" placeholder="Disabled" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
             </td>
           </tr>
           <tr>
@@ -266,7 +268,7 @@
               <script>
               document.getElementById('gpio-a').addEventListener('input', function() {
                 var val = parseInt(this.value, 10);
-                document.getElementById('gpio-a-sdck-b').textContent = isNaN(val) ? '' : (val + 1);
+                document.getElementById('gpio-a-sdck-b').textContent = isNaN(val) ? 'Disabled' : (val + 1);
               });
               </script>
             </td>
@@ -276,7 +278,7 @@
               <script>
               document.getElementById('gpio-b').addEventListener('input', function() {
                 var val = parseInt(this.value, 10);
-                document.getElementById('gpio-b-sdck-b').textContent = isNaN(val) ? '' : (val + 1);
+                document.getElementById('gpio-b-sdck-b').textContent = isNaN(val) ? 'Disabled' : (val + 1);
               });
               </script>
             </td>
@@ -286,7 +288,7 @@
               <script>
               document.getElementById('gpio-c').addEventListener('input', function() {
                 var val = parseInt(this.value, 10);
-                document.getElementById('gpio-c-sdck-b').textContent = isNaN(val) ? '' : (val + 1);
+                document.getElementById('gpio-c-sdck-b').textContent = isNaN(val) ? 'Disabled' : (val + 1);
               });
               </script>
             </td>
@@ -296,7 +298,7 @@
               <script>
               document.getElementById('gpio-d').addEventListener('input', function() {
                 var val = parseInt(this.value, 10);
-                document.getElementById('gpio-d-sdck-b').textContent = isNaN(val) ? '' : (val + 1);
+                document.getElementById('gpio-d-sdck-b').textContent = isNaN(val) ? 'Disabled' : (val + 1);
               });
               </script>
             </td>
@@ -304,20 +306,20 @@
 
           <tr>
             <td style="text-align: center;">
-              <label for="gpio-dir-a">GPIO DIR:</label>
-              <input type="text" id="gpio-dir-a" name="gpio-dir-a" minlength="0" maxlength="3" size="4" value="6" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+              <label for="gpio-dir-a">DIR:</label>
+              <input type="text" id="gpio-dir-a" name="gpio-dir-a" minlength="0" maxlength="3" size="4" value="6" inputmode="numeric" pattern="[0-9]*" placeholder="Disabled" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
             </td>
             <td style="text-align: center;">
-              <label for="gpio-dir-b">GPIO DIR:</label>
-              <input type="text" id="gpio-dir-b" name="gpio-dir-b" minlength="0" maxlength="3" size="4" value="7" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+              <label for="gpio-dir-b">DIR:</label>
+              <input type="text" id="gpio-dir-b" name="gpio-dir-b" minlength="0" maxlength="3" size="4" value="7" inputmode="numeric" pattern="[0-9]*" placeholder="Disabled" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
             </td>
             <td style="text-align: center;">
-              <label for="gpio-dir-c">GPIO DIR:</label>
-              <input type="text" id="gpio-dir-c" name="gpio-dir-c" minlength="0" maxlength="3" size="4" value="26" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+              <label for="gpio-dir-c">DIR:</label>
+              <input type="text" id="gpio-dir-c" name="gpio-dir-c" minlength="0" maxlength="3" size="4" value="26" inputmode="numeric" pattern="[0-9]*" placeholder="Disabled" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
             </td>
             <td style="text-align: center;">
-              <label for="gpio-dir-d">GPIO DIR:</label>
-              <input type="text" id="gpio-dir-d" name="gpio-dir-d" minlength="0" maxlength="3" size="4" value="27" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+              <label for="gpio-dir-d">DIR:</label>
+              <input type="text" id="gpio-dir-d" name="gpio-dir-d" minlength="0" maxlength="3" size="4" value="27" inputmode="numeric" pattern="[0-9]*" placeholder="Disabled" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
             </td>
           </tr>
           <tr>
@@ -341,11 +343,11 @@
         </table>
         <br>
         <div style="text-align: center;">
-          <label for="gpio-led">GPIO LED:</label>
-          <input type="text" id="gpio-led" name="gpio-led" minlength="0" maxlength="3" size="4" value="25" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+          <label for="gpio-led">LED*:</label>
+          <input type="text" id="gpio-led" name="gpio-led" minlength="0" maxlength="3" size="4" value="25" inputmode="numeric" pattern="[0-9]*" placeholder="Disabled" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
           &nbsp;&nbsp;&nbsp;
-          <label for="gpio-simple-led">GPIO SIMPLE LED:</label>
-          <input type="text" id="gpio-simple-led" name="gpio-simple-led" minlength="0" maxlength="3" size="4" value="" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+          <label for="gpio-simple-led">Simple LED*:</label>
+          <input type="text" id="gpio-simple-led" name="gpio-simple-led" minlength="0" maxlength="3" size="4" value="" inputmode="numeric" pattern="[0-9]*" placeholder="Disabled" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
         </div>
         <br>
         <br>
@@ -354,6 +356,9 @@
           <br>
           <br>
           <b>For any GPIO setting, leave blank to disable.</b>
+          <br>
+          <br>
+          *Simple LED stays on when USB connected and turns off when disconnected. The normal LED setting also reacts to button presses on any connected controller.
         </div>
       </div>
 
