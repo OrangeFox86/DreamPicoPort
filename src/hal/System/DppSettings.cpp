@@ -133,10 +133,10 @@ const DppSettings& DppSettings::getInitialSettings()
 
 void DppSettings::requestSave(uint32_t delayMs)
 {
+    LockGuard lock(gSaveMutex);
+
     if (!sSaveRequested)
     {
-        LockGuard lock(gSaveMutex);
-
         sSaveRequestedSettings = *this;
         sDelayMs = delayMs;
         sSaveRequestTime = time_us_32();
