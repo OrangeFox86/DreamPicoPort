@@ -104,6 +104,13 @@ struct DppSettings
     //! @return the settings loaded on initialize()
     static const DppSettings& getInitialSettings();
 
+    //! Called from core 1 to request save on core 0
+    //! @param[in] delayMs Number of ms to delay before saving
+    void requestSave(uint32_t delayMs);
+
+    //! Processes any save requests
+    static void processSaveRequests();
+
     //! Save settings to flash and reboots system
     //! @pre this must be called from core 0!
     //! @param[in] delayMs Number of milliseconds to delay before rebooting
@@ -120,7 +127,7 @@ struct DppSettings
     //! @return the offset address in flash where settings are located
     static inline uint32_t getSettingsOffsetAddr()
     {
-        return kSettingsOffsetAddr;
+        return sSettingsOffsetAddr;
     }
 
     //! @return true iff the given gpio is valid
@@ -134,7 +141,17 @@ struct DppSettings
 
 private:
     //! Offset address of settings within flash
-    static uint32_t kSettingsOffsetAddr;
+    static uint32_t sSettingsOffsetAddr;
     //! The loaded settings on initialize()
-    static DppSettings kLoadedSettings;
+    static DppSettings sLoadedSettings;
+    //! Set to true when save is requested
+    static bool sSaveRequested;
+    //! The delay to wait when above is true
+    static uint32_t sDelayMs;
+    //! The 32-bit save requested time
+    static uint32_t sSaveRequestTime;
+    //! The settings used to save when above is true
+    static DppSettings sSaveRequestedSettings;
+    //! Set to true once saving, no further save requests may be made
+    static bool sSaving;
 };

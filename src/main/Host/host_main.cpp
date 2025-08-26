@@ -211,6 +211,8 @@ int main()
 
             nextMapleDetect = time_us_64() + kMapleDetectPeriodUs;
         }
+
+        DppSettings::processSaveRequests();
     }
 }
 

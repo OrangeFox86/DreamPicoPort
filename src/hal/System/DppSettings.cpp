@@ -36,6 +36,11 @@
 #include <hardware/watchdog.h>
 #include <pico/multicore.h>
 
+#include <hal/System/LockGuard.hpp>
+#include "CriticalSectionMutex.hpp"
+
+static CriticalSectionMutex gSaveMutex;
+
 static const uint32_t kMagic = 0xA875EBBB;
 
 static const uint32_t kUsbEnableCdcMask = 0x00000001;
@@ -86,10 +91,10 @@ uint32_t __no_inline_not_in_flash_func(calc_crc32)(const uint32_t* ptr, uint16_t
 
 const DppSettings& DppSettings::initialize()
 {
-    kSettingsOffsetAddr = get_settings_flash_offset();
+    sSettingsOffsetAddr = get_settings_flash_offset();
 
     const SettingsMemory* settingsMemory = reinterpret_cast<const SettingsMemory*>(
-        XIP_BASE + kSettingsOffsetAddr);
+        XIP_BASE + sSettingsOffsetAddr);
 
     // Ensure valid data
     if (
@@ -100,30 +105,64 @@ const DppSettings& DppSettings::initialize()
     )
     {
         // Data in flash is invalid
-        return kLoadedSettings;
+        return sLoadedSettings;
     }
 
-    kLoadedSettings.cdcEn = ((settingsMemory->usbEn & kUsbEnableCdcMask) > 0);
-    kLoadedSettings.mscEn = ((settingsMemory->usbEn & kUsbEnableMscMask) > 0);
-    kLoadedSettings.usbLedGpio = settingsMemory->usbLedGpio;
-    kLoadedSettings.simpleUsbLedGpio = settingsMemory->simpleUsbLedGpio;
+    sLoadedSettings.cdcEn = ((settingsMemory->usbEn & kUsbEnableCdcMask) > 0);
+    sLoadedSettings.mscEn = ((settingsMemory->usbEn & kUsbEnableMscMask) > 0);
+    sLoadedSettings.usbLedGpio = settingsMemory->usbLedGpio;
+    sLoadedSettings.simpleUsbLedGpio = settingsMemory->simpleUsbLedGpio;
     for (uint8_t i = 0; i < kNumPlayers; ++i)
     {
-        kLoadedSettings.playerDetectionModes[i] =
+        sLoadedSettings.playerDetectionModes[i] =
             static_cast<DppSettings::PlayerDetectionMode>(settingsMemory->playerEnableMode[i]);
-        kLoadedSettings.gpioA[i] = settingsMemory->gpioA[i];
-        kLoadedSettings.gpioDir[i] = settingsMemory->gpioDir[i];
-        kLoadedSettings.gpioDirOutputHigh[i] = settingsMemory->gpioDirOutputHigh[i];
+        sLoadedSettings.gpioA[i] = settingsMemory->gpioA[i];
+        sLoadedSettings.gpioDir[i] = settingsMemory->gpioDir[i];
+        sLoadedSettings.gpioDirOutputHigh[i] = settingsMemory->gpioDirOutputHigh[i];
     }
 
-    kLoadedSettings.makeValid();
+    sLoadedSettings.makeValid();
 
-    return kLoadedSettings;
+    return sLoadedSettings;
 }
 
 const DppSettings& DppSettings::getInitialSettings()
 {
-    return kLoadedSettings;
+    return sLoadedSettings;
+}
+
+void DppSettings::requestSave(uint32_t delayMs)
+{
+    if (!sSaveRequested)
+    {
+        LockGuard lock(gSaveMutex);
+
+        sSaveRequestedSettings = *this;
+        sDelayMs = delayMs;
+        sSaveRequestTime = time_us_32();
+        sSaveRequested = true;
+    }
+}
+
+void DppSettings::processSaveRequests()
+{
+    if (sSaving || !sSaveRequested)
+    {
+        return;
+    }
+
+    DppSettings settingsToSave;
+    uint32_t delayMs = 0;
+
+    {
+        LockGuard lock(gSaveMutex);
+
+        const uint32_t elapsedMsSinceRequest = (time_us_32() - sSaveRequestTime);
+        delayMs = (sDelayMs > elapsedMsSinceRequest) ? (sDelayMs - elapsedMsSinceRequest) : 0;
+        settingsToSave = sSaveRequestedSettings;
+    }
+
+    settingsToSave.save(delayMs);
 }
 
 void __no_inline_not_in_flash_func(save_settings_memory)(
@@ -166,6 +205,8 @@ void __no_inline_not_in_flash_func(save_settings_memory)(
 
 void DppSettings::save(uint32_t delayMs) const
 {
+    sSaving = true;
+
     SettingsMemory mem{
         .magic = kMagic,
         .size = kSettingsMemorySizeWords,
@@ -183,7 +224,7 @@ void DppSettings::save(uint32_t delayMs) const
         mem.gpioDirOutputHigh[i] = gpioDirOutputHigh[i];
     }
     mem.crc = calc_crc32(&mem.crc + 1, mem.size - 1);
-    save_settings_memory(kSettingsOffsetAddr, mem, delayMs);
+    save_settings_memory(sSettingsOffsetAddr, mem, delayMs);
 }
 
 static bool validate_gpio(std::unordered_set<std::uint32_t>& usedIo, std::uint32_t newIo)
@@ -328,5 +369,10 @@ bool DppSettings::isGpioValid(std::uint32_t gpio)
     return true;
 }
 
-uint32_t DppSettings::kSettingsOffsetAddr = 0;
-DppSettings DppSettings::kLoadedSettings;
+uint32_t DppSettings::sSettingsOffsetAddr = 0;
+DppSettings DppSettings::sLoadedSettings;
+bool DppSettings::sSaveRequested = false;
+uint32_t DppSettings::sDelayMs = 0;
+uint32_t DppSettings::sSaveRequestTime = 0;
+DppSettings DppSettings::sSaveRequestedSettings;
+bool DppSettings::sSaving = false;

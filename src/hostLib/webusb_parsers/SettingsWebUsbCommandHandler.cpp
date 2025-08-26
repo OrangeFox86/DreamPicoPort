@@ -30,14 +30,10 @@ SettingsWebUsbCommandHandler::SettingsWebUsbCommandHandler() :
     mSettings(mLoadedSettings)
 {}
 
-static std::uint32_t flip_word_bytes(const uint32_t& word)
-{
-    return (word << 24) | (word << 8 & 0xFF0000) | (word >> 8 & 0xFF00) | (word >> 24);
-}
-
 static std::uint32_t flip_word_bytes(const int32_t& word)
 {
-    return (word << 24) | (word << 8 & 0xFF0000) | (word >> 8 & 0xFF00) | (word >> 24);
+    const std::uint32_t wordU32 = static_cast<std::uint32_t>(word);
+    return (wordU32 << 24) | (wordU32 << 8 & 0xFF0000) | (wordU32 >> 8 & 0xFF00) | (wordU32 >> 24);
 }
 
 static std::string packSettings(const DppSettings& settings)
@@ -223,15 +219,7 @@ void SettingsWebUsbCommandHandler::process(
 
             bool dirOutputHigh = ((*(iter + 9)) != 0);
 
-            if (gpioA < 0)
-            {
-                mSettings.playerDetectionModes[playerIdx] = DppSettings::PlayerDetectionMode::kDisable;
-            }
-            else
-            {
-                mSettings.gpioA[playerIdx] = gpioA;
-            }
-
+            mSettings.gpioA[playerIdx] = gpioA;
             mSettings.gpioDir[playerIdx] = gpioDir;
             mSettings.gpioDirOutputHigh[playerIdx] = dirOutputHigh;
             responseFn(kResponseSuccess, {});
@@ -298,8 +286,8 @@ void SettingsWebUsbCommandHandler::process(
                 // Send response before saving
                 responseFn(kResponseSuccess, {});
 
-                // This will save and reboot - delay for 100 ms to allow the above message to go out
-                mSettings.save(100);
+                // This will save and reboot on core 0 - delay for 100 ms to allow the above message to go out
+                mSettings.requestSave(100);
             }
             else
             {
