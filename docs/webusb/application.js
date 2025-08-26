@@ -28,7 +28,7 @@
     let player4 = document.querySelector('#player4-select');
     let port;
     let selectedSerial = null;
-    let receiveSm = null; // must define start(), process(), and timeout() in the object
+    let receiveSm = null; // must define cancel(), start(), process(), and timeout() in the object
     let receiveSmTimeoutId = -1;
     let offlineHint = document.querySelector('#offline-hint');
     let vmu1ARadio = document.querySelector('#vmu1-a-radio');
@@ -44,6 +44,25 @@
     let vmuProgressContainer = document.querySelector('#vmu-progress-container');
     let vmuProgress = document.querySelector('#vmu-progress')
     let vmuProgressText = document.querySelector('#vmu-progress-label')
+    let vmuMemoryCancelButton = document.querySelector('#vmu-memory-cancel')
+    let gpioAText = document.querySelector('#gpio-a');
+    let gpioBText = document.querySelector('#gpio-b');
+    let gpioCText = document.querySelector('#gpio-c');
+    let gpioDText = document.querySelector('#gpio-d');
+    let gpioABSpan = document.querySelector('#gpio-a-sdck-b');
+    let gpioBBSpan = document.querySelector('#gpio-b-sdck-b');
+    let gpioCBSpan = document.querySelector('#gpio-c-sdck-b');
+    let gpioDBSpan = document.querySelector('#gpio-d-sdck-b');
+    let gpioADirText = document.querySelector('#gpio-dir-a');
+    let gpioBDirText = document.querySelector('#gpio-dir-b');
+    let gpioCDirText = document.querySelector('#gpio-dir-c');
+    let gpioDDirText = document.querySelector('#gpio-dir-d');
+    let gpioADirOutHighCheckbox = document.querySelector('#dir-out-high-a');
+    let gpioBDirOutHighCheckbox = document.querySelector('#dir-out-high-b');
+    let gpioCDirOutHighCheckbox = document.querySelector('#dir-out-high-c');
+    let gpioDDirOutHighCheckbox = document.querySelector('#dir-out-high-d');
+    let gpioLedText = document.querySelector('#gpio-led');
+    let gpioSimpleLedText = document.querySelector('#gpio-simple-led');
     const CMD_OK = 0x0A; // Command success
     const CMD_FAIL = 0x0F; // Command failed - data was parsed but execution failed
     const CMD_INVALID = 0xFE; // Command was missing data
@@ -185,6 +204,14 @@
       stopSmTimeout();
     }
 
+    function cancelSm() {
+      if (receiveSm) {
+        receiveSm.cancel();
+      }
+      receiveSm = null;
+      stopSmTimeout();
+    }
+
     function enableAllControls() {
       let tabcontent = document.getElementsByClassName("tabcontent");
       for (let i = 0; i < tabcontent.length; i++) {
@@ -201,6 +228,9 @@
       setStatus("Loading settings...");
       const GET_SETTINGS_ADDR = 123;
       var loadSm = {};
+      loadSm.cancel = function() {
+        setStatus('Load canceled', 'red', 'bold');
+      };
       loadSm.timeout = function() {
         disconnect('Load failed', 'red', 'bold');
       };
@@ -210,13 +240,102 @@
       }
       loadSm.process = function(addr, cmd, payload) {
         if (addr == GET_SETTINGS_ADDR) {
-          if (cmd == CMD_OK && payload.length >= 6) {
+          if (cmd == CMD_OK && payload.length >= 38) {
             // Retrieved settings
             mscCheckbox.checked = (payload[1] !== 0);
-            player1.value = payload[2];
-            player2.value = payload[3];
-            player3.value = payload[4];
-            player4.value = payload[5];
+
+            const controllerADetection = payload[2];
+            player1.value = controllerADetection;
+            const controllerBDetection = payload[3];
+            player2.value = controllerBDetection;
+            const controllerCDetection = payload[4];
+            player3.value = controllerCDetection;
+            const controllerDDetection = payload[5];
+            player4.value = controllerDDetection;
+
+            if (controllerADetection != 0) {
+              const gpioA = (payload[6] << 24 | payload[7] << 16 | payload[8] << 8 | payload[9]);
+              gpioAText.value = gpioA.toString(10);
+              gpioABSpan.textContent = gpioA + 1;
+            } else {
+              gpioAText.value = "";
+              gpioABSpan.textContent = "Disabled";
+            }
+
+            if (controllerBDetection != 0) {
+              const gpioB = (payload[10] << 24 | payload[11] << 16 | payload[12] << 8 | payload[13]);
+              gpioBText.value = gpioB.toString(10);
+              gpioBBSpan.textContent = gpioB + 1;
+            } else {
+              gpioBText.value = "";
+              gpioBBSpan.textContent = "Disabled";
+            }
+
+            if (controllerCDetection != 0) {
+              const gpioC = (payload[14] << 24 | payload[15] << 16 | payload[16] << 8 | payload[17]);
+              gpioCText.value = gpioC.toString(10);
+              gpioCBSpan.textContent = gpioC + 1;
+            } else {
+              gpioCText.value = "";
+              gpioCBSpan.textContent = "Disabled";
+            }
+
+            if (controllerDDetection != 0) {
+              const gpioD = (payload[18] << 24 | payload[19] << 16 | payload[20] << 8 | payload[21]);
+              gpioDText.value = gpioD.toString(10);
+              gpioDBSpan.textContent = gpioD + 1;
+            } else {
+              gpioDText.value = "";
+              gpioDBSpan.textContent = "Disabled";
+            }
+
+            const gpioDirA = (payload[22] << 24 | payload[23] << 16 | payload[24] << 8 | payload[25]) | 0;
+            if (gpioDirA >= 0) {
+              gpioADirText.value = gpioDirA.toString(10);
+            } else {
+              gpioADirText.value = "";
+            }
+
+            const gpioDirB = (payload[26] << 24 | payload[27] << 16 | payload[28] << 8 | payload[29]) | 0;
+            if (gpioDirB >= 0) {
+              gpioBDirText.value = gpioDirB.toString(10);
+            } else {
+              gpioBDirText.value = "";
+            }
+
+            const gpioDirC = (payload[30] << 24 | payload[31] << 16 | payload[32] << 8 | payload[33]) | 0;
+            if (gpioDirC >= 0) {
+              gpioCDirText.value = gpioDirC.toString(10);
+            } else {
+              gpioCDirText.value = "";
+            }
+
+            const gpioDirD = (payload[34] << 24 | payload[35] << 16 | payload[36] << 8 | payload[37]) | 0;
+            if (gpioDirD >= 0) {
+              gpioDDirText.value = gpioDirD.toString(10);
+            } else {
+              gpioDDirText.value = "";
+            }
+
+            gpioADirOutHighCheckbox.checked = (payload[38] != 0);
+            gpioBDirOutHighCheckbox.checked = (payload[39] != 0);
+            gpioCDirOutHighCheckbox.checked = (payload[40] != 0);
+            gpioDDirOutHighCheckbox.checked = (payload[41] != 0);
+
+            const gpioLed = (payload[42] << 24 | payload[43] << 16 | payload[44] << 8 | payload[45]) | 0;
+            if (gpioLed >= 0) {
+              gpioLedText.value = gpioLed;
+            } else {
+              gpioLedText.value = "";
+            }
+
+            const gpioSimpleLed = (payload[46] << 24 | payload[47] << 16 | payload[48] << 8 | payload[49]) | 0;
+            if (gpioSimpleLed >= 0) {
+              gpioSimpleLedText.value = gpioSimpleLed;
+            } else {
+              gpioSimpleLedText.value = "";
+            }
+
             stopSm('Settings loaded');
             return;
           }
@@ -238,6 +357,9 @@
       const SEND_SAVE_AND_RESTART_ADDR = 15;
 
       var saveSm = {};
+      saveSm.cancel = function() {
+        setStatus('Save canceled', 'red', 'bold');
+      };
       saveSm.timeout = function() {
         disconnect('Save failed', 'red', 'bold');
       };
@@ -315,7 +437,7 @@
     }
 
     // Starts the state machine which reads all VMU data
-    function startReadVmu(controllerIdx, vmuIndex) {
+    function startReadVmuSm(controllerIdx, vmuIndex) {
       setStatus("Reading VMU...");
       const READ_ADDR = 0xAA;
 
@@ -328,9 +450,16 @@
       readVmuSm.hostAddr = getMapleHostAddr(controllerIdx);
       readVmuSm.destAddr = readVmuSm.hostAddr | (1 << vmuIndex);
       readVmuSm.currentBlock = 0;
+
+      readVmuSm.cancel = function() {
+        setStatus('VMU read canceled', 'red', 'bold');
+        resetProgressBar();
+      };
+
       function sendCurrentBlock() {
         send(READ_ADDR, '0'.charCodeAt(0), [0x0B, readVmuSm.destAddr, readVmuSm.hostAddr, 2, 0, 0, 0, 2, 0, 0, 0, readVmuSm.currentBlock]);
       };
+
       readVmuSm.timeout = function() {
         if (readVmuSm.retries++ < 2) {
             // Re-read current block
@@ -340,6 +469,7 @@
           resetProgressBar();
         }
       };
+
       readVmuSm.start = function() {
         vmuProgressContainer.style.display = 'block';
         vmuProgressContainer.style.visibility = 'visible';
@@ -348,6 +478,7 @@
         readVmuSm.startTime = Date.now();
         sendCurrentBlock();
       };
+
       readVmuSm.process = function(addr, cmd, payload) {
         let fnType = Number(addr & BigInt(0xff));
         let receivedBlock = -1;
@@ -403,7 +534,7 @@
     }
 
     // Starts the state machine which writes to a selected VMU
-    function startWriteVmu(controllerIdx, vmuIdx, fileData) {
+    function startWriteVmuSm(controllerIdx, vmuIdx, fileData) {
       setStatus("Writing VMU...");
       const WRITE_ADDR = 0x55;
       const NUM_PHASES_PER_BLOCK = 4;
@@ -413,6 +544,7 @@
 
       var writeVmuSm = {};
       writeVmuSm.retries = 0;
+      writeVmuSm.errorCount = 0;
       writeVmuSm.controllerIdx = controllerIdx;
       writeVmuSm.vmuIndex = vmuIdx;
       writeVmuSm.hostAddr = getMapleHostAddr(controllerIdx);
@@ -420,6 +552,11 @@
       writeVmuSm.currentBlock = 0;
       writeVmuSm.currentPhase = 0; // [0,4] // commit on 4
       writeVmuSm.writeDelayMs = 10; // delay between writes, grows on each retry
+
+      writeVmuSm.cancel = function() {
+        setStatus('VMU write canceled, VMU memory may be left in a corrupted state', 'red', 'bold');
+        resetProgressBar();
+      };
 
       function writeCurrentPhase() {
         const locationWord = [0, writeVmuSm.currentPhase, 0, writeVmuSm.currentBlock];
@@ -434,7 +571,9 @@
       }
 
       function retry() {
+        ++writeVmuSm.errorCount;
         if (++writeVmuSm.retries > 2) {
+          console.error("Write failed, retrying");
           return false;
         }
 
@@ -490,7 +629,7 @@
               stopSm('VMU write complete');
               resetProgressBar();
               const readTime = Date.now() - writeVmuSm.startTime;
-              console.log(`VMU read completed in ${readTime}ms`);
+              console.log(`VMU read completed in ${readTime}ms with ${writeVmuSm.errorCount} retried packets`);
               return;
             }
           }
@@ -503,6 +642,12 @@
 
           if (writeVmuSm.currentPhase > 3)
           {
+            // Try to speed things up
+            --writeVmuSm.writeDelayMs;
+            if (writeVmuSm.writeDelayMs < 10) {
+              writeVmuSm.writeDelayMs = 10;
+            }
+
             resetSmTimeout();
             setTimeout(() => {
               writeCommit();
@@ -746,7 +891,7 @@
 
     readVmuButton.addEventListener('click', function() {
       const { controllerIdx, vmuIdx } = getSelectedVmuIndices();
-      startReadVmu(controllerIdx, vmuIdx);
+      startReadVmuSm(controllerIdx, vmuIdx);
     });
 
     writeVmuButton.addEventListener('click', function() {
@@ -769,7 +914,7 @@
               return;
             }
             // Start write VMU process with the loaded file data
-            startWriteVmu(controllerIdx, vmuIdx, fileData);
+            startWriteVmuSm(controllerIdx, vmuIdx, fileData);
           };
           reader.readAsArrayBuffer(file);
         }
@@ -779,5 +924,10 @@
       fileInput.click();
       document.body.removeChild(fileInput);
     });
+
+    vmuMemoryCancelButton.addEventListener('click', function () {
+      cancelSm();
+    });
+
   });
 })();

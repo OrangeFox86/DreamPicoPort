@@ -210,6 +210,9 @@
             <div id="vmu-progress-container" style="width: 60%; margin: 20px auto; display: none;">
               <progress id="vmu-progress" value="0" max="100" style="width: 100%; height: 24px;"></progress>
               <span id="vmu-progress-label" style="margin-left: 12px;">0%</span>
+              <br>
+              <br>
+              <button id="vmu-memory-cancel" class="button black">Cancel</button>
             </div>
         </div>
       </div>
@@ -241,27 +244,32 @@
             </td>
           </tr>
           <tr>
-            <td style="text-align: center;">
+            <td style="text-align: right;">
               <label for="gpio-a">SDCK-A:</label>
               <input type="text" id="gpio-a" name="gpio-a" minlength="0" maxlength="3" size="4" value="10" inputmode="numeric" pattern="[0-9]*" placeholder="Disabled" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             </td>
-            <td style="text-align: center;">
+            <td style="text-align: right;">
               <label for="gpio-b">SDCK-A:</label>
               <input type="text" id="gpio-b" name="gpio-b" minlength="0" maxlength="3" size="4" value="12" inputmode="numeric" pattern="[0-9]*" placeholder="Disabled" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             </td>
-            <td style="text-align: center;">
+            <td style="text-align: right;">
               <label for="gpio-c">SDCK-A:</label>
               <input type="text" id="gpio-c" name="gpio-c" minlength="0" maxlength="3" size="4" value="18" inputmode="numeric" pattern="[0-9]*" placeholder="Disabled" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             </td>
-            <td style="text-align: center;">
+            <td style="text-align: right;">
               <label for="gpio-d">SDCK-A:</label>
               <input type="text" id="gpio-d" name="gpio-d" minlength="0" maxlength="3" size="4" value="20" inputmode="numeric" pattern="[0-9]*" placeholder="Disabled" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             </td>
           </tr>
           <tr>
-            <td style="text-align: center;">
+            <td style="text-align: right;">
               <label for="gpio-a-sdck-b">SDCK-B:</label>
               <span id="gpio-a-sdck-b" style="text-align: left; width: 8ch; display: inline-block;">11</span>
+              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
               <script>
               document.getElementById('gpio-a').addEventListener('input', function() {
                 var val = parseInt(this.value, 10);
@@ -269,9 +277,10 @@
               });
               </script>
             </td>
-            <td style="text-align: center;">
+            <td style="text-align: right;">
               <label for="gpio-b-sdck-b">SDCK-B:</label>
               <span id="gpio-b-sdck-b" style="text-align: left; width: 8ch; display: inline-block;">13</span>
+              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
               <script>
               document.getElementById('gpio-b').addEventListener('input', function() {
                 var val = parseInt(this.value, 10);
@@ -279,9 +288,10 @@
               });
               </script>
             </td>
-            <td style="text-align: center;">
+            <td style="text-align: right;">
               <label for="gpio-c-sdck-b">SDCK-B:</label>
               <span id="gpio-c-sdck-b" style="text-align: left; width: 8ch; display: inline-block;">19</span>
+              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
               <script>
               document.getElementById('gpio-c').addEventListener('input', function() {
                 var val = parseInt(this.value, 10);
@@ -289,9 +299,10 @@
               });
               </script>
             </td>
-            <td style="text-align: center;">
+            <td style="text-align: right;">
               <label for="gpio-d-sdck-b">SDCK-B:</label>
               <span id="gpio-d-sdck-b" style="text-align: left; width: 8ch; display: inline-block;">21</span>
+              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
               <script>
               document.getElementById('gpio-d').addEventListener('input', function() {
                 var val = parseInt(this.value, 10);
@@ -302,21 +313,25 @@
           </tr>
 
           <tr>
-            <td style="text-align: center;">
+            <td style="text-align: right;">
               <label for="gpio-dir-a">DIR:</label>
               <input type="text" id="gpio-dir-a" name="gpio-dir-a" minlength="0" maxlength="3" size="4" value="6" inputmode="numeric" pattern="[0-9]*" placeholder="Disabled" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             </td>
-            <td style="text-align: center;">
+            <td style="text-align: right;">
               <label for="gpio-dir-b">DIR:</label>
               <input type="text" id="gpio-dir-b" name="gpio-dir-b" minlength="0" maxlength="3" size="4" value="7" inputmode="numeric" pattern="[0-9]*" placeholder="Disabled" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             </td>
-            <td style="text-align: center;">
+            <td style="text-align: right;">
               <label for="gpio-dir-c">DIR:</label>
               <input type="text" id="gpio-dir-c" name="gpio-dir-c" minlength="0" maxlength="3" size="4" value="26" inputmode="numeric" pattern="[0-9]*" placeholder="Disabled" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             </td>
-            <td style="text-align: center;">
+            <td style="text-align: right;">
               <label for="gpio-dir-d">DIR:</label>
               <input type="text" id="gpio-dir-d" name="gpio-dir-d" minlength="0" maxlength="3" size="4" value="27" inputmode="numeric" pattern="[0-9]*" placeholder="Disabled" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+              &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             </td>
           </tr>
           <tr>

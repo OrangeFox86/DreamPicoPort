@@ -64,7 +64,7 @@ struct DppSettings
         PlayerDetectionMode::kAutoStatic
     };
     //! GPIO number of maple A, maple B is always very next one
-    uint32_t gpioA[kNumPlayers] = {
+    int32_t gpioA[kNumPlayers] = {
         P1_BUS_START_PIN,
         P2_BUS_START_PIN,
         P3_BUS_START_PIN,

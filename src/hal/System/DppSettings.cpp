@@ -49,8 +49,8 @@ struct SettingsMemory
 	uint32_t crc;
     uint32_t usbEn;
     uint8_t playerEnableMode[4];
-    uint32_t gpioA[4];
-    uint32_t gpioDir[4];
+    int32_t gpioA[4];
+    int32_t gpioDir[4];
     uint8_t gpioDirOutputHigh[4];
     int32_t usbLedGpio;
     int32_t simpleUsbLedGpio;
@@ -275,13 +275,15 @@ bool DppSettings::makeValid()
         std::unordered_set<std::uint32_t> usedIoCopy = usedIo;
 
         if (
+            ((gpioA[i] < 0 || gpioDir[i] < 0) && playerDetectionModes[i] != PlayerDetectionMode::kDisable) ||
             !validate_gpio(usedIoCopy, gpioA[i]) ||
-            !validate_gpio(usedIoCopy, gpioA[i] + 1) ||
+            (gpioA[i] >= 0 && !validate_gpio(usedIoCopy, gpioA[i] + 1)) ||
             !validate_gpio(usedIoCopy, gpioDir[i])
         )
         {
             // Disable this player
             playerDetectionModes[i] = PlayerDetectionMode::kDisable;
+            gpioA[i] = -1;
             gpioDir[i] = -1;
             alreadyValid = false;
         }
