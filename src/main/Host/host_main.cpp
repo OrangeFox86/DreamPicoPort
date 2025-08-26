@@ -196,8 +196,8 @@ int main()
         maple_detect(mapleEnabledMask, currentDppSettings, dcNodes, true);
     }
 
-    static const uint64_t kMapleDetectPeriodUs = 125000;
-    uint64_t nextMapleDetect = time_us_64() + kMapleDetectPeriodUs;
+    static const uint32_t kMapleDetectPeriodUs = 125000;
+    uint32_t lastMapleDetectTime = time_us_32();
 
     usb_start();
 
@@ -205,11 +205,11 @@ int main()
     {
         usb_task();
 
-        if (anyMapleAutoDetect && time_us_64() >= nextMapleDetect)
+        if (anyMapleAutoDetect && (time_us_32() - lastMapleDetectTime) >= kMapleDetectPeriodUs)
         {
             maple_detect(mapleEnabledMask, currentDppSettings, dcNodes);
 
-            nextMapleDetect = time_us_64() + kMapleDetectPeriodUs;
+            lastMapleDetectTime = time_us_32();
         }
 
         DppSettings::processSaveRequests();
