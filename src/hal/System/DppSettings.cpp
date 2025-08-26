@@ -316,7 +316,7 @@ bool DppSettings::makeValid()
         std::unordered_set<std::uint32_t> usedIoCopy = usedIo;
 
         if (
-            ((gpioA[i] < 0 || gpioDir[i] < 0) && playerDetectionModes[i] != PlayerDetectionMode::kDisable) ||
+            (gpioA[i] < 0 && playerDetectionModes[i] != PlayerDetectionMode::kDisable) ||
             !validate_gpio(usedIoCopy, gpioA[i]) ||
             (gpioA[i] >= 0 && !validate_gpio(usedIoCopy, gpioA[i] + 1)) ||
             !validate_gpio(usedIoCopy, gpioDir[i])
