@@ -118,6 +118,10 @@ int main()
         }
     }
 
+    // These values are no longer needed
+    watchdog_hw->scratch[0] = 0;
+    watchdog_hw->scratch[1] = 0;
+
     std::vector<PlayerDefinition> playerDefs;
     playerDefs.reserve(MAX_DEVICES);
     uint8_t mapleEnabledMask = 0;
