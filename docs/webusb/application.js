@@ -63,7 +63,8 @@
     let gpioDDirOutHighCheckbox = document.querySelector('#dir-out-high-d');
     let gpioLedText = document.querySelector('#gpio-led');
     let gpioSimpleLedText = document.querySelector('#gpio-simple-led');
-    let saveGpioButton = document.querySelector('#save-advanced')
+    let saveGpioButton = document.querySelector('#save-advanced');
+    let resetSettingsButton = document.querySelector('#reset-settings');
     const CMD_OK = 0x0A; // Command success
     const CMD_FAIL = 0x0F; // Command failed - data was parsed but execution failed
     const CMD_INVALID = 0xFE; // Command was missing data
@@ -792,6 +793,43 @@
       startSm(writeGpioSm);
     }
 
+    function startResetSettingsSm() {
+      setStatus("Resetting Settings...");
+
+      const SEND_RESTART_AND_RESTART_ADDR = 30;
+
+      const CMD_SETTINGS = 'S'.charCodeAt(0);
+
+      var resetSettingsSm = {};
+
+      resetSettingsSm.cancel = function() {
+        setStatus('Settings reset canceled', 'red', 'bold');
+      };
+
+      resetSettingsSm.timeout = function() {
+        setStatus('Settings reset failed', 'red', 'bold');
+      };
+
+      resetSettingsSm.start = function() {
+        send(SEND_RESTART_AND_RESTART_ADDR, CMD_SETTINGS, ['X'.charCodeAt(0)]);
+      };
+
+      resetSettingsSm.process = function(addr, cmd, payload) {
+        if (addr == SEND_RESTART_AND_RESTART_ADDR) {
+          if (cmd == CMD_OK) {
+            // TODO: update settings on page with the defaults
+            stopSm('Settings reset');
+          } else {
+            stopSm('Failed to reset settings', 'red', 'bold');
+          }
+          return;
+        }
+        resetSmTimeout();
+      };
+
+      startSm(resetSettingsSm);
+    }
+
     function handleIncomingMsg(addr, cmd, payload) {
       console.info(`RCV ADDR: 0x${addr.toString(16)}, CMD: 0x${cmd.toString(16)}, PAYLOAD: [${Array.from(payload).map(b => '0x' + b.toString(16).padStart(2, '0')).join(', ')}]`);
       // receiveSm
@@ -1054,6 +1092,10 @@
 
     saveGpioButton.addEventListener('click', function() {
       startWriteGpioSm();
+    });
+
+    resetSettingsButton.addEventListener('click', function() {
+      startResetSettingsSm();
     });
 
   });

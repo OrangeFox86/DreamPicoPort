@@ -24,6 +24,7 @@
 #include <cstdint>
 #include <cstring>
 #include <unordered_set>
+#include <optional>
 
 #include <configuration.h>
 
@@ -133,39 +134,31 @@ void DppSettings::requestSave(uint32_t delayMs)
 {
     LockGuard lock(gSaveMutex);
 
-    if (!sSaveRequested)
+    if (!sSaveOrClearRequested)
     {
         sSaveRequestedSettings = *this;
         sDelayMs = delayMs;
         sSaveRequestTime = time_us_32();
-        sSaveRequested = true;
+        sSaveOrClearRequested = true;
     }
 }
 
-void DppSettings::processSaveRequests()
+void DppSettings::requestClear(uint32_t delayMs)
 {
-    if (sSaving || !sSaveRequested)
+    LockGuard lock(gSaveMutex);
+
+    if (!sSaveOrClearRequested)
     {
-        return;
+        sClearRequested = true;
+        sDelayMs = delayMs;
+        sSaveRequestTime = time_us_32();
+        sSaveOrClearRequested = true;
     }
-
-    DppSettings settingsToSave;
-    uint32_t delayMs = 0;
-
-    {
-        LockGuard lock(gSaveMutex);
-
-        const uint32_t elapsedMsSinceRequest = (time_us_32() - sSaveRequestTime);
-        delayMs = (sDelayMs > elapsedMsSinceRequest) ? (sDelayMs - elapsedMsSinceRequest) : 0;
-        settingsToSave = sSaveRequestedSettings;
-    }
-
-    settingsToSave.save(delayMs);
 }
 
 void __no_inline_not_in_flash_func(save_settings_memory)(
     uint32_t offsetAddr,
-    const SettingsMemory& mem,
+    std::optional<SettingsMemory> mem,
     uint32_t delayMs
 )
 {
@@ -182,14 +175,16 @@ void __no_inline_not_in_flash_func(save_settings_memory)(
 
     flash_range_erase(offsetAddr, FLASH_SECTOR_SIZE);
 
-    // Create the page since flash_range_program() requires multiple of FLASH_PAGE_SIZE bytes
-    uint8_t page[FLASH_PAGE_SIZE];
-    memcpy(&page[0], &mem, sizeof(SettingsMemory));
-    memset(&page[sizeof(SettingsMemory)], 0xFF, sizeof(page) - sizeof(SettingsMemory));
+    if (mem.has_value())
+    {
+        // Create the page since flash_range_program() requires multiple of FLASH_PAGE_SIZE bytes
+        uint8_t page[FLASH_PAGE_SIZE];
+        memcpy(&page[0], &mem.value(), sizeof(SettingsMemory));
+        memset(&page[sizeof(SettingsMemory)], 0xFF, sizeof(page) - sizeof(SettingsMemory));
 
-    // WRITE IT!
-    // TODO: sometimes this fails faults?
-    flash_range_program(offsetAddr, page, FLASH_PAGE_SIZE);
+        // WRITE IT!
+        flash_range_program(offsetAddr, page, FLASH_PAGE_SIZE);
+    }
 
     // Wait a moment
     busy_wait_us(50000);
@@ -199,6 +194,35 @@ void __no_inline_not_in_flash_func(save_settings_memory)(
 
     // Reboot now to apply settings
     watchdog_reboot(0, 0, delayMs);
+}
+
+void DppSettings::processSaveRequests()
+{
+    if (sSaving || !sSaveOrClearRequested)
+    {
+        return;
+    }
+
+    DppSettings settingsToSave;
+    uint32_t delayMs = 0;
+
+    {
+        LockGuard lock(gSaveMutex);
+
+        const uint32_t elapsedMsSinceRequest = (time_us_32() - sSaveRequestTime);
+        delayMs = (sDelayMs > elapsedMsSinceRequest) ? (sDelayMs - elapsedMsSinceRequest) : 0;
+        settingsToSave = sSaveRequestedSettings;
+    }
+
+    if (sClearRequested)
+    {
+        // Clear without saving
+        save_settings_memory(sSettingsOffsetAddr, std::nullopt, delayMs);
+    }
+    else
+    {
+        settingsToSave.save(delayMs);
+    }
 }
 
 void DppSettings::save(uint32_t delayMs) const
@@ -353,7 +377,8 @@ bool DppSettings::isGpioValid(std::uint32_t gpio)
 
 uint32_t DppSettings::sSettingsOffsetAddr = 0;
 DppSettings DppSettings::sLoadedSettings;
-bool DppSettings::sSaveRequested = false;
+bool DppSettings::sSaveOrClearRequested = false;
+bool DppSettings::sClearRequested = false;
 uint32_t DppSettings::sDelayMs = 0;
 uint32_t DppSettings::sSaveRequestTime = 0;
 DppSettings DppSettings::sSaveRequestedSettings;

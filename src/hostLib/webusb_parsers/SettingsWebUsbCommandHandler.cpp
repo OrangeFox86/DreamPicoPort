@@ -283,7 +283,6 @@ void SettingsWebUsbCommandHandler::process(
         {
             if (mSettings.makeValid())
             {
-                // Send response before saving
                 responseFn(kResponseSuccess, {});
             }
             else
@@ -295,6 +294,14 @@ void SettingsWebUsbCommandHandler::process(
 
             // This will save and reboot on core 0 - delay for 100 ms to allow the above message to go out
             mSettings.requestSave(100);
+        }
+        return;
+
+        // Clear all settings and reboot
+        case 'X':
+        {
+            responseFn(kResponseSuccess, {});
+            DppSettings::requestClear(100);
         }
         return;
 

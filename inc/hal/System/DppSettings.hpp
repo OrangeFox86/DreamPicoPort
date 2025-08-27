@@ -108,6 +108,10 @@ struct DppSettings
     //! @param[in] delayMs Number of ms to delay before saving
     void requestSave(uint32_t delayMs);
 
+    //! Called from core 1 to request settings clear on core 0
+    //! @param[in] delayMs Number of ms to delay before saving
+    static void requestClear(uint32_t delayMs);
+
     //! Processes any save requests
     static void processSaveRequests();
 
@@ -143,7 +147,9 @@ private:
     //! The loaded settings on initialize()
     static DppSettings sLoadedSettings;
     //! Set to true when save is requested
-    static bool sSaveRequested;
+    static bool sSaveOrClearRequested;
+    //! Set to true when the above is also true and clear was requested instead of save
+    static bool sClearRequested;
     //! The delay to wait when above is true
     static uint32_t sDelayMs;
     //! The 32-bit save requested time
