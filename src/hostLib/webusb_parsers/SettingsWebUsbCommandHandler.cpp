@@ -285,15 +285,16 @@ void SettingsWebUsbCommandHandler::process(
             {
                 // Send response before saving
                 responseFn(kResponseSuccess, {});
-
-                // This will save and reboot on core 0 - delay for 100 ms to allow the above message to go out
-                mSettings.requestSave(100);
             }
             else
             {
-                // Settings had to be adjusted to be valid (execute 'g' to get adjusted settings)
-                responseFn(kResponseFailure, {});
+                // Settings had to be adjusted to be valid, save and respond with adjusted settings
+                std::string settingsData = packSettings(mSettings);
+                responseFn(kResponseSuccess, {{settingsData.data(), settingsData.size()}});
             }
+
+            // This will save and reboot on core 0 - delay for 100 ms to allow the above message to go out
+            mSettings.requestSave(100);
         }
         return;
 

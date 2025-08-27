@@ -57,9 +57,5 @@ struct DreamcastNodeData
 
 std::vector<DreamcastNodeData> setup_dreamcast_nodes(const std::vector<PlayerDefinition>& playerDefs);
 std::unique_ptr<SerialStreamParser> make_parsers(const std::vector<DreamcastNodeData>& dcNodes);
-void maple_detect(
-    uint8_t& mapleEnabledMask,
-    DppSettings& currentDppSettings,
-    std::vector<DreamcastNodeData>& dcNodes,
-    bool rebootNowOnDetect = false
-);
+void maple_detect_init(const std::vector<DreamcastNodeData>& dcNodes);
+void maple_detect(std::vector<DreamcastNodeData>& dcNodes, bool rebootNowOnDetect = false);

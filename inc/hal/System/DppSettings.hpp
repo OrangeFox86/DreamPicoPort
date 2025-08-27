@@ -116,9 +116,6 @@ struct DppSettings
     //! @param[in] delayMs Number of milliseconds to delay before rebooting
     void save(uint32_t delayMs = 0) const;
 
-    //! @return true iff settings are valid
-    bool isValid() const;
-
     //! Forces valid settings
     //! @return true iff settings were already valid
     bool makeValid();

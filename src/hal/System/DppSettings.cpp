@@ -121,8 +121,6 @@ const DppSettings& DppSettings::initialize()
         sLoadedSettings.gpioDirOutputHigh[i] = settingsMemory->gpioDirOutputHigh[i];
     }
 
-    sLoadedSettings.makeValid();
-
     return sLoadedSettings;
 }
 
@@ -255,44 +253,6 @@ static bool validate_gpio(std::unordered_set<std::uint32_t>& usedIo, std::int32_
     return true;
 }
 
-bool DppSettings::isValid() const
-{
-    std::unordered_set<std::uint32_t> usedIo;
-
-    if (!validate_gpio(usedIo, usbLedGpio))
-    {
-        return false;
-    }
-
-    if (!validate_gpio(usedIo, simpleUsbLedGpio))
-    {
-        return false;
-    }
-
-    for (std::uint8_t i = 0; i < kNumPlayers; ++i)
-    {
-        if (!validate_gpio(usedIo, gpioA[i]) || !validate_gpio(usedIo, gpioA[i] + 1))
-        {
-            return false;
-        }
-
-        if (!validate_gpio(usedIo, gpioDir[i]))
-        {
-            return false;
-        }
-
-        if (
-            static_cast<std::uint8_t>(playerDetectionModes[i]) >=
-            static_cast<std::uint8_t>(PlayerDetectionMode::kNumPlayerDetectionModes)
-        )
-        {
-            return false;
-        }
-    }
-
-    return true;
-}
-
 bool DppSettings::makeValid()
 {
     bool alreadyValid = true;
@@ -310,37 +270,57 @@ bool DppSettings::makeValid()
         alreadyValid = false;
     }
 
+    // Disable players with invalid GPIO value
     for (std::uint8_t i = 0; i < kNumPlayers; ++i)
     {
-        // Copy to temporary set so it may be reverted
-        std::unordered_set<std::uint32_t> usedIoCopy = usedIo;
-
-        if (
-            (gpioA[i] < 0 && playerDetectionModes[i] != PlayerDetectionMode::kDisable) ||
-            !validate_gpio(usedIoCopy, gpioA[i]) ||
-            (gpioA[i] >= 0 && !validate_gpio(usedIoCopy, gpioA[i] + 1)) ||
-            !validate_gpio(usedIoCopy, gpioDir[i])
-        )
+        if (gpioA[i] < 0 && playerDetectionModes[i] != PlayerDetectionMode::kDisable)
         {
-            // Disable this player
             playerDetectionModes[i] = PlayerDetectionMode::kDisable;
             gpioA[i] = -1;
             gpioDir[i] = -1;
             alreadyValid = false;
         }
-        else
+
+    }
+
+    // Handle overlapping GPIO values
+    for (std::uint8_t i = 0; i < kNumPlayers; ++i)
+    {
+        // Copy to temporary set so it may be reverted
+        std::unordered_set<std::uint32_t> usedIoCopy = usedIo;
+
+        // Only check player pins if not disabled
+        if (playerDetectionModes[i] != PlayerDetectionMode::kDisable)
         {
-            // Commit the changes
-            usedIo = std::move(usedIoCopy);
+            // If here, gpioA[i] is guaranteed to be >=0 due to previous loop
+            int32_t gpioB = gpioA[i] + 1;
 
             if (
-                static_cast<std::uint8_t>(playerDetectionModes[i]) >=
-                static_cast<std::uint8_t>(PlayerDetectionMode::kNumPlayerDetectionModes)
+                !validate_gpio(usedIoCopy, gpioA[i]) ||
+                !validate_gpio(usedIoCopy, gpioB) ||
+                !validate_gpio(usedIoCopy, gpioDir[i])
             )
             {
-                // This seems like the best option when this setting is invalid
-                playerDetectionModes[i] = PlayerDetectionMode::kAutoDynamicNoDisable;
+                // Disable this player
+                playerDetectionModes[i] = PlayerDetectionMode::kDisable;
+                gpioA[i] = -1;
+                gpioDir[i] = -1;
                 alreadyValid = false;
+            }
+            else
+            {
+                // Commit the changes
+                usedIo = std::move(usedIoCopy);
+
+                if (
+                    static_cast<std::uint8_t>(playerDetectionModes[i]) >=
+                    static_cast<std::uint8_t>(PlayerDetectionMode::kNumPlayerDetectionModes)
+                )
+                {
+                    // This seems like the best option when this setting is invalid
+                    playerDetectionModes[i] = PlayerDetectionMode::kAutoDynamicNoDisable;
+                    alreadyValid = false;
+                }
             }
         }
     }

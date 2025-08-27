@@ -148,12 +148,27 @@ std::unique_ptr<SerialStreamParser> make_parsers(
     return ttyParser;
 }
 
-void maple_detect(
-    uint8_t& mapleEnabledMask,
-    DppSettings& currentDppSettings,
-    std::vector<DreamcastNodeData>& dcNodes,
-    bool rebootNowOnDetect
-)
+static uint8_t mapleEnabledMask = 0;
+static DppSettings::PlayerDetectionMode mapleDetectUpdatedModes[DppSettings::kNumPlayers];
+static bool maplePlayerModesUpdated = false;
+
+void maple_detect_init(const std::vector<DreamcastNodeData>& dcNodes)
+{
+    for (uint8_t i = 0; i < DppSettings::kNumPlayers; ++i)
+    {
+        mapleDetectUpdatedModes[i] = DppSettings::getInitialSettings().playerDetectionModes[i];
+    }
+
+    for (const DreamcastNodeData& node : dcNodes)
+    {
+        if (!node.playerDef.autoDetectOnly)
+        {
+            mapleEnabledMask |= (1 << node.playerDef.index);
+        }
+    }
+}
+
+void maple_detect(std::vector<DreamcastNodeData>& dcNodes, bool rebootNowOnDetect)
 {
     // Time markers for auto detect when anyMapleAutoDetect is true
     static uint64_t autoDetectTimeUs[MAX_DEVICES] = {};
@@ -179,7 +194,8 @@ void maple_detect(
                     if (mode == DppSettings::PlayerDetectionMode::kAutoStatic)
                     {
                         // Update settings which will be saved later
-                        currentDppSettings.playerDetectionModes[playerIdx] = DppSettings::PlayerDetectionMode::kEnable;
+                        mapleDetectUpdatedModes[playerIdx] = DppSettings::PlayerDetectionMode::kEnable;
+                        maplePlayerModesUpdated = true;
                     }
                 }
             }
@@ -205,10 +221,16 @@ void maple_detect(
         watchdog_hw->scratch[0] = WATCHDOG_MAPLE_AUTO_DETECT_MAGIC;
         watchdog_hw->scratch[1] = mapleEnabledMask;
 
-        if (DppSettings::getInitialSettings() != currentDppSettings)
+        if (maplePlayerModesUpdated)
         {
+            DppSettings newSettings = DppSettings::getInitialSettings();
+            for (uint8_t i = 0; i < DppSettings::kNumPlayers; ++i)
+            {
+                newSettings.playerDetectionModes[i] = mapleDetectUpdatedModes[i];
+            }
+
             // This should cause a reboot
-            currentDppSettings.save();
+            newSettings.save();
         }
 
         watchdog_reboot(0, 0, 0);

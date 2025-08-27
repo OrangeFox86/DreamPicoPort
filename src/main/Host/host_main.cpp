@@ -87,6 +87,7 @@ int main()
     // Initialize settings from flash
     // This needs to be done before interrupts are enabled
     DppSettings currentDppSettings = DppSettings::initialize();
+    currentDppSettings.makeValid();
 
     set_usb_cdc_en(currentDppSettings.cdcEn);
     set_usb_msc_en(currentDppSettings.mscEn);
@@ -124,7 +125,6 @@ int main()
 
     std::vector<PlayerDefinition> playerDefs;
     playerDefs.reserve(MAX_DEVICES);
-    uint8_t mapleEnabledMask = 0;
     bool anyMapleAutoDetect = false;
     bool allMapleAutoDetect = true;
 
@@ -144,10 +144,6 @@ int main()
             playerDef.dirOutHigh = currentDppSettings.gpioDirOutputHigh[i];
             playerDef.detectionMode = currentDppSettings.playerDetectionModes[i];
             playerDef.autoDetectOnly = !usbEnabled;
-            if (usbEnabled)
-            {
-                mapleEnabledMask |= (1 << i);
-            }
 
             if (autoDetect)
             {
@@ -163,6 +159,8 @@ int main()
     }
 
     dcNodes = setup_dreamcast_nodes(playerDefs);
+
+    maple_detect_init(dcNodes);
 
 #if SHOW_DEBUG_MESSAGES
     stdio_uart_init();
@@ -197,7 +195,7 @@ int main()
             }
         }
 
-        maple_detect(mapleEnabledMask, currentDppSettings, dcNodes, true);
+        maple_detect(dcNodes, true);
     }
 
     static const uint32_t kMapleDetectPeriodUs = 125000;
@@ -211,7 +209,7 @@ int main()
 
         if (anyMapleAutoDetect && (time_us_32() - lastMapleDetectTime) >= kMapleDetectPeriodUs)
         {
-            maple_detect(mapleEnabledMask, currentDppSettings, dcNodes);
+            maple_detect(dcNodes);
 
             lastMapleDetectTime = time_us_32();
         }
