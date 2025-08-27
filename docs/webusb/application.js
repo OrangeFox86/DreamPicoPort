@@ -223,102 +223,106 @@
     }
 
     function setSettingsFromPayload(payload) {
-      if (payload.length >= 38) {
-        // Retrieved settings
-        mscCheckbox.checked = (payload[1] !== 0);
-
-        const controllerADetection = payload[2];
-        player1.value = controllerADetection;
-        const controllerBDetection = payload[3];
-        player2.value = controllerBDetection;
-        const controllerCDetection = payload[4];
-        player3.value = controllerCDetection;
-        const controllerDDetection = payload[5];
-        player4.value = controllerDDetection;
-
-        const gpioA = (payload[6] << 24 | payload[7] << 16 | payload[8] << 8 | payload[9]) | 0;
-        if (gpioA >= 0) {
-          gpioAText.value = gpioA.toString(10);
-          gpioABSpan.textContent = gpioA + 1;
-        } else {
-          gpioAText.value = "";
-          gpioABSpan.textContent = "Disabled";
-        }
-
-        const gpioB = (payload[10] << 24 | payload[11] << 16 | payload[12] << 8 | payload[13]) | 0;
-        if (gpioB >= 0) {
-          gpioBText.value = gpioB.toString(10);
-          gpioBBSpan.textContent = gpioB + 1;
-        } else {
-          gpioBText.value = "";
-          gpioBBSpan.textContent = "Disabled";
-        }
-
-        const gpioC = (payload[14] << 24 | payload[15] << 16 | payload[16] << 8 | payload[17]) | 0;
-        if (gpioC >= 0) {
-          gpioCText.value = gpioC.toString(10);
-          gpioCBSpan.textContent = gpioC + 1;
-        } else {
-          gpioCText.value = "";
-          gpioCBSpan.textContent = "Disabled";
-        }
-
-        const gpioD = (payload[18] << 24 | payload[19] << 16 | payload[20] << 8 | payload[21]) | 0;
-        if (gpioD >= 0) {
-          gpioDText.value = gpioD.toString(10);
-          gpioDBSpan.textContent = gpioD + 1;
-        } else {
-          gpioDText.value = "";
-          gpioDBSpan.textContent = "Disabled";
-        }
-
-        const gpioDirA = (payload[22] << 24 | payload[23] << 16 | payload[24] << 8 | payload[25]) | 0;
-        if (gpioDirA >= 0) {
-          gpioADirText.value = gpioDirA.toString(10);
-        } else {
-          gpioADirText.value = "";
-        }
-
-        const gpioDirB = (payload[26] << 24 | payload[27] << 16 | payload[28] << 8 | payload[29]) | 0;
-        if (gpioDirB >= 0) {
-          gpioBDirText.value = gpioDirB.toString(10);
-        } else {
-          gpioBDirText.value = "";
-        }
-
-        const gpioDirC = (payload[30] << 24 | payload[31] << 16 | payload[32] << 8 | payload[33]) | 0;
-        if (gpioDirC >= 0) {
-          gpioCDirText.value = gpioDirC.toString(10);
-        } else {
-          gpioCDirText.value = "";
-        }
-
-        const gpioDirD = (payload[34] << 24 | payload[35] << 16 | payload[36] << 8 | payload[37]) | 0;
-        if (gpioDirD >= 0) {
-          gpioDDirText.value = gpioDirD.toString(10);
-        } else {
-          gpioDDirText.value = "";
-        }
-
-        gpioADirOutHighCheckbox.checked = (payload[38] != 0);
-        gpioBDirOutHighCheckbox.checked = (payload[39] != 0);
-        gpioCDirOutHighCheckbox.checked = (payload[40] != 0);
-        gpioDDirOutHighCheckbox.checked = (payload[41] != 0);
-
-        const gpioLed = (payload[42] << 24 | payload[43] << 16 | payload[44] << 8 | payload[45]) | 0;
-        if (gpioLed >= 0) {
-          gpioLedText.value = gpioLed;
-        } else {
-          gpioLedText.value = "";
-        }
-
-        const gpioSimpleLed = (payload[46] << 24 | payload[47] << 16 | payload[48] << 8 | payload[49]) | 0;
-        if (gpioSimpleLed >= 0) {
-          gpioSimpleLedText.value = gpioSimpleLed;
-        } else {
-          gpioSimpleLedText.value = "";
-        }
+      if (payload.length < 38) {
+        return false;
       }
+
+      // Retrieved settings
+      mscCheckbox.checked = (payload[1] !== 0);
+
+      const controllerADetection = payload[2];
+      player1.value = controllerADetection;
+      const controllerBDetection = payload[3];
+      player2.value = controllerBDetection;
+      const controllerCDetection = payload[4];
+      player3.value = controllerCDetection;
+      const controllerDDetection = payload[5];
+      player4.value = controllerDDetection;
+
+      const gpioA = (payload[6] << 24 | payload[7] << 16 | payload[8] << 8 | payload[9]) | 0;
+      if (gpioA >= 0) {
+        gpioAText.value = gpioA.toString(10);
+        gpioABSpan.textContent = gpioA + 1;
+      } else {
+        gpioAText.value = "";
+        gpioABSpan.textContent = "Disabled";
+      }
+
+      const gpioB = (payload[10] << 24 | payload[11] << 16 | payload[12] << 8 | payload[13]) | 0;
+      if (gpioB >= 0) {
+        gpioBText.value = gpioB.toString(10);
+        gpioBBSpan.textContent = gpioB + 1;
+      } else {
+        gpioBText.value = "";
+        gpioBBSpan.textContent = "Disabled";
+      }
+
+      const gpioC = (payload[14] << 24 | payload[15] << 16 | payload[16] << 8 | payload[17]) | 0;
+      if (gpioC >= 0) {
+        gpioCText.value = gpioC.toString(10);
+        gpioCBSpan.textContent = gpioC + 1;
+      } else {
+        gpioCText.value = "";
+        gpioCBSpan.textContent = "Disabled";
+      }
+
+      const gpioD = (payload[18] << 24 | payload[19] << 16 | payload[20] << 8 | payload[21]) | 0;
+      if (gpioD >= 0) {
+        gpioDText.value = gpioD.toString(10);
+        gpioDBSpan.textContent = gpioD + 1;
+      } else {
+        gpioDText.value = "";
+        gpioDBSpan.textContent = "Disabled";
+      }
+
+      const gpioDirA = (payload[22] << 24 | payload[23] << 16 | payload[24] << 8 | payload[25]) | 0;
+      if (gpioDirA >= 0) {
+        gpioADirText.value = gpioDirA.toString(10);
+      } else {
+        gpioADirText.value = "";
+      }
+
+      const gpioDirB = (payload[26] << 24 | payload[27] << 16 | payload[28] << 8 | payload[29]) | 0;
+      if (gpioDirB >= 0) {
+        gpioBDirText.value = gpioDirB.toString(10);
+      } else {
+        gpioBDirText.value = "";
+      }
+
+      const gpioDirC = (payload[30] << 24 | payload[31] << 16 | payload[32] << 8 | payload[33]) | 0;
+      if (gpioDirC >= 0) {
+        gpioCDirText.value = gpioDirC.toString(10);
+      } else {
+        gpioCDirText.value = "";
+      }
+
+      const gpioDirD = (payload[34] << 24 | payload[35] << 16 | payload[36] << 8 | payload[37]) | 0;
+      if (gpioDirD >= 0) {
+        gpioDDirText.value = gpioDirD.toString(10);
+      } else {
+        gpioDDirText.value = "";
+      }
+
+      gpioADirOutHighCheckbox.checked = (payload[38] != 0);
+      gpioBDirOutHighCheckbox.checked = (payload[39] != 0);
+      gpioCDirOutHighCheckbox.checked = (payload[40] != 0);
+      gpioDDirOutHighCheckbox.checked = (payload[41] != 0);
+
+      const gpioLed = (payload[42] << 24 | payload[43] << 16 | payload[44] << 8 | payload[45]) | 0;
+      if (gpioLed >= 0) {
+        gpioLedText.value = gpioLed;
+      } else {
+        gpioLedText.value = "";
+      }
+
+      const gpioSimpleLed = (payload[46] << 24 | payload[47] << 16 | payload[48] << 8 | payload[49]) | 0;
+      if (gpioSimpleLed >= 0) {
+        gpioSimpleLedText.value = gpioSimpleLed;
+      } else {
+        gpioSimpleLedText.value = "";
+      }
+
+      return true;
     }
 
     // Starts the state machine which loads the settings from the device
@@ -341,9 +345,8 @@
       }
       loadSm.process = function(addr, cmd, payload) {
         if (addr == GET_SETTINGS_ADDR) {
-          if (cmd == CMD_OK && payload.length >= 38) {
+          if (cmd == CMD_OK && setSettingsFromPayload(payload)) {
             // Retrieved settings
-            setSettingsFromPayload(payload);
             stopSm('Settings loaded');
             return;
           }
@@ -773,9 +776,8 @@
           }
         } else if (addr == SEND_SAVE_AND_RESTART_ADDR) {
           if (cmd == CMD_OK) {
-            if (payload.length >= 38)
+            if (setSettingsFromPayload(payload))
             {
-              setSettingsFromPayload(payload);
               stopSm('GPIO settings saved with adjustments due to overlapping GPIO - please review changes', 'orange', 'bold')
             }
             else
@@ -817,7 +819,7 @@
       resetSettingsSm.process = function(addr, cmd, payload) {
         if (addr == SEND_RESTART_AND_RESTART_ADDR) {
           if (cmd == CMD_OK) {
-            // TODO: update settings on page with the defaults
+            setSettingsFromPayload(payload);
             stopSm('Settings reset');
           } else {
             stopSm('Failed to reset settings', 'red', 'bold');

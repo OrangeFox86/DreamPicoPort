@@ -300,7 +300,11 @@ void SettingsWebUsbCommandHandler::process(
         // Clear all settings and reboot
         case 'X':
         {
-            responseFn(kResponseSuccess, {});
+            // Send the response with default settings
+            std::string settingsData = packSettings(DppSettings());
+            responseFn(kResponseSuccess, {{settingsData.data(), settingsData.size()}});
+
+            // Clear in 100 ms
             DppSettings::requestClear(100);
         }
         return;

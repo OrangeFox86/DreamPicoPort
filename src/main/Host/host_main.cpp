@@ -76,13 +76,15 @@ int main()
 {
     set_sys_clock_khz(CPU_FREQ_KHZ, true);
 
-    bool rebootDetected = (watchdog_hw->scratch[0] == WATCHDOG_MAPLE_AUTO_DETECT_MAGIC);
+    const bool mapleRebootDetected = (watchdog_hw->scratch[0] == WATCHDOG_MAPLE_AUTO_DETECT_MAGIC);
+    const bool settingsRebootDetected = (watchdog_hw->scratch[0] == DppSettings::WATCHDOG_SETTINGS_UPDATED_MAGIC);
+    const bool rebootDetected = (mapleRebootDetected || settingsRebootDetected);
 
-    if (!rebootDetected)
-    {
-        // Wait for steady state
-        sleep_ms(100);
-    }
+    // Ensure USB hardware is not active
+    usb_stop();
+
+    // Wait for steady state
+    sleep_ms(100);
 
     // Initialize settings from flash
     // This needs to be done before interrupts are enabled
@@ -92,9 +94,9 @@ int main()
     set_usb_cdc_en(currentDppSettings.cdcEn);
     set_usb_msc_en(currentDppSettings.mscEn);
 
-    if (rebootDetected)
+    if (mapleRebootDetected)
     {
-        // Reboot occurred because auto detect changed states
+        // Reboot occurred because auto maple detect changed states
         uint8_t mask = 1;
         uint8_t i = 0;
         while (i < MAX_DEVICES)
@@ -203,6 +205,10 @@ int main()
 
     usb_start();
 
+    // Callback to pass to DppSettings::processSaveRequests, to be called before save operations
+    // This ensures the USB interface is properly stopped before reboot occurs
+    std::function<void()> hwStopFn = usb_stop;
+
     while(true)
     {
         usb_task();
@@ -214,7 +220,7 @@ int main()
             lastMapleDetectTime = time_us_32();
         }
 
-        DppSettings::processSaveRequests();
+        DppSettings::processSaveRequests(hwStopFn);
     }
 }
 

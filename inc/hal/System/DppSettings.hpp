@@ -26,6 +26,8 @@
 #include "configuration.h"
 
 #include <cstdint>
+#include <optional>
+#include <functional>
 
 struct DppSettings
 {
@@ -113,7 +115,8 @@ struct DppSettings
     static void requestClear(uint32_t delayMs);
 
     //! Processes any save requests
-    static void processSaveRequests();
+    //! @param[in] hwStopFn The function to call if the function is about to process a save
+    static void processSaveRequests(const std::function<void()>& hwStopFn);
 
     //! Save settings to flash and reboots system
     //! @pre this must be called from core 0!
@@ -141,21 +144,23 @@ struct DppSettings
     bool operator==(const DppSettings&) const = default;
     bool operator!=(const DppSettings&) const = default;
 
+public:
+    //! The value set to watchdog scratch 0 when reboot caused due to settings update
+    static const uint32_t WATCHDOG_SETTINGS_UPDATED_MAGIC = 0xFD706823;
+
 private:
     //! Offset address of settings within flash
     static uint32_t sSettingsOffsetAddr;
     //! The loaded settings on initialize()
     static DppSettings sLoadedSettings;
-    //! Set to true when save is requested
+    //! Set to true when save or clear is requested
     static bool sSaveOrClearRequested;
-    //! Set to true when the above is also true and clear was requested instead of save
-    static bool sClearRequested;
     //! The delay to wait when above is true
     static uint32_t sDelayMs;
     //! The 32-bit save requested time
     static uint32_t sSaveRequestTime;
     //! The settings used to save when above is true
-    static DppSettings sSaveRequestedSettings;
+    static std::optional<DppSettings> sSaveRequestedSettings;
     //! Set to true once saving, no further save requests may be made
     static bool sSaving;
 };

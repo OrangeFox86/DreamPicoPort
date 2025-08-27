@@ -149,7 +149,7 @@ void DppSettings::requestClear(uint32_t delayMs)
 
     if (!sSaveOrClearRequested)
     {
-        sClearRequested = true;
+        sSaveRequestedSettings = std::nullopt;
         sDelayMs = delayMs;
         sSaveRequestTime = time_us_32();
         sSaveOrClearRequested = true;
@@ -192,36 +192,51 @@ void __no_inline_not_in_flash_func(save_settings_memory)(
     // Interrupts need to be restored in order to reboot
     restore_interrupts_from_disabled(savedInterrupts);
 
+    // Signal that we're rebooting due to settings update
+    watchdog_hw->scratch[0] = DppSettings::WATCHDOG_SETTINGS_UPDATED_MAGIC;
+
     // Reboot now to apply settings
     watchdog_reboot(0, 0, delayMs);
 }
 
-void DppSettings::processSaveRequests()
+void DppSettings::processSaveRequests(const std::function<void()>& hwStopFn)
 {
     if (sSaving || !sSaveOrClearRequested)
     {
         return;
     }
 
-    DppSettings settingsToSave;
-    uint32_t delayMs = 0;
+    std::optional<DppSettings> settingsToSave;
 
+    // gSaveMutex locking context
     {
         LockGuard lock(gSaveMutex);
 
         const uint32_t elapsedMsSinceRequest = (time_us_32() - sSaveRequestTime);
-        delayMs = (sDelayMs > elapsedMsSinceRequest) ? (sDelayMs - elapsedMsSinceRequest) : 0;
+
+        if (sDelayMs > elapsedMsSinceRequest)
+        {
+            // Better to just wait for another loop rather than rely on watchdog timeout
+            return;
+        }
+
         settingsToSave = sSaveRequestedSettings;
     }
 
-    if (sClearRequested)
+    // Call the supplied function
+    if (hwStopFn)
     {
-        // Clear without saving
-        save_settings_memory(sSettingsOffsetAddr, std::nullopt, delayMs);
+        hwStopFn();
+    }
+
+    if (settingsToSave.has_value())
+    {
+        settingsToSave->save(0);
     }
     else
     {
-        settingsToSave.save(delayMs);
+        // Clear without saving
+        save_settings_memory(sSettingsOffsetAddr, std::nullopt, 0);
     }
 }
 
@@ -378,8 +393,7 @@ bool DppSettings::isGpioValid(std::uint32_t gpio)
 uint32_t DppSettings::sSettingsOffsetAddr = 0;
 DppSettings DppSettings::sLoadedSettings;
 bool DppSettings::sSaveOrClearRequested = false;
-bool DppSettings::sClearRequested = false;
 uint32_t DppSettings::sDelayMs = 0;
 uint32_t DppSettings::sSaveRequestTime = 0;
-DppSettings DppSettings::sSaveRequestedSettings;
+std::optional<DppSettings> DppSettings::sSaveRequestedSettings = std::nullopt;
 bool DppSettings::sSaving = false;
