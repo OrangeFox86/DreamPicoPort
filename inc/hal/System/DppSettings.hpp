@@ -117,8 +117,9 @@ struct DppSettings
     void save(uint32_t delayMs = 0) const;
 
     //! Forces valid settings
+    //! @param[in] disablePlayerOnBadGpio Set to true to disable player if its gpio is invalid
     //! @return true iff settings were already valid
-    bool makeValid();
+    bool makeValid(bool disablePlayerOnBadGpio = false);
 
     //! @pre DppSettings::initialize() must have been called
     //! @return the offset address in flash where settings are located

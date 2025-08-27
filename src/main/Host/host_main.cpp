@@ -87,7 +87,7 @@ int main()
     // Initialize settings from flash
     // This needs to be done before interrupts are enabled
     DppSettings currentDppSettings = DppSettings::initialize();
-    currentDppSettings.makeValid();
+    currentDppSettings.makeValid(true);
 
     set_usb_cdc_en(currentDppSettings.cdcEn);
     set_usb_msc_en(currentDppSettings.mscEn);

@@ -253,7 +253,7 @@ static bool validate_gpio(std::unordered_set<std::uint32_t>& usedIo, std::int32_
     return true;
 }
 
-bool DppSettings::makeValid()
+bool DppSettings::makeValid(bool disablePlayerOnBadGpio)
 {
     bool alreadyValid = true;
     std::unordered_set<std::uint32_t> usedIo;
@@ -271,56 +271,58 @@ bool DppSettings::makeValid()
     }
 
     // Disable players with invalid GPIO value
-    for (std::uint8_t i = 0; i < kNumPlayers; ++i)
+    if (disablePlayerOnBadGpio)
     {
-        if (gpioA[i] < 0 && playerDetectionModes[i] != PlayerDetectionMode::kDisable)
+        for (std::uint8_t i = 0; i < kNumPlayers; ++i)
         {
-            playerDetectionModes[i] = PlayerDetectionMode::kDisable;
-            gpioA[i] = -1;
-            gpioDir[i] = -1;
-            alreadyValid = false;
+            if (gpioA[i] < 0 && playerDetectionModes[i] != PlayerDetectionMode::kDisable)
+            {
+                playerDetectionModes[i] = PlayerDetectionMode::kDisable;
+                alreadyValid = false;
+            }
         }
-
     }
 
     // Handle overlapping GPIO values
     for (std::uint8_t i = 0; i < kNumPlayers; ++i)
     {
-        // Copy to temporary set so it may be reverted
-        std::unordered_set<std::uint32_t> usedIoCopy = usedIo;
-
         // Only check player pins if not disabled
-        if (playerDetectionModes[i] != PlayerDetectionMode::kDisable)
+        if (playerDetectionModes[i] != PlayerDetectionMode::kDisable && gpioA[i] >= 0)
         {
-            // If here, gpioA[i] is guaranteed to be >=0 due to previous loop
             int32_t gpioB = gpioA[i] + 1;
 
-            if (
-                !validate_gpio(usedIoCopy, gpioA[i]) ||
-                !validate_gpio(usedIoCopy, gpioB) ||
-                !validate_gpio(usedIoCopy, gpioDir[i])
-            )
+            if (!validate_gpio(usedIo, gpioDir[i]))
             {
-                // Disable this player
-                playerDetectionModes[i] = PlayerDetectionMode::kDisable;
-                gpioA[i] = -1;
+                // Disable gpioDir
                 gpioDir[i] = -1;
                 alreadyValid = false;
-            }
-            else
-            {
-                // Commit the changes
-                usedIo = std::move(usedIoCopy);
 
-                if (
-                    static_cast<std::uint8_t>(playerDetectionModes[i]) >=
-                    static_cast<std::uint8_t>(PlayerDetectionMode::kNumPlayerDetectionModes)
-                )
+                if (disablePlayerOnBadGpio)
                 {
-                    // This seems like the best option when this setting is invalid
-                    playerDetectionModes[i] = PlayerDetectionMode::kAutoDynamicNoDisable;
-                    alreadyValid = false;
+                    playerDetectionModes[i] = PlayerDetectionMode::kDisable;
                 }
+            }
+
+            if (!validate_gpio(usedIo, gpioA[i]) || !validate_gpio(usedIo, gpioB))
+            {
+                // Disable gpioA
+                gpioA[i] = -1;
+                alreadyValid = false;
+
+                if (disablePlayerOnBadGpio)
+                {
+                    playerDetectionModes[i] = PlayerDetectionMode::kDisable;
+                }
+            }
+
+            if (
+                static_cast<std::uint8_t>(playerDetectionModes[i]) >=
+                static_cast<std::uint8_t>(PlayerDetectionMode::kNumPlayerDetectionModes)
+            )
+            {
+                // This seems like the best option when this setting is invalid
+                playerDetectionModes[i] = PlayerDetectionMode::kAutoDynamicNoDisable;
+                alreadyValid = false;
             }
         }
     }

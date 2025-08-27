@@ -63,6 +63,7 @@
     let gpioDDirOutHighCheckbox = document.querySelector('#dir-out-high-d');
     let gpioLedText = document.querySelector('#gpio-led');
     let gpioSimpleLedText = document.querySelector('#gpio-simple-led');
+    let saveGpioButton = document.querySelector('#save-advanced')
     const CMD_OK = 0x0A; // Command success
     const CMD_FAIL = 0x0F; // Command failed - data was parsed but execution failed
     const CMD_INVALID = 0xFE; // Command was missing data
@@ -220,6 +221,105 @@
       }
     }
 
+    function setSettingsFromPayload(payload) {
+      if (payload.length >= 38) {
+        // Retrieved settings
+        mscCheckbox.checked = (payload[1] !== 0);
+
+        const controllerADetection = payload[2];
+        player1.value = controllerADetection;
+        const controllerBDetection = payload[3];
+        player2.value = controllerBDetection;
+        const controllerCDetection = payload[4];
+        player3.value = controllerCDetection;
+        const controllerDDetection = payload[5];
+        player4.value = controllerDDetection;
+
+        const gpioA = (payload[6] << 24 | payload[7] << 16 | payload[8] << 8 | payload[9]) | 0;
+        if (gpioA >= 0) {
+          gpioAText.value = gpioA.toString(10);
+          gpioABSpan.textContent = gpioA + 1;
+        } else {
+          gpioAText.value = "";
+          gpioABSpan.textContent = "Disabled";
+        }
+
+        const gpioB = (payload[10] << 24 | payload[11] << 16 | payload[12] << 8 | payload[13]) | 0;
+        if (gpioB >= 0) {
+          gpioBText.value = gpioB.toString(10);
+          gpioBBSpan.textContent = gpioB + 1;
+        } else {
+          gpioBText.value = "";
+          gpioBBSpan.textContent = "Disabled";
+        }
+
+        const gpioC = (payload[14] << 24 | payload[15] << 16 | payload[16] << 8 | payload[17]) | 0;
+        if (gpioC >= 0) {
+          gpioCText.value = gpioC.toString(10);
+          gpioCBSpan.textContent = gpioC + 1;
+        } else {
+          gpioCText.value = "";
+          gpioCBSpan.textContent = "Disabled";
+        }
+
+        const gpioD = (payload[18] << 24 | payload[19] << 16 | payload[20] << 8 | payload[21]) | 0;
+        if (gpioD >= 0) {
+          gpioDText.value = gpioD.toString(10);
+          gpioDBSpan.textContent = gpioD + 1;
+        } else {
+          gpioDText.value = "";
+          gpioDBSpan.textContent = "Disabled";
+        }
+
+        const gpioDirA = (payload[22] << 24 | payload[23] << 16 | payload[24] << 8 | payload[25]) | 0;
+        if (gpioDirA >= 0) {
+          gpioADirText.value = gpioDirA.toString(10);
+        } else {
+          gpioADirText.value = "";
+        }
+
+        const gpioDirB = (payload[26] << 24 | payload[27] << 16 | payload[28] << 8 | payload[29]) | 0;
+        if (gpioDirB >= 0) {
+          gpioBDirText.value = gpioDirB.toString(10);
+        } else {
+          gpioBDirText.value = "";
+        }
+
+        const gpioDirC = (payload[30] << 24 | payload[31] << 16 | payload[32] << 8 | payload[33]) | 0;
+        if (gpioDirC >= 0) {
+          gpioCDirText.value = gpioDirC.toString(10);
+        } else {
+          gpioCDirText.value = "";
+        }
+
+        const gpioDirD = (payload[34] << 24 | payload[35] << 16 | payload[36] << 8 | payload[37]) | 0;
+        if (gpioDirD >= 0) {
+          gpioDDirText.value = gpioDirD.toString(10);
+        } else {
+          gpioDDirText.value = "";
+        }
+
+        gpioADirOutHighCheckbox.checked = (payload[38] != 0);
+        gpioBDirOutHighCheckbox.checked = (payload[39] != 0);
+        gpioCDirOutHighCheckbox.checked = (payload[40] != 0);
+        gpioDDirOutHighCheckbox.checked = (payload[41] != 0);
+
+        const gpioLed = (payload[42] << 24 | payload[43] << 16 | payload[44] << 8 | payload[45]) | 0;
+        if (gpioLed >= 0) {
+          gpioLedText.value = gpioLed;
+        } else {
+          gpioLedText.value = "";
+        }
+
+        const gpioSimpleLed = (payload[46] << 24 | payload[47] << 16 | payload[48] << 8 | payload[49]) | 0;
+        if (gpioSimpleLed >= 0) {
+          gpioSimpleLedText.value = gpioSimpleLed;
+        } else {
+          gpioSimpleLedText.value = "";
+        }
+      }
+    }
+
     // Starts the state machine which loads the settings from the device
     function startLoadSm(selectedPort) {
       selectedSerial = selectedPort.serial;
@@ -242,100 +342,7 @@
         if (addr == GET_SETTINGS_ADDR) {
           if (cmd == CMD_OK && payload.length >= 38) {
             // Retrieved settings
-            mscCheckbox.checked = (payload[1] !== 0);
-
-            const controllerADetection = payload[2];
-            player1.value = controllerADetection;
-            const controllerBDetection = payload[3];
-            player2.value = controllerBDetection;
-            const controllerCDetection = payload[4];
-            player3.value = controllerCDetection;
-            const controllerDDetection = payload[5];
-            player4.value = controllerDDetection;
-
-            if (controllerADetection != 0) {
-              const gpioA = (payload[6] << 24 | payload[7] << 16 | payload[8] << 8 | payload[9]);
-              gpioAText.value = gpioA.toString(10);
-              gpioABSpan.textContent = gpioA + 1;
-            } else {
-              gpioAText.value = "";
-              gpioABSpan.textContent = "Disabled";
-            }
-
-            if (controllerBDetection != 0) {
-              const gpioB = (payload[10] << 24 | payload[11] << 16 | payload[12] << 8 | payload[13]);
-              gpioBText.value = gpioB.toString(10);
-              gpioBBSpan.textContent = gpioB + 1;
-            } else {
-              gpioBText.value = "";
-              gpioBBSpan.textContent = "Disabled";
-            }
-
-            if (controllerCDetection != 0) {
-              const gpioC = (payload[14] << 24 | payload[15] << 16 | payload[16] << 8 | payload[17]);
-              gpioCText.value = gpioC.toString(10);
-              gpioCBSpan.textContent = gpioC + 1;
-            } else {
-              gpioCText.value = "";
-              gpioCBSpan.textContent = "Disabled";
-            }
-
-            if (controllerDDetection != 0) {
-              const gpioD = (payload[18] << 24 | payload[19] << 16 | payload[20] << 8 | payload[21]);
-              gpioDText.value = gpioD.toString(10);
-              gpioDBSpan.textContent = gpioD + 1;
-            } else {
-              gpioDText.value = "";
-              gpioDBSpan.textContent = "Disabled";
-            }
-
-            const gpioDirA = (payload[22] << 24 | payload[23] << 16 | payload[24] << 8 | payload[25]) | 0;
-            if (gpioDirA >= 0) {
-              gpioADirText.value = gpioDirA.toString(10);
-            } else {
-              gpioADirText.value = "";
-            }
-
-            const gpioDirB = (payload[26] << 24 | payload[27] << 16 | payload[28] << 8 | payload[29]) | 0;
-            if (gpioDirB >= 0) {
-              gpioBDirText.value = gpioDirB.toString(10);
-            } else {
-              gpioBDirText.value = "";
-            }
-
-            const gpioDirC = (payload[30] << 24 | payload[31] << 16 | payload[32] << 8 | payload[33]) | 0;
-            if (gpioDirC >= 0) {
-              gpioCDirText.value = gpioDirC.toString(10);
-            } else {
-              gpioCDirText.value = "";
-            }
-
-            const gpioDirD = (payload[34] << 24 | payload[35] << 16 | payload[36] << 8 | payload[37]) | 0;
-            if (gpioDirD >= 0) {
-              gpioDDirText.value = gpioDirD.toString(10);
-            } else {
-              gpioDDirText.value = "";
-            }
-
-            gpioADirOutHighCheckbox.checked = (payload[38] != 0);
-            gpioBDirOutHighCheckbox.checked = (payload[39] != 0);
-            gpioCDirOutHighCheckbox.checked = (payload[40] != 0);
-            gpioDDirOutHighCheckbox.checked = (payload[41] != 0);
-
-            const gpioLed = (payload[42] << 24 | payload[43] << 16 | payload[44] << 8 | payload[45]) | 0;
-            if (gpioLed >= 0) {
-              gpioLedText.value = gpioLed;
-            } else {
-              gpioLedText.value = "";
-            }
-
-            const gpioSimpleLed = (payload[46] << 24 | payload[47] << 16 | payload[48] << 8 | payload[49]) | 0;
-            if (gpioSimpleLed >= 0) {
-              gpioSimpleLedText.value = gpioSimpleLed;
-            } else {
-              gpioSimpleLedText.value = "";
-            }
-
+            setSettingsFromPayload(payload);
             stopSm('Settings loaded');
             return;
           }
@@ -669,6 +676,122 @@
       startSm(writeVmuSm);
     }
 
+    function int32ToBytes(val) {
+      const buffer = new ArrayBuffer(4);
+      const view = new DataView(buffer);
+      view.setInt32(0, Number(val), false); // false = big endian
+      return [view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3)];
+    }
+
+    function startWriteGpioSm() {
+      setStatus("Writing GPIO Settings...");
+
+      const SEND_CONTROLLER_A_ADDR = 20;
+      const SEND_CONTROLLER_B_ADDR = 21;
+      const SEND_CONTROLLER_C_ADDR = 22;
+      const SEND_CONTROLLER_D_ADDR = 23;
+      const SEND_LED_ADDR = 24;
+      const SEND_SIMPLE_LED_ADDR = 25;
+      const SEND_SAVE_AND_RESTART_ADDR = 26;
+
+      const CMD_SETTINGS = 'S'.charCodeAt(0);
+
+      var writeGpioSm = {};
+
+      writeGpioSm.cancel = function() {
+        setStatus('Write GPIO canceled', 'red', 'bold');
+      };
+
+      writeGpioSm.timeout = function() {
+        setStatus('Write GPIO failed', 'red', 'bold');
+      };
+
+      writeGpioSm.start = function() {
+        // I[0-3][GPIO A (4 byte)][GPIO DIR (4 byte)][DIR Output HIGH (1 byte)]
+        const gpioA = (gpioAText.value === "") ? -1 : Number(gpioAText.value);
+        const gpioDir = (gpioADirText.value === "") ? -1 : Number(gpioADirText.value);
+        const gpioDirOutHigh = gpioADirOutHighCheckbox.checked ? 1 : 0
+        send(SEND_CONTROLLER_A_ADDR, CMD_SETTINGS, ['I'.charCodeAt(0), 0, ...int32ToBytes(gpioA), ...int32ToBytes(gpioDir), gpioDirOutHigh])
+      };
+
+      writeGpioSm.process = function(addr, cmd, payload) {
+        if (addr == SEND_CONTROLLER_A_ADDR) {
+          if (cmd == CMD_OK) {
+            const gpioA = (gpioBText.value === "") ? -1 : Number(gpioBText.value);
+            const gpioDir = (gpioBDirText.value === "") ? -1 : Number(gpioBDirText.value);
+            const gpioDirOutHigh = gpioBDirOutHighCheckbox.checked ? 1 : 0
+            send(SEND_CONTROLLER_B_ADDR, CMD_SETTINGS, ['I'.charCodeAt(0), 1, ...int32ToBytes(gpioA), ...int32ToBytes(gpioDir), gpioDirOutHigh])
+          } else {
+            stopSm('Failed to set controller A GPIO - ensure they are valid', 'red', 'bold');
+            return;
+          }
+        } else if (addr == SEND_CONTROLLER_B_ADDR) {
+          if (cmd == CMD_OK) {
+            const gpioA = (gpioCText.value === "") ? -1 : Number(gpioCText.value);
+            const gpioDir = (gpioCDirText.value === "") ? -1 : Number(gpioCDirText.value);
+            const gpioDirOutHigh = gpioCDirOutHighCheckbox.checked ? 1 : 0
+            send(SEND_CONTROLLER_C_ADDR, CMD_SETTINGS, ['I'.charCodeAt(0), 2, ...int32ToBytes(gpioA), ...int32ToBytes(gpioDir), gpioDirOutHigh])
+          } else {
+            stopSm('Failed to set controller B GPIO - ensure they are valid', 'red', 'bold');
+            return;
+          }
+        } else if (addr == SEND_CONTROLLER_C_ADDR) {
+          if (cmd == CMD_OK) {
+            const gpioA = (gpioDText.value === "") ? -1 : Number(gpioDText.value);
+            const gpioDir = (gpioDDirText.value === "") ? -1 : Number(gpioDDirText.value);
+            const gpioDirOutHigh = gpioDDirOutHighCheckbox.checked ? 1 : 0
+            send(SEND_CONTROLLER_D_ADDR, CMD_SETTINGS, ['I'.charCodeAt(0), 3, ...int32ToBytes(gpioA), ...int32ToBytes(gpioDir), gpioDirOutHigh])
+          } else {
+            stopSm('Failed to set controller C GPIO - ensure they are valid', 'red', 'bold');
+            return;
+          }
+        } else if (addr == SEND_CONTROLLER_D_ADDR) {
+          if (cmd == CMD_OK) {
+            // LED setting L[LED Pin (4 byte)]
+            const gpioLed = (gpioLedText.value === "") ? -1 : Number(gpioLedText.value);
+            send(SEND_LED_ADDR, CMD_SETTINGS, ['L'.charCodeAt(0), ...int32ToBytes(gpioLed)]);
+          } else {
+            stopSm('Failed to set controller D GPIO - ensure they are valid', 'red', 'bold');
+            return;
+          }
+        } else if (addr == SEND_LED_ADDR) {
+          if (cmd == CMD_OK) {
+            // Simple LED setting l[LED Pin (4 byte)]
+            const gpioLed = (gpioSimpleLedText.value === "") ? -1 : Number(gpioSimpleLedText.value);
+            send(SEND_SIMPLE_LED_ADDR, CMD_SETTINGS, ['l'.charCodeAt(0), ...int32ToBytes(gpioLed)]);
+          } else {
+            stopSm('Failed to set LED GPIO - ensure it is valid', 'red', 'bold');
+            return;
+          }
+        } else if (addr == SEND_SIMPLE_LED_ADDR) {
+          if (cmd == CMD_OK) {
+            send(SEND_SAVE_AND_RESTART_ADDR, CMD_SETTINGS, ['S'.charCodeAt(0)]);
+          } else {
+            stopSm('Failed to set simple LED GPIO - ensure it is valid', 'red', 'bold');
+            return;
+          }
+        } else if (addr == SEND_SAVE_AND_RESTART_ADDR) {
+          if (cmd == CMD_OK) {
+            if (payload.length >= 38)
+            {
+              setSettingsFromPayload(payload);
+              stopSm('GPIO settings saved with adjustments due to overlapping GPIO - please review changes', 'orange', 'bold')
+            }
+            else
+            {
+              stopSm('GPIO settings saved')
+            }
+          } else {
+            stopSm('Failed to save settings', 'red', 'bold');
+          }
+          return;
+        }
+        resetSmTimeout();
+      };
+
+      startSm(writeGpioSm);
+    }
+
     function handleIncomingMsg(addr, cmd, payload) {
       console.info(`RCV ADDR: 0x${addr.toString(16)}, CMD: 0x${cmd.toString(16)}, PAYLOAD: [${Array.from(payload).map(b => '0x' + b.toString(16).padStart(2, '0')).join(', ')}]`);
       // receiveSm
@@ -927,6 +1050,10 @@
 
     vmuMemoryCancelButton.addEventListener('click', function () {
       cancelSm();
+    });
+
+    saveGpioButton.addEventListener('click', function() {
+      startWriteGpioSm();
     });
 
   });
