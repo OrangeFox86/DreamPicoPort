@@ -106,6 +106,9 @@ struct DppSettings
     //! @return the settings loaded on initialize()
     static const DppSettings& getInitialSettings();
 
+    //! @return the default settings loaded on initialize()
+    static const DppSettings& getDefaultSettings();
+
     //! Called from core 1 to request save on core 0
     //! @param[in] delayMs Number of ms to delay before saving
     void requestSave(uint32_t delayMs);
@@ -144,6 +147,13 @@ struct DppSettings
     bool operator==(const DppSettings&) const = default;
     bool operator!=(const DppSettings&) const = default;
 
+private:
+    //! Attempt to read settings at the given address
+    //! @param[in] flashAddrOffset The flash address offset to read
+    //! @return std::nullopt if data at the given address is invalid
+    //! @return the read settings otherwise
+    static std::optional<DppSettings> readSettingsAtAddr(uint32_t flashAddrOffset);
+
 public:
     //! The value set to watchdog scratch 0 when reboot caused due to settings update
     static const uint32_t WATCHDOG_SETTINGS_UPDATED_MAGIC = 0xFD706823;
@@ -151,8 +161,12 @@ public:
 private:
     //! Offset address of settings within flash
     static uint32_t sSettingsOffsetAddr;
+    //! Offset address of default settings when main settings are clear
+    static uint32_t sDefaultSettingsOffsetAddr;
     //! The loaded settings on initialize()
     static DppSettings sLoadedSettings;
+    //! The loaded default settings
+    static DppSettings sDefaultSettings;
     //! Set to true when save or clear is requested
     static bool sSaveOrClearRequested;
     //! The delay to wait when above is true

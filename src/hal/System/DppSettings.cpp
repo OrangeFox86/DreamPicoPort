@@ -90,36 +90,67 @@ uint32_t __no_inline_not_in_flash_func(calc_crc32)(const uint32_t* ptr, uint16_t
     return crc;
 }
 
-const DppSettings& DppSettings::initialize()
+std::optional<DppSettings> DppSettings::readSettingsAtAddr(uint32_t flashAddrOffset)
 {
-    sSettingsOffsetAddr = get_settings_flash_offset();
-
     const SettingsMemory* settingsMemory = reinterpret_cast<const SettingsMemory*>(
-        XIP_BASE + sSettingsOffsetAddr);
+        XIP_BASE + flashAddrOffset
+    );
 
-    // Ensure valid data
+    // check for validity
     if (
         settingsMemory->magic != kMagic ||
         ((settingsMemory->size ^ settingsMemory->invSize) != 0xFFFF) ||
         (settingsMemory->size < kSettingsMemorySizeWords) ||
         (calc_crc32(&settingsMemory->crc, settingsMemory->size) != 0)
-    )
-    {
+    ){
         // Data in flash is invalid
-        return sLoadedSettings;
+        return std::nullopt;
     }
 
-    sLoadedSettings.cdcEn = ((settingsMemory->usbEn & kUsbEnableCdcMask) > 0);
-    sLoadedSettings.mscEn = ((settingsMemory->usbEn & kUsbEnableMscMask) > 0);
-    sLoadedSettings.usbLedGpio = settingsMemory->usbLedGpio;
-    sLoadedSettings.simpleUsbLedGpio = settingsMemory->simpleUsbLedGpio;
+    DppSettings settings;
+    settings.cdcEn = ((settingsMemory->usbEn & kUsbEnableCdcMask) > 0);
+    settings.mscEn = ((settingsMemory->usbEn & kUsbEnableMscMask) > 0);
+    settings.usbLedGpio = settingsMemory->usbLedGpio;
+    settings.simpleUsbLedGpio = settingsMemory->simpleUsbLedGpio;
     for (uint8_t i = 0; i < kNumPlayers; ++i)
     {
-        sLoadedSettings.playerDetectionModes[i] =
+        settings.playerDetectionModes[i] =
             static_cast<DppSettings::PlayerDetectionMode>(settingsMemory->playerEnableMode[i]);
-        sLoadedSettings.gpioA[i] = settingsMemory->gpioA[i];
-        sLoadedSettings.gpioDir[i] = settingsMemory->gpioDir[i];
-        sLoadedSettings.gpioDirOutputHigh[i] = settingsMemory->gpioDirOutputHigh[i];
+        settings.gpioA[i] = settingsMemory->gpioA[i];
+        settings.gpioDir[i] = settingsMemory->gpioDir[i];
+        settings.gpioDirOutputHigh[i] = settingsMemory->gpioDirOutputHigh[i];
+    }
+
+    return settings;
+}
+
+const DppSettings& DppSettings::initialize()
+{
+    // Settings at this address are written by this application at runtime
+    sSettingsOffsetAddr = get_settings_flash_offset();
+
+    // Settings at this address are written by the UF2 file
+    // This is in a completely different sector so it isn't touched at runtime
+    sDefaultSettingsOffsetAddr = sSettingsOffsetAddr - FLASH_SECTOR_SIZE;
+
+    std::optional<DppSettings> defaultSettings = readSettingsAtAddr(sDefaultSettingsOffsetAddr);
+    if (defaultSettings.has_value())
+    {
+        sDefaultSettings = defaultSettings.value();
+    }
+    else
+    {
+        sDefaultSettings = DppSettings();
+    }
+
+    std::optional<DppSettings> loadedSettings = readSettingsAtAddr(sSettingsOffsetAddr);
+    if (loadedSettings.has_value())
+    {
+        sLoadedSettings = loadedSettings.value();
+    }
+    else
+    {
+        sLoadedSettings = sDefaultSettings;
     }
 
     return sLoadedSettings;
@@ -128,6 +159,11 @@ const DppSettings& DppSettings::initialize()
 const DppSettings& DppSettings::getInitialSettings()
 {
     return sLoadedSettings;
+}
+
+const DppSettings& DppSettings::getDefaultSettings()
+{
+    return sDefaultSettings;
 }
 
 void DppSettings::requestSave(uint32_t delayMs)
@@ -391,7 +427,9 @@ bool DppSettings::isGpioValid(std::uint32_t gpio)
 }
 
 uint32_t DppSettings::sSettingsOffsetAddr = 0;
+uint32_t DppSettings::sDefaultSettingsOffsetAddr = 0;
 DppSettings DppSettings::sLoadedSettings;
+DppSettings DppSettings::sDefaultSettings;
 bool DppSettings::sSaveOrClearRequested = false;
 uint32_t DppSettings::sDelayMs = 0;
 uint32_t DppSettings::sSaveRequestTime = 0;
