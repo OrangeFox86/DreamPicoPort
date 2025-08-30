@@ -1,6 +1,7 @@
 #include "FlycastTtyCommandHandler.hpp"
 #include "hal/MapleBus/MaplePacket.hpp"
 #include "hal/System/LockGuard.hpp"
+#include "hal/Usb/usb_interface.hpp"
 
 #include <stdio.h>
 #include <cctype>
@@ -385,6 +386,35 @@ void FlycastTtyCommandHandler::submit(const char* chars, uint32_t len)
                 {
                     send_response("*failed invalid data\n");
                 }
+            }
+            return;
+
+            // XR[0-3] to get controller report
+            case 'R':
+            {
+                // Remove the R
+                ++iter;
+                if (iter >= eol)
+                {
+                    send_response("*failed missing index\n");
+                    return;
+                }
+                std::vector<std::uint8_t> state = get_controller_state(*iter - '0');
+                if (state.empty())
+                {
+                    send_response("*failed no data retrieved\n");
+                    return;
+                }
+                std::string hex;
+                hex.reserve(state.size() * 2 + 1);
+                char buffer[3] = {};
+                for (std::uint8_t b : state)
+                {
+                    snprintf(buffer, 3, "%hhX", b);
+                    hex.append(buffer);
+                }
+                hex.append("\n");
+                send_response(hex);
             }
             return;
 

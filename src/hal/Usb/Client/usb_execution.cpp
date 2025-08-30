@@ -75,6 +75,17 @@ DreamcastControllerObserver** get_usb_controller_observers()
   return observers;
 }
 
+std::vector<uint8_t> get_controller_state(uint8_t idx)
+{
+  std::vector<uint8_t> report;
+  if (idx < MAX_NUMBER_OF_USB_GAMEPADS)
+  {
+    report.resize(devices[idx]->getReportSize());
+    devices[idx]->getReport(&report[0], static_cast<uint16_t>(report.size()));
+  }
+  return report;
+}
+
 bool usbEnabled = false;
 
 bool usbDisconnecting = false;

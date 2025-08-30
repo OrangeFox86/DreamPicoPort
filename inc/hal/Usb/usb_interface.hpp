@@ -49,5 +49,9 @@ void usb_task();
 //! Must return the file system
 UsbFileSystem& usb_msc_get_file_system();
 
+//! Get the controller state for a controller at \p idx
+//! @param[in] idx The controller index
+//! @return controller state or empty vector if idx is invalid
+std::vector<uint8_t> get_controller_state(uint8_t idx);
 
 #endif // __USB_INTERFACE_H__

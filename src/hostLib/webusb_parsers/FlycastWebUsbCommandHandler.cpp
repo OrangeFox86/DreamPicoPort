@@ -25,6 +25,7 @@
 
 #include "hal/MapleBus/MaplePacket.hpp"
 #include "hal/System/LockGuard.hpp"
+#include "hal/Usb/usb_interface.hpp"
 
 #include <cstring>
 #include <cinttypes>
@@ -202,6 +203,26 @@ void FlycastWebUsbCommandHandler::process(
         case 'V':
         {
             responseFn(kResponseSuccess, {{kInterfaceVersion, sizeof(kInterfaceVersion)}});
+        }
+        return;
+
+        // XR[0-3] to get controller report
+        case 'R':
+        {
+            // Remove the R
+            ++iter;
+            if (iter >= eol)
+            {
+                responseFn(kResponseCmdInvalid, {});
+                return;
+            }
+            std::vector<std::uint8_t> state = get_controller_state(*iter);
+            if (state.empty())
+            {
+                responseFn(kResponseFailure, {});
+                return;
+            }
+            responseFn(kResponseSuccess, {{state.data(), state.size()}});
         }
         return;
 
