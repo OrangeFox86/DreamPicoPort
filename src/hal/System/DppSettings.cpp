@@ -129,27 +129,6 @@ const DppSettings& DppSettings::initialize()
     // Settings at this address are written by this application at runtime
     sSettingsOffsetAddr = get_settings_flash_offset();
 
-    // Settings at this address are written by the UF2 file
-    // This is in a completely different sector so it isn't touched at runtime
-    // This must be less than a few sectors away from sSettingsOffsetAddr so the UF2 bootloader doesn't erase settings
-    // This must be greater than application size
-    sDefaultSettingsOffsetAddr = 0x50000;
-
-    std::optional<DppSettings> defaultSettings;
-    if (sDefaultSettingsOffsetAddr < sSettingsOffsetAddr)
-    {
-        defaultSettings= readSettingsAtAddr(sDefaultSettingsOffsetAddr);
-    }
-
-    if (defaultSettings.has_value())
-    {
-        sDefaultSettings = defaultSettings.value();
-    }
-    else
-    {
-        sDefaultSettings = DppSettings();
-    }
-
     std::optional<DppSettings> loadedSettings = readSettingsAtAddr(sSettingsOffsetAddr);
     if (loadedSettings.has_value())
     {
@@ -157,7 +136,7 @@ const DppSettings& DppSettings::initialize()
     }
     else
     {
-        sLoadedSettings = sDefaultSettings;
+        sLoadedSettings = DppSettings();
     }
 
     return sLoadedSettings;
@@ -166,11 +145,6 @@ const DppSettings& DppSettings::initialize()
 const DppSettings& DppSettings::getInitialSettings()
 {
     return sLoadedSettings;
-}
-
-const DppSettings& DppSettings::getDefaultSettings()
-{
-    return sDefaultSettings;
 }
 
 void DppSettings::requestSave(uint32_t delayMs)
@@ -434,9 +408,7 @@ bool DppSettings::isGpioValid(std::uint32_t gpio)
 }
 
 uint32_t DppSettings::sSettingsOffsetAddr = 0;
-uint32_t DppSettings::sDefaultSettingsOffsetAddr = 0;
 DppSettings DppSettings::sLoadedSettings;
-DppSettings DppSettings::sDefaultSettings;
 bool DppSettings::sSaveOrClearRequested = false;
 uint32_t DppSettings::sDelayMs = 0;
 uint32_t DppSettings::sSaveRequestTime = 0;

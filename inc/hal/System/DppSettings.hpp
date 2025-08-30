@@ -106,9 +106,6 @@ struct DppSettings
     //! @return the settings loaded on initialize()
     static const DppSettings& getInitialSettings();
 
-    //! @return the default settings loaded on initialize()
-    static const DppSettings& getDefaultSettings();
-
     //! Called from core 1 to request save on core 0
     //! @param[in] delayMs Number of ms to delay before saving
     void requestSave(uint32_t delayMs);
@@ -161,12 +158,8 @@ public:
 private:
     //! Offset address of settings within flash
     static uint32_t sSettingsOffsetAddr;
-    //! Offset address of default settings when main settings are clear
-    static uint32_t sDefaultSettingsOffsetAddr;
     //! The loaded settings on initialize()
     static DppSettings sLoadedSettings;
-    //! The loaded default settings
-    static DppSettings sDefaultSettings;
     //! Set to true when save or clear is requested
     static bool sSaveOrClearRequested;
     //! The delay to wait when above is true

@@ -301,7 +301,7 @@ void SettingsWebUsbCommandHandler::process(
         case 'X':
         {
             // Send the response with default settings
-            std::string settingsData = packSettings(DppSettings::getDefaultSettings());
+            std::string settingsData = packSettings(DppSettings());
             responseFn(kResponseSuccess, {{settingsData.data(), settingsData.size()}});
 
             // Clear in 100 ms
