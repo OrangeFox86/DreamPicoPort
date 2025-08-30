@@ -9,6 +9,8 @@ if (${PICO_BOARD} STREQUAL "pico2")
   add_definitions(-DCPU_FREQ_KHZ=150000)
 endif()
 
+
+
 #
 # host
 #
@@ -35,41 +37,3 @@ target_include_directories(host
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/host>"
     "${PROJECT_SOURCE_DIR}/inc")
-
-
-#
-# zero_host
-#
-
-if ("${PICO_BOARD}" STREQUAL "pico")
-
-  add_executable(zero_host ${HOST_SRC})
-  pico_add_extra_outputs(zero_host)
-  target_link_libraries(zero_host
-    PRIVATE
-      pico_multicore
-      hal-MapleBus
-      hal-System
-      hal-Usb-Client
-      pico_stdio_usb
-      hostLib
-  )
-  target_compile_options(zero_host PRIVATE
-    -Wall
-    -Werror
-    -O3
-  )
-  target_compile_definitions(zero_host
-    PUBLIC
-      SELECTED_NUMBER_OF_DEVICES=4
-      P3_BUS_START_PIN=2
-      P4_BUS_START_PIN=4
-      )
-
-  target_include_directories(zero_host
-    PRIVATE
-      "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>"
-      "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/zero_host>"
-      "${PROJECT_SOURCE_DIR}/inc")
-
-endif()

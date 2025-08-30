@@ -131,9 +131,16 @@ const DppSettings& DppSettings::initialize()
 
     // Settings at this address are written by the UF2 file
     // This is in a completely different sector so it isn't touched at runtime
-    sDefaultSettingsOffsetAddr = sSettingsOffsetAddr - FLASH_SECTOR_SIZE;
+    // This must be less than a few sectors away from sSettingsOffsetAddr so the UF2 bootloader doesn't erase settings
+    // This must be greater than application size
+    sDefaultSettingsOffsetAddr = 0x50000;
 
-    std::optional<DppSettings> defaultSettings = readSettingsAtAddr(sDefaultSettingsOffsetAddr);
+    std::optional<DppSettings> defaultSettings;
+    if (sDefaultSettingsOffsetAddr < sSettingsOffsetAddr)
+    {
+        defaultSettings= readSettingsAtAddr(sDefaultSettingsOffsetAddr);
+    }
+
     if (defaultSettings.has_value())
     {
         sDefaultSettings = defaultSettings.value();

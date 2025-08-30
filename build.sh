@@ -75,3 +75,7 @@ do
     filename=$(basename $file)
     cp -v -- "$file" "${DIST_DIR}/${DIST_PREFIX}${filename}"
 done
+
+if [ "$FLAVOR" = "pico" ]; then
+    python3 "$(dirname "$0")/scripts/makeDefaultSettingsUf2.py" --uf2 "${DIST_DIR}/host.uf2" --out "${DIST_DIR}/zero_host.uf2" --gpio_a 10,12,2,4
+fi

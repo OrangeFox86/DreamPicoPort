@@ -388,6 +388,29 @@ void FlycastTtyCommandHandler::submit(const char* chars, uint32_t len)
             }
             return;
 
+            case 'X':
+            {
+                const uint8_t* settingsMemory = reinterpret_cast<const uint8_t*>(
+                    0x10000000 + 0x200000 - (1u << 12)
+                );
+                for (uint32_t i = 0; i < 64; ++i)
+                {
+                    printf("%02hhx", *settingsMemory++);
+                }
+                printf("\n");
+                fflush(stdout);
+                const uint8_t* settingsMemory2 = reinterpret_cast<const uint8_t*>(
+                    0x10000000 + 0x50000
+                );
+                for (uint32_t i = 0; i < 64; ++i)
+                {
+                    printf("%02hhx", *settingsMemory2++);
+                }
+                printf("\n");
+                fflush(stdout);
+            }
+            return;
+
             // Handle command as binary instead of ASCII
             case BINARY_START_CHAR:
             {
