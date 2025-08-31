@@ -136,6 +136,7 @@
       let pktData = new Uint8Array(pkt)
 
       if (port && typeof port.send === 'function') {
+        // console.debug("PKT: " + Array.from(pktData).map(b => b.toString(16).padStart(2, '0')).join(' '));
         port.send(pktData);
       } else {
         console.error("Port is not connected or does not support send().");
@@ -520,7 +521,7 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `vmu_controller${String.fromCharCode(65 + readVmuSm.controllerIdx)}_slot${readVmuSm.vmuIndex + 1}.bin`;
+            a.download = `vmu_save_${String.fromCharCode(65 + readVmuSm.controllerIdx)}${readVmuSm.vmuIndex + 1}.bin`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -932,7 +933,7 @@
             const receivedCrc = (payload[payload.length - 2] << 8) | payload[payload.length - 1];
             const computedCrc = crc16(payloadWithoutCrc);
 
-            //console.info("PKT: " + Array.from(payload).map(b => b.toString(16).padStart(2, '0')).join(' '));
+            // console.debug("PKT: " + Array.from(payload).map(b => b.toString(16).padStart(2, '0')).join(' '));
 
             if (receivedCrc !== computedCrc) {
               console.warn(`CRC mismatch: received ${receivedCrc.toString(16)}, computed ${computedCrc.toString(16)}`);
@@ -985,9 +986,10 @@
         };
 
         port.onReceiveError = error => {
-          console.error(error);
-          if (error && (error.name === 'NetworkError' || error.message === 'NetworkError')) {
-            if (port && typeof port.disconnect === 'function') {
+          // Only display an error if port is set. Otherwise, assume this was because of intentional disconnect.
+          if (port) {
+            console.error(error);
+            if (error && error.name === 'NetworkError') {
               disconnect('Lost connection with device', 'red', 'bold');
             }
           }

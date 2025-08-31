@@ -141,9 +141,6 @@ struct DppSettings
     //! @return true iff the given gpio is valid
     static bool isGpioValid(std::uint32_t gpio);
 
-    bool operator==(const DppSettings&) const = default;
-    bool operator!=(const DppSettings&) const = default;
-
 private:
     //! Attempt to read settings at the given address
     //! @param[in] flashAddrOffset The flash address offset to read
