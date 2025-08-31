@@ -997,9 +997,7 @@
           // Only display an error if port is set. Otherwise, assume this was because of intentional disconnect.
           if (port) {
             console.error(error);
-            if (error && error.name === 'NetworkError') {
-              disconnect('Lost connection with device', 'red', 'bold');
-            }
+            disconnect('Lost connection with device', 'red', 'bold');
           }
         };
       }, error => {
