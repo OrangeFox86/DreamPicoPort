@@ -329,7 +329,15 @@
     // Starts the state machine which loads the settings from the device
     function startLoadSm(selectedPort) {
       selectedSerial = selectedPort.serial;
-      selectedDevice.textContent = `Selected device: ${selectedPort.serial} v${selectedPort.major}.${selectedPort.minor}.${selectedPort.patch}`;
+      let deviceVersion = `v${selectedPort.major}.${selectedPort.minor}.${selectedPort.patch}`;
+      let selectedDeviceText = `Selected device: ${selectedPort.name}`;
+      if (!selectedPort.name.includes(selectedSerial)) {
+        selectedDeviceText += `, serial: ${selectedSerial}`;
+      }
+      if (!selectedPort.name.includes(deviceVersion)) {
+        selectedDeviceText += `, ${deviceVersion}`;
+      }
+      selectedDevice.textContent = selectedDeviceText;
       enableAllControls();
       setStatus("Loading settings...");
       const GET_SETTINGS_ADDR = 123;

@@ -23,6 +23,7 @@ var serial = {};
     this.interfaceNumber = 0;
     this.endpointIn = 0;
     this.endpointOut = 0;
+    this.name = device.productName;
     this.serial = device.serialNumber;
     this.major = device.deviceVersionMajor;
     this.minor = device.deviceVersionMinor;
