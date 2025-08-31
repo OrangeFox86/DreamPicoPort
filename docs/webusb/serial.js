@@ -90,7 +90,8 @@ var serial = {};
             'request': 0x22,
             'value': 0x00,
             'index': this.interfaceNumber})
-        .then(() => this.device_.close());
+        .finally(() => this.device_.reset())
+        .finally(() => this.device_.close());
   };
 
   serial.Port.prototype.send = function(data) {
