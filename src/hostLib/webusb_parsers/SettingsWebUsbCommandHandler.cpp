@@ -278,6 +278,15 @@ void SettingsWebUsbCommandHandler::process(
         }
         return;
 
+        // Validate settings
+        case 's':
+        {
+            uint8_t responseCmd = mSettings.makeValid() ? kResponseSuccess : kResponseAttention;
+            std::string settingsData = packSettings(mSettings);
+            responseFn(responseCmd, {{settingsData.data(), settingsData.size()}});
+        }
+        return;
+
         // Save all settings and reboot
         case 'S':
         {
@@ -294,6 +303,14 @@ void SettingsWebUsbCommandHandler::process(
 
             // This will save and reboot on core 0 - delay for 100 ms to allow the above message to go out
             mSettings.requestSave(100);
+        }
+        return;
+
+        // Get the defaults without resetting
+        case 'x':
+        {
+            std::string settingsData = packSettings(DppSettings());
+            responseFn(kResponseSuccess, {{settingsData.data(), settingsData.size()}});
         }
         return;
 

@@ -47,6 +47,8 @@ public:
     void addChars(const char* chars, uint32_t len) override final;
     //! Called from the process handling maple bus execution
     virtual void process() final;
+    //! Reset received buffers
+    void reset() override final;
     //! @return the number of characters stored in the local buffer
     std::size_t numBufferedChars();
     //! @return the number of full commands stored in the local buffer

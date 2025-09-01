@@ -54,6 +54,7 @@ public:
     ) = 0;
 
     static constexpr const std::uint8_t kResponseSuccess = 0x0A;
+    static constexpr const std::uint8_t kResponseAttention = 0x0B;
     static constexpr const std::uint8_t kResponseFailure = 0x0F;
 
     static constexpr const std::uint8_t kResponseCmdInvalid = 0xFE;

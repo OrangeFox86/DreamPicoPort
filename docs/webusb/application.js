@@ -29,6 +29,7 @@
     let port;
     let selectedSerial = null;
     let receiveSm = null; // must define cancel(), start(), process(), and timeout() in the object
+    let receiveSmExpectReboot = false; // true if reboot may occur before next event
     let receiveSmTimeoutId = -1;
     let offlineHint = document.querySelector('#offline-hint');
     let vmu1ARadio = document.querySelector('#vmu1-a-radio');
@@ -66,9 +67,13 @@
     let saveGpioButton = document.querySelector('#save-advanced');
     let resetSettingsButton = document.querySelector('#reset-settings');
     const CMD_OK = 0x0A; // Command success
+    const CMD_ATTENTION = 0x0B; // Command success, but attention is needed
     const CMD_FAIL = 0x0F; // Command failed - data was parsed but execution failed
     const CMD_INVALID = 0xFE; // Command was missing data
     const CMD_BAD = 0xFF; // Command had to target
+
+    const CANCEL_REASON_USER = 0;
+    const CANCEL_REASON_DISCONNECT = 1;
 
     if (window.location.protocol !== "file:") {
       offlineHint.innerHTML = "<strong>Hint:</strong> Press ctrl+s or cmd+s to save this page locally for offline usage.";
@@ -185,6 +190,7 @@
       } else {
         stopSmTimeout();
       }
+      receiveSmExpectReboot = false;
       receiveSm = sm;
       if (!selectedSerial && !selectedPort) {
         setStatus('Please select a device first');
@@ -207,12 +213,13 @@
       stopSmTimeout();
     }
 
-    function cancelSm() {
+    function cancelSm(reason) {
       if (receiveSm) {
-        receiveSm.cancel();
+        receiveSm.cancel(reason);
       }
       receiveSm = null;
       stopSmTimeout();
+      disconnect();
     }
 
     function enableAllControls() {
@@ -342,7 +349,7 @@
       setStatus("Loading settings...");
       const GET_SETTINGS_ADDR = 123;
       var loadSm = {};
-      loadSm.cancel = function() {
+      loadSm.cancel = function(reason) {
         setStatus('Load canceled', 'red', 'bold');
       };
       loadSm.timeout = function() {
@@ -374,11 +381,18 @@
       const SEND_CONTROLLER_B_ADDR = 12;
       const SEND_CONTROLLER_C_ADDR = 13;
       const SEND_CONTROLLER_D_ADDR = 14;
-      const SEND_SAVE_AND_RESTART_ADDR = 15;
+      const SEND_VALIDATE_ADDR = 15;
+      const SEND_SAVE_AND_RESTART_ADDR = 16;
 
       var saveSm = {};
-      saveSm.cancel = function() {
-        setStatus('Save canceled', 'red', 'bold');
+      saveSm.disconnectExpected = false;
+      saveSm.cancel = function(reason) {
+        if (reason == CANCEL_REASON_DISCONNECT && saveSm.disconnectExpected) {
+          // Didn't get a chance to get response before reboot occurred
+          setStatus('Save successful!');
+        } else {
+          setStatus('Save canceled', 'red', 'bold');
+        }
       };
       saveSm.timeout = function() {
         disconnect('Save failed', 'red', 'bold');
@@ -418,18 +432,27 @@
           }
         } else if (addr == SEND_CONTROLLER_D_ADDR) {
           if (cmd == CMD_OK) {
-            send(SEND_SAVE_AND_RESTART_ADDR, 'S'.charCodeAt(0), [83]);
+            send(SEND_VALIDATE_ADDR, 'S'.charCodeAt(0), [115]);
           } else {
             stopSm('Failed to set controller D setting', 'red', 'bold');
+            return;
+          }
+        } else if (addr == SEND_VALIDATE_ADDR) {
+          if (cmd == CMD_OK || cmd == CMD_ATTENTION) {
+            setSettingsFromPayload(payload);
+            send(SEND_SAVE_AND_RESTART_ADDR, 'S'.charCodeAt(0), [83]);
+            // Reboot may occur before the next event
+            saveSm.disconnectExpected = true;
+            return;
+          } else {
+            stopSm('Failed to validate settings', 'red', 'bold');
             return;
           }
         } else if (addr == SEND_SAVE_AND_RESTART_ADDR) {
           if (cmd == CMD_OK) {
             stopSm('Save successful!');
-            return;
           } else {
-            stopSm('Failed save settings', 'red', 'bold');
-            return;
+            stopSm('Failed to save settings', 'red', 'bold');
           }
         }
         resetSmTimeout();
@@ -471,7 +494,7 @@
       readVmuSm.destAddr = readVmuSm.hostAddr | (1 << vmuIndex);
       readVmuSm.currentBlock = 0;
 
-      readVmuSm.cancel = function() {
+      readVmuSm.cancel = function(reason) {
         setStatus('VMU read canceled', 'red', 'bold');
         resetProgressBar();
       };
@@ -573,7 +596,7 @@
       writeVmuSm.currentPhase = 0; // [0,4] // commit on 4
       writeVmuSm.writeDelayMs = 10; // delay between writes, grows on each retry
 
-      writeVmuSm.cancel = function() {
+      writeVmuSm.cancel = function(reason) {
         setStatus('VMU write canceled, VMU memory may be left in a corrupted state', 'red', 'bold');
         resetProgressBar();
       };
@@ -705,14 +728,21 @@
       const SEND_CONTROLLER_D_ADDR = 23;
       const SEND_LED_ADDR = 24;
       const SEND_SIMPLE_LED_ADDR = 25;
-      const SEND_SAVE_AND_RESTART_ADDR = 26;
+      const SEND_VALIDATE_SETTINGS = 26;
+      const SEND_SAVE_AND_RESTART_ADDR = 27;
 
       const CMD_SETTINGS = 'S'.charCodeAt(0);
 
       var writeGpioSm = {};
+      writeGpioSm.disconnectExpected = false;
 
-      writeGpioSm.cancel = function() {
-        setStatus('Write GPIO canceled', 'red', 'bold');
+      writeGpioSm.cancel = function(reason) {
+        if (reason == CANCEL_REASON_DISCONNECT && writeGpioSm.disconnectExpected) {
+          // Didn't get a chance to get response before reboot occurred
+          setStatus('GPIO settings saved');
+        } else {
+          setStatus('Write GPIO canceled', 'red', 'bold');
+        }
       };
 
       writeGpioSm.timeout = function() {
@@ -778,10 +808,21 @@
           }
         } else if (addr == SEND_SIMPLE_LED_ADDR) {
           if (cmd == CMD_OK) {
-            send(SEND_SAVE_AND_RESTART_ADDR, CMD_SETTINGS, ['S'.charCodeAt(0)]);
+            send(SEND_VALIDATE_SETTINGS, CMD_SETTINGS, ['s'.charCodeAt(0)]);
           } else {
             stopSm('Failed to set simple LED GPIO - ensure it is valid', 'red', 'bold');
             return;
+          }
+        } else if (addr == SEND_VALIDATE_SETTINGS) {
+          if (cmd == CMD_ATTENTION) {
+            setSettingsFromPayload(payload)
+            stopSm('GPIO settings need adjustment to prevent overlap - please review changes', 'red', 'bold');
+          } else if (cmd == CMD_OK) {
+            send(SEND_SAVE_AND_RESTART_ADDR, CMD_SETTINGS, ['S'.charCodeAt(0)]);
+            // Reboot may occur before the next event
+            writeGpioSm.disconnectExpected = true;
+          } else {
+            stopSm('Failed to validate settings', 'red', 'bold');
           }
         } else if (addr == SEND_SAVE_AND_RESTART_ADDR) {
           if (cmd == CMD_OK) {
@@ -807,14 +848,21 @@
     function startResetSettingsSm() {
       setStatus("Resetting Settings...");
 
-      const SEND_RESTART_AND_RESTART_ADDR = 30;
+      const SEND_GET_DEFAULTS_ADDR = 30;
+      const SEND_RESET_AND_RESTART_ADDR = 31;
 
       const CMD_SETTINGS = 'S'.charCodeAt(0);
 
       var resetSettingsSm = {};
+      resetSettingsSm.disconnectExpected = false;
 
-      resetSettingsSm.cancel = function() {
-        setStatus('Settings reset canceled', 'red', 'bold');
+      resetSettingsSm.cancel = function(reason) {
+        if (reason == CANCEL_REASON_DISCONNECT && resetSettingsSm.disconnectExpected) {
+          // Didn't get a chance to get response before reboot occurred
+          setStatus('Settings reset');
+        } else {
+          setStatus('Settings reset canceled', 'red', 'bold');
+        }
       };
 
       resetSettingsSm.timeout = function() {
@@ -822,11 +870,20 @@
       };
 
       resetSettingsSm.start = function() {
-        send(SEND_RESTART_AND_RESTART_ADDR, CMD_SETTINGS, ['X'.charCodeAt(0)]);
+        send(SEND_GET_DEFAULTS_ADDR, CMD_SETTINGS, ['x'.charCodeAt(0)]);
       };
 
       resetSettingsSm.process = function(addr, cmd, payload) {
-        if (addr == SEND_RESTART_AND_RESTART_ADDR) {
+        if (addr == SEND_GET_DEFAULTS_ADDR) {
+          if (cmd == CMD_OK) {
+            setSettingsFromPayload(payload);
+            send(SEND_RESET_AND_RESTART_ADDR, CMD_SETTINGS, ['X'.charCodeAt(0)]);
+            // Reboot may occur before the next event
+            resetSettingsSm.disconnectExpected = true;
+          } else {
+            stopSm('Failed to retrieve defaults', 'red', 'bold');
+          }
+        } else if (addr == SEND_RESET_AND_RESTART_ADDR) {
           if (cmd == CMD_OK) {
             setSettingsFromPayload(payload);
             stopSm('Settings reset');
@@ -855,11 +912,13 @@
       statusDisplay.style.fontWeight = fontWeight;
     }
 
-    function disconnect(reason = '', color = 'black', fontWeight = 'normal') {
+    function disconnect(reason = null, color = 'black', fontWeight = 'normal') {
       if (port) {
         port.disconnect();
       }
-      setStatus(reason, color, fontWeight);
+      if (reason !== null) {
+        setStatus(reason, color, fontWeight);
+      }
       port = null;
     }
 
@@ -994,8 +1053,9 @@
         };
 
         port.onReceiveError = error => {
-          // Only display an error if port is set. Otherwise, assume this was because of intentional disconnect.
-          if (port) {
+          if (receiveSm) {
+            cancelSm(CANCEL_REASON_DISCONNECT);
+          } else if (port) {
             console.error(error);
             disconnect('Lost connection with device', 'red', 'bold');
           }
@@ -1097,7 +1157,7 @@
     });
 
     vmuMemoryCancelButton.addEventListener('click', function () {
-      cancelSm();
+      cancelSm(CANCEL_REASON_USER);
     });
 
     saveGpioButton.addEventListener('click', function() {

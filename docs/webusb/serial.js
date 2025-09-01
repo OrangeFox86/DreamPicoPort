@@ -86,11 +86,17 @@ var serial = {};
   };
 
   serial.Port.prototype.disconnect = function() {
+    let value = 0; // value to reset interface
+    if (window.navigator.userAgent.indexOf("Mac") !== -1) {
+      // Workaround for MacOS: force device reboot by sending special case reboot value
+      value = 0xFFFF;
+    }
+
     return this.device_.controlTransferOut({
             'requestType': 'class',
             'recipient': 'interface',
             'request': 0x22,
-            'value': 0x00,
+            'value': value,
             'index': this.interfaceNumber})
         .finally(() => {
           return this.device_.reset().catch(() => {});

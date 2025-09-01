@@ -242,6 +242,20 @@ void SerialStreamParser::process()
     } // End lock guard context
 }
 
+void SerialStreamParser::reset()
+{
+    // Begin lock guard context
+    LockGuard lockGuard(mParserMutex);
+    mParserRx.clear();
+    mParserRx.shrink_to_fit();
+    mEndMarkers.clear();
+    mLastIsEol = false;
+    mOverflowDetected = false;
+    mNumBinaryParsed = -1;
+    mStoredBinarySize = 0;
+    mNumBinaryLeft = 0;
+}
+
 std::size_t SerialStreamParser::numBufferedChars()
 {
     return mParserRx.size();

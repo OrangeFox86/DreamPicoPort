@@ -50,6 +50,14 @@ void usb_cdc_set_parser(TtyParser* parser)
     ttyParser = parser;
 }
 
+void usb_cdc_reset_parser_buffers()
+{
+    if (ttyParser)
+    {
+        ttyParser->reset();
+    }
+}
+
 void usb_cdc_set_echo(bool on)
 {
     echoOn = on;

@@ -39,6 +39,8 @@ public:
     virtual void addChars(const char* chars, uint32_t len) = 0;
     //! Called from the process handling maple bus execution
     virtual void process() = 0;
+    //! Reset received buffers
+    virtual void reset() = 0;
     //! When this character is seen, then binary data will proceed
     //! For binary commands, 2-byte size followed by payload then final \n character
     static const char BINARY_START_CHAR = TtyCommandHandler::BINARY_START_CHAR;
