@@ -78,7 +78,8 @@ int main()
 
     const bool mapleRebootDetected = (watchdog_hw->scratch[0] == WATCHDOG_MAPLE_AUTO_DETECT_MAGIC);
     const bool settingsRebootDetected = (watchdog_hw->scratch[0] == DppSettings::WATCHDOG_SETTINGS_UPDATED_MAGIC);
-    const bool rebootDetected = (mapleRebootDetected || settingsRebootDetected);
+    const bool usbCommandRebootDetected = (watchdog_hw->scratch[0] == WATCHDOG_SETTINGS_USB_REBOOT);
+    const bool rebootDetected = (mapleRebootDetected || settingsRebootDetected || usbCommandRebootDetected);
 
     // Ensure USB hardware is not active
     usb_stop();

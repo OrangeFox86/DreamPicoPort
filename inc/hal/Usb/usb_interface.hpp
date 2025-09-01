@@ -29,6 +29,8 @@
 #include "hal/System/MutexInterface.hpp"
 #include <vector>
 
+static const uint32_t WATCHDOG_SETTINGS_USB_REBOOT = 0x4660DFDA;
+
 //! @returns array of the USB controller observers
 DreamcastControllerObserver** get_usb_controller_observers();
 //! USB initialization

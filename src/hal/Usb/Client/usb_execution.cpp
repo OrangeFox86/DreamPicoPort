@@ -26,6 +26,7 @@
 #include "UsbGamepad.h"
 #include "configuration.h"
 #include "hal/Usb/client_usb_interface.h"
+#include "hal/Usb/usb_interface.hpp"
 #include "hal/System/DppSettings.hpp"
 #include <stdlib.h>
 #include <stdio.h>
@@ -377,6 +378,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
         printf("index %i val %i", (int)request->wIndex, (int)request->wValue);
         if (request->wValue == 0xFFFF)
         {
+          watchdog_hw->scratch[0] = WATCHDOG_SETTINGS_USB_REBOOT;
           // Special request: cause reboot in 250 ms
           watchdog_reboot(0, 0, 250);
         }
