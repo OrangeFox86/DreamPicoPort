@@ -1,6 +1,7 @@
 (function() {
   'use strict';
 
+  // Show a banner when the current browser is not compatible with WebUSB functions
   if (!('usb' in navigator)) {
     window.addEventListener('DOMContentLoaded', () => {
       const warning = document.createElement('div');
@@ -99,6 +100,10 @@
       return crc;
     }
 
+    // Send a formatted command to the DreamPicoPort
+    // addr: host-defined address, up to 64-bits, which is returned within the response
+    // cmd: the command byte which selects the command parser to route the payload to
+    // payload: the payload for the command
     function send(addr, cmd, payload) {
       console.info(`SND ADDR: 0x${addr.toString(16)}, CMD: 0x${cmd.toString(16)}, PAYLOAD: [${Array.from(payload).map(b => '0x' + b.toString(16).padStart(2, '0')).join(', ')}]`);
 
@@ -149,6 +154,7 @@
       }
     }
 
+    // State machine function: Called when the state machine experienced a timeout
     function smTimeout() {
       if (receiveSm) {
         receiveSm.timeout();
@@ -156,6 +162,7 @@
       }
     }
 
+    // State machine function: Cancels the state machine timeout
     function stopSmTimeout() {
       if (receiveSmTimeoutId >= 0) {
         clearTimeout(receiveSmTimeoutId);
@@ -163,6 +170,7 @@
       }
     }
 
+    // State machine function: Stops then restarts the state machine timeout to 150 ms
     function resetSmTimeout() {
       stopSmTimeout();
       if (receiveSm) {
@@ -170,6 +178,7 @@
       }
     }
 
+    // State machine function: Called when connection phase has been successfully completed
     function connectionComplete() {
       if (receiveSm) {
         receiveSm.start();
@@ -177,6 +186,7 @@
       }
     }
 
+    // State machine function: Called when connection could not be established
     function connectionFailed(reason = 'Operation failed: failed to connect to device', disableControl = false) {
       stopSmTimeout();
       if (receiveSm) {
@@ -188,6 +198,9 @@
       }
     }
 
+    // State machine function: Starts a given state machine
+    // sm: The state machine object to start
+    // selectedPort: A specific DreamPicoPort device to connect to
     function startSm(sm, selectedPort = null) {
       if (receiveSm) {
         stopSm('Operation canceled');
@@ -211,12 +224,18 @@
       }
     }
 
+    // State machine function: Stops the currently running state machine
+    // reason: The reason string to display on disconnection
+    // color: The color to set the reason string
+    // fontWeight: The font weight to set the reason string
     function stopSm(reason, color = 'black', fontWeight = 'normal') {
       disconnect(reason, color, fontWeight);
       receiveSm = null;
       stopSmTimeout();
     }
 
+    // State machine function: Cancels a state machine due to external event
+    // reason: One of {CANCEL_REASON_USER, CANCEL_REASON_DISCONNECT}
     function cancelSm(reason) {
       if (receiveSm) {
         receiveSm.cancel(reason);
@@ -226,6 +245,7 @@
       disconnect();
     }
 
+    // Enable all controls within the form
     function enableAllControls() {
       let tabcontent = document.getElementsByClassName("tabcontent");
       for (let i = 0; i < tabcontent.length; i++) {
@@ -234,6 +254,7 @@
       }
     }
 
+    // Disable all controls in within the form besides the Select Device button
     function disableAllControls() {
       let tabcontent = document.getElementsByClassName("tabcontent");
       for (let i = 0; i < tabcontent.length; i++) {
@@ -242,6 +263,9 @@
       }
     }
 
+    // Set the settings on the form from a payload which is known to contain settings
+    // payload: bytestream retrieved from the device
+    // Returns true iff the payload contained enough data to parse
     function setSettingsFromPayload(payload) {
       if (payload.length < 38) {
         return false;
@@ -428,35 +452,30 @@
             send(SEND_CONTROLLER_A_ADDR, 'S'.charCodeAt(0), [80, 0, player1.value]);
           } else {
             stopSm('Failed to set Mass Storage Class setting', 'red', 'bold');
-            return;
           }
         } else if (addr == SEND_CONTROLLER_A_ADDR) {
           if (cmd == CMD_OK) {
             send(SEND_CONTROLLER_B_ADDR, 'S'.charCodeAt(0), [80, 1, player2.value]);
           } else {
             stopSm('Failed to set controller A setting', 'red', 'bold');
-            return;
           }
         } else if (addr == SEND_CONTROLLER_B_ADDR) {
           if (cmd == CMD_OK) {
             send(SEND_CONTROLLER_C_ADDR, 'S'.charCodeAt(0), [80, 2, player3.value]);
           } else {
             stopSm('Failed to set controller B setting', 'red', 'bold');
-            return;
           }
         } else if (addr == SEND_CONTROLLER_C_ADDR) {
           if (cmd == CMD_OK) {
             send(SEND_CONTROLLER_D_ADDR, 'S'.charCodeAt(0), [80, 3, player4.value]);
           } else {
             stopSm('Failed to set controller C setting', 'red', 'bold');
-            return;
           }
         } else if (addr == SEND_CONTROLLER_D_ADDR) {
           if (cmd == CMD_OK) {
             send(SEND_VALIDATE_ADDR, 'S'.charCodeAt(0), [115]);
           } else {
             stopSm('Failed to set controller D setting', 'red', 'bold');
-            return;
           }
         } else if (addr == SEND_VALIDATE_ADDR) {
           if (cmd == CMD_OK || cmd == CMD_ATTENTION) {
@@ -464,10 +483,8 @@
             send(SEND_SAVE_AND_RESTART_ADDR, 'S'.charCodeAt(0), [83]);
             // Reboot may occur before the next event
             saveSm.disconnectExpected = true;
-            return;
           } else {
             stopSm('Failed to validate settings', 'red', 'bold');
-            return;
           }
         } else if (addr == SEND_SAVE_AND_RESTART_ADDR) {
           if (cmd == CMD_OK) {
@@ -476,18 +493,19 @@
             stopSm('Failed to save settings', 'red', 'bold');
           }
         }
-        resetSmTimeout();
       }
 
       startSm(saveSm);
     }
 
+    // Resets the progress bar on the VMU Memory tab
     function resetProgressBar() {
       vmuProgress.value = 0;
       vmuProgressContainer.style.display = 'none';
       vmuProgressText.textContent = '0%';
     }
 
+    // Converts a controller index [0,3] to the Maple Bus host address
     function getMapleHostAddr(controllerIdx) {
       if (controllerIdx == 3) {
         return 0xC0;
@@ -566,7 +584,6 @@
           if (readVmuSm.currentBlock < 256) {
             // Read next block
             sendCurrentBlock();
-            resetSmTimeout();
           } else {
             // Reading complete, save file
             const blob = new Blob([readVmuSm.vmuData], { type: 'application/octet-stream' });
@@ -587,7 +604,6 @@
         } else if (readVmuSm.retries++ < 2) {
             // Re-read current block
             sendCurrentBlock();
-            resetSmTimeout();
         } else {
           stopSm('VMU read failed', 'red', 'bold');
           resetProgressBar();
@@ -712,12 +728,10 @@
               writeVmuSm.writeDelayMs = 10;
             }
 
-            resetSmTimeout();
             setTimeout(() => {
               writeCommit();
             }, writeVmuSm.writeDelayMs);
           } else {
-            resetSmTimeout();
             setTimeout(() => {
               writeCurrentPhase();
             }, writeVmuSm.writeDelayMs);
@@ -733,6 +747,7 @@
       startSm(writeVmuSm);
     }
 
+    // Converts an int32 value to a byte stream
     function int32ToBytes(val) {
       const buffer = new ArrayBuffer(4);
       const view = new DataView(buffer);
@@ -740,6 +755,7 @@
       return [view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3)];
     }
 
+    // Starts the state machine which writes the current settings within the GPIO tab
     function startWriteGpioSm() {
       setStatus("Writing GPIO Settings...");
 
@@ -787,7 +803,6 @@
             send(SEND_CONTROLLER_B_ADDR, CMD_SETTINGS, ['I'.charCodeAt(0), 1, ...int32ToBytes(gpioA), ...int32ToBytes(gpioDir), gpioDirOutHigh])
           } else {
             stopSm('Failed to set controller A GPIO - ensure they are valid', 'red', 'bold');
-            return;
           }
         } else if (addr == SEND_CONTROLLER_B_ADDR) {
           if (cmd == CMD_OK) {
@@ -797,7 +812,6 @@
             send(SEND_CONTROLLER_C_ADDR, CMD_SETTINGS, ['I'.charCodeAt(0), 2, ...int32ToBytes(gpioA), ...int32ToBytes(gpioDir), gpioDirOutHigh])
           } else {
             stopSm('Failed to set controller B GPIO - ensure they are valid', 'red', 'bold');
-            return;
           }
         } else if (addr == SEND_CONTROLLER_C_ADDR) {
           if (cmd == CMD_OK) {
@@ -807,7 +821,6 @@
             send(SEND_CONTROLLER_D_ADDR, CMD_SETTINGS, ['I'.charCodeAt(0), 3, ...int32ToBytes(gpioA), ...int32ToBytes(gpioDir), gpioDirOutHigh])
           } else {
             stopSm('Failed to set controller C GPIO - ensure they are valid', 'red', 'bold');
-            return;
           }
         } else if (addr == SEND_CONTROLLER_D_ADDR) {
           if (cmd == CMD_OK) {
@@ -816,7 +829,6 @@
             send(SEND_LED_ADDR, CMD_SETTINGS, ['L'.charCodeAt(0), ...int32ToBytes(gpioLed)]);
           } else {
             stopSm('Failed to set controller D GPIO - ensure they are valid', 'red', 'bold');
-            return;
           }
         } else if (addr == SEND_LED_ADDR) {
           if (cmd == CMD_OK) {
@@ -825,14 +837,12 @@
             send(SEND_SIMPLE_LED_ADDR, CMD_SETTINGS, ['l'.charCodeAt(0), ...int32ToBytes(gpioLed)]);
           } else {
             stopSm('Failed to set LED GPIO - ensure it is valid', 'red', 'bold');
-            return;
           }
         } else if (addr == SEND_SIMPLE_LED_ADDR) {
           if (cmd == CMD_OK) {
             send(SEND_VALIDATE_SETTINGS, CMD_SETTINGS, ['s'.charCodeAt(0)]);
           } else {
             stopSm('Failed to set simple LED GPIO - ensure it is valid', 'red', 'bold');
-            return;
           }
         } else if (addr == SEND_VALIDATE_SETTINGS) {
           if (cmd == CMD_ATTENTION) {
@@ -858,14 +868,13 @@
           } else {
             stopSm('Failed to save settings', 'red', 'bold');
           }
-          return;
         }
-        resetSmTimeout();
       };
 
       startSm(writeGpioSm);
     }
 
+    // Starts the state machine which resets the sector in flash that settings reside on the DreamPicoPort
     function startResetSettingsSm() {
       setStatus("Resetting Settings...");
 
@@ -911,28 +920,42 @@
           } else {
             stopSm('Failed to reset settings', 'red', 'bold');
           }
-          return;
         }
-        resetSmTimeout();
       };
 
       startSm(resetSettingsSm);
     }
 
+    // Handles incoming message from the DreamPicoPort
+    // addr: The return address which matches what was sent in send()
+    // cmd: The result command
+    // payload: The payload of the result
     function handleIncomingMsg(addr, cmd, payload) {
       console.info(`RCV ADDR: 0x${addr.toString(16)}, CMD: 0x${cmd.toString(16)}, PAYLOAD: [${Array.from(payload).map(b => '0x' + b.toString(16).padStart(2, '0')).join(', ')}]`);
       // receiveSm
       if (receiveSm) {
         receiveSm.process(addr, cmd, payload);
+        // If the state machine is not stopped by above, reset the timeout
+        if (receiveSm) {
+          resetSmTimeout();
+        }
       }
     }
 
+    // Sets the status display to a short string
+    // str: The string to set
+    // color: The color to set the status to
+    // fontWeight: The font weight to set the status to
     function setStatus(str, color = 'black', fontWeight = 'normal') {
       statusDisplay.textContent = str;
       statusDisplay.style.color = color;
       statusDisplay.style.fontWeight = fontWeight;
     }
 
+    // Disconnects the currently connected port and optionally sets the status
+    // reason: The reason for disconnection (optional)
+    // color: The color to set the status to
+    // fontWeight: The font weight to set the status to
     function disconnect(reason = null, color = 'black', fontWeight = 'normal') {
       if (port) {
         port.disconnect();
@@ -943,6 +966,7 @@
       port = null;
     }
 
+    // Sets the selected port and begins the connection process
     function setPortAndConnect(p) {
       port = p;
       port.ready = function () {
@@ -951,6 +975,8 @@
       return connect();
     }
 
+    // Start the connection process with either a port object or serial number of desired port
+    // portOrSerialNumber: Either the port object or serial number string
     function startConnect(portOrSerialNumber){
       if (typeof(portOrSerialNumber) === 'string') {
         serial.getPorts().then(ports => {
@@ -980,6 +1006,7 @@
       }
     }
 
+    // Connect to the selected port and setup callbacks
     function connect() {
       port.connect().then(() => {
         let receiveBuffer = new Uint8Array(0);
@@ -1097,6 +1124,7 @@
       return true;
     }
 
+    // Select Button - click handler
     selectButton.addEventListener('click', function (){
       setStatus('');
       // This can only be activated as a response to a user action
@@ -1112,10 +1140,12 @@
       });
     });
 
+    // General Settings Save Button - click handler
     saveButton.addEventListener('click', function() {
       startSaveSm();
     });
 
+    // Returns the controller index and VMU index for the selected device under the VMU Memory tab
     function getSelectedVmuIndices() {
       let controllerIdx = 0;
       let vmuIdx = 0;
@@ -1149,11 +1179,13 @@
       return { controllerIdx, vmuIdx };
     }
 
+    // Read VMU Button - click handler
     readVmuButton.addEventListener('click', function() {
       const { controllerIdx, vmuIdx } = getSelectedVmuIndices();
       startReadVmuSm(controllerIdx, vmuIdx);
     });
 
+    // Write VMU Button - click handler
     writeVmuButton.addEventListener('click', function() {
       const { controllerIdx, vmuIdx } = getSelectedVmuIndices();
 
@@ -1188,14 +1220,17 @@
       document.body.removeChild(fileInput);
     });
 
+    // VMU Memory Cancel Button - click handler
     vmuMemoryCancelButton.addEventListener('click', function () {
       cancelSm(CANCEL_REASON_USER);
     });
 
+    // Save GPIO Settings Button - click handler
     saveGpioButton.addEventListener('click', function() {
       startWriteGpioSm();
     });
 
+    // Reset Settings Button - click handler
     resetSettingsButton.addEventListener('click', function() {
       startResetSettingsSm();
     });
