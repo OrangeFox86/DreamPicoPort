@@ -26,6 +26,7 @@
 #include "UsbGamepad.h"
 #include "configuration.h"
 #include "hal/Usb/client_usb_interface.h"
+#include "hal/System/DppSettings.hpp"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -376,8 +377,8 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
         printf("index %i val %i", (int)request->wIndex, (int)request->wValue);
         if (request->wValue == 0xFFFF)
         {
-          // Special request: cause reboot now
-          watchdog_reboot(0, 0, 0);
+          // Special request: cause reboot in 250 ms
+          watchdog_reboot(0, 0, 250);
         }
         else if (request->wValue == 0xA5A5)
         {
