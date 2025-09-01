@@ -88,7 +88,7 @@ var serial = {};
   serial.Port.prototype.disconnect = function() {
     let value = 0; // value to reset interface
     if (window.navigator.userAgent.indexOf("Mac") !== -1) {
-      // Workaround for MacOS: force device reboot by sending special case reboot value
+      // Workaround for MacOS: force device restart USB interface by sending special value
       value = 0xFFFE;
     }
 

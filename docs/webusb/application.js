@@ -177,11 +177,14 @@
       }
     }
 
-    function connectionFailed(reason = 'Operation failed: failed to connect to device') {
+    function connectionFailed(reason = 'Operation failed: failed to connect to device', disableControl = false) {
       stopSmTimeout();
       if (receiveSm) {
         receiveSm = null;
-        disconnect(reason);
+        disconnect(reason, 'red', 'bold');
+      }
+      if (disableControl) {
+        disableAllControls();
       }
     }
 
@@ -227,6 +230,14 @@
       let tabcontent = document.getElementsByClassName("tabcontent");
       for (let i = 0; i < tabcontent.length; i++) {
         tabcontent[i].style.pointerEvents = 'auto';
+        tabcontent[i].style.opacity = 1.0;
+      }
+    }
+
+    function disableAllControls() {
+      let tabcontent = document.getElementsByClassName("tabcontent");
+      for (let i = 0; i < tabcontent.length; i++) {
+        tabcontent[i].style.pointerEvents = 'none';
         tabcontent[i].style.opacity = 1.0;
       }
     }
@@ -953,7 +964,15 @@
               return;
             }
           }
-          connectionFailed('Operation failed: could not find selected device');
+
+          let failureMsg = 'Operation failed: could not find selected device';
+          let disableControl = false;
+          if (window.navigator.userAgent.indexOf("Android") !== -1) {
+            // Android revokes permission when device detaches, so the user needs to provide permission again
+            failureMsg = 'Operation failed: please click Select Device and reselect the device to grant access again';
+            disableControl = true;
+          }
+          connectionFailed(failureMsg, disableControl);
         });
         return true;
       } else {
