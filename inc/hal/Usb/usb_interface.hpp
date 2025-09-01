@@ -45,6 +45,8 @@ void usb_init(
 void usb_start();
 //! Stop USB execution
 void usb_stop();
+//! Stop then schedule a restart of USB execution
+void usb_restart();
 //! USB task that needs to be called constantly by main()
 void usb_task();
 

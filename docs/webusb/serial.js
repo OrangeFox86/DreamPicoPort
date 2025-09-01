@@ -89,7 +89,7 @@ var serial = {};
     let value = 0; // value to reset interface
     if (window.navigator.userAgent.indexOf("Mac") !== -1) {
       // Workaround for MacOS: force device reboot by sending special case reboot value
-      value = 0xFFFF;
+      value = 0xFFFE;
     }
 
     return this.device_.controlTransferOut({
@@ -98,6 +98,7 @@ var serial = {};
             'request': 0x22,
             'value': value,
             'index': this.interfaceNumber})
+        .catch(() => {})
         .finally(() => {
           return this.device_.reset().catch(() => {});
         })

@@ -1154,6 +1154,9 @@
               setStatus('Invalid file size. VMU files must be exactly 128KB.', 'red', 'bold');
               return;
             }
+            if (!confirm('This will overwrite all memory on the selected VMU. Would you like to proceed?')) {
+              return;
+            }
             // Start write VMU process with the loaded file data
             startWriteVmuSm(controllerIdx, vmuIdx, fileData);
           };

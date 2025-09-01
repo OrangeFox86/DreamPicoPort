@@ -100,6 +100,10 @@ bool gIsConnected = false;
 int32_t gUsbLedGpio = -1;
 int32_t gSimpleUsbLedGpio = -1;
 
+static bool gUsbStopped = false;
+static uint32_t gUsbStopTime = 0;
+static uint32_t gRestartDelayMs = 0;
+
 void led_task()
 {
   if (gUsbLedGpio >= 0)
@@ -191,15 +195,30 @@ void usb_start()
 {
   dcd_connect(0);
   tusb_init();
+  gRestartDelayMs = 0;
+  gUsbStopped = false;
 }
 
 void usb_stop()
 {
+  gUsbStopTime = time_us_32();
+  gUsbStopped = true;
   dcd_disconnect(0);
+}
+
+void usb_restart()
+{
+  // This is much longer than what is needed, but it will ensure disconnection
+  gRestartDelayMs = 50;
+  usb_stop();
 }
 
 void usb_task()
 {
+  if (gUsbStopped && gRestartDelayMs > 0 && (time_us_32() - gUsbStopTime) >= gRestartDelayMs)
+  {
+    usb_start();
+  }
   tud_task(); // tinyusb device task
   led_task();
   cdc_task();
@@ -378,9 +397,19 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
         printf("index %i val %i", (int)request->wIndex, (int)request->wValue);
         if (request->wValue == 0xFFFF)
         {
+          // Special request: cause reboot in 250 ms (longer than any other reboot delay)
           watchdog_hw->scratch[0] = WATCHDOG_SETTINGS_USB_REBOOT;
-          // Special request: cause reboot in 250 ms
           watchdog_reboot(0, 0, 250);
+        }
+        else if (request->wValue == 0xFFFE)
+        {
+          // Special request: restart USB
+          usb_restart();
+        }
+        else if (request->wValue == 0xFFFD)
+        {
+          // Special request: intentionally cause a STALL
+          return false;
         }
         else if (request->wValue == 0xA5A5)
         {
