@@ -58,6 +58,8 @@ struct DppSettings
     bool cdcEn = true;
     //! USB MSC enabled flag (default: false)
     bool mscEn = false;
+    //! USB WebUSB announcement enabled flag (default: true)
+    bool webUsbAnnounceEn = true;
     //! Detection mode for each player
     PlayerDetectionMode playerDetectionModes[kNumPlayers] = {
         PlayerDetectionMode::kAutoStatic,

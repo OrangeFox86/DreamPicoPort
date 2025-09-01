@@ -93,6 +93,7 @@ int main()
 
     set_usb_cdc_en(currentDppSettings.cdcEn);
     set_usb_msc_en(currentDppSettings.mscEn);
+    usb_webusb_link_announce_enable(currentDppSettings.webUsbAnnounceEn);
 
     if (mapleRebootDetected)
     {

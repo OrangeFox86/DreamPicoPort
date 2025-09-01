@@ -54,4 +54,7 @@ UsbFileSystem& usb_msc_get_file_system();
 //! @return controller state or empty vector if idx is invalid
 std::vector<uint8_t> get_controller_state(uint8_t idx);
 
+//! Enable or disable WebUSB announcement link
+void usb_webusb_link_announce_enable(bool enabled);
+
 #endif // __USB_INTERFACE_H__

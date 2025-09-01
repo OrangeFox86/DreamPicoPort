@@ -318,6 +318,12 @@ void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize)
   #endif
 }
 
+static bool webusb_link_announce_enable = true;
+void usb_webusb_link_announce_enable(bool enabled)
+{
+  webusb_link_announce_enable = enabled;
+}
+
 // Invoked when a control transfer occurred on an interface of this class
 // Driver response accordingly to the request and the transfer stage (setup/data/ack)
 // return false to stall control endpoint (e.g unsupported request)
@@ -333,13 +339,21 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
         {
           // match vendor request in BOS descriptor
           // Get landing page url
-          const std::uint8_t bufLen = 3 + strlen(webusb_url);
+          const std::uint8_t headerLen = 3;
+          const std::uint8_t bufLen = headerLen + strlen(webusb_url);
           std::uint8_t buffer[bufLen];
           buffer[0] = bufLen;
           buffer[1] = 3; // WEBUSB URL type
           buffer[2] = 1; // 0: http, 1: https
-          memcpy(&buffer[3], webusb_url, strlen(webusb_url));
-          return tud_control_xfer(rhport, request, buffer, bufLen);
+          if (webusb_link_announce_enable)
+          {
+            memcpy(&buffer[3], webusb_url, strlen(webusb_url));
+            return tud_control_xfer(rhport, request, buffer, bufLen);
+          }
+          else
+          {
+            return tud_control_xfer(rhport, request, buffer, headerLen);
+          }
         }
 
         case VENDOR_REQUEST_MICROSOFT:

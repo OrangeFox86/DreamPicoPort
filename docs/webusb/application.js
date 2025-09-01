@@ -22,6 +22,7 @@
     let statusDisplay = document.querySelector('#status');
     let saveButton = document.querySelector('#save');
     let mscCheckbox = document.querySelector('#enable-msc-check');
+    let enableWebusbAnnounceCheck = document.querySelector('#enable-webusb-announce-check');
     let player1 = document.querySelector('#player1-select');
     let player2 = document.querySelector('#player2-select');
     let player3 = document.querySelector('#player3-select');
@@ -237,17 +238,18 @@
 
       // Retrieved settings
       mscCheckbox.checked = (payload[1] !== 0);
+      enableWebusbAnnounceCheck.checked = (payload[2] !== 0);
 
-      const controllerADetection = payload[2];
+      const controllerADetection = payload[3];
       player1.value = controllerADetection;
-      const controllerBDetection = payload[3];
+      const controllerBDetection = payload[4];
       player2.value = controllerBDetection;
-      const controllerCDetection = payload[4];
+      const controllerCDetection = payload[5];
       player3.value = controllerCDetection;
-      const controllerDDetection = payload[5];
+      const controllerDDetection = payload[6];
       player4.value = controllerDDetection;
 
-      const gpioA = (payload[6] << 24 | payload[7] << 16 | payload[8] << 8 | payload[9]) | 0;
+      const gpioA = (payload[7] << 24 | payload[8] << 16 | payload[9] << 8 | payload[10]) | 0;
       if (gpioA >= 0) {
         gpioAText.value = gpioA.toString(10);
         gpioABSpan.textContent = gpioA + 1;
@@ -256,7 +258,7 @@
         gpioABSpan.textContent = "Disabled";
       }
 
-      const gpioB = (payload[10] << 24 | payload[11] << 16 | payload[12] << 8 | payload[13]) | 0;
+      const gpioB = (payload[11] << 24 | payload[12] << 16 | payload[13] << 8 | payload[14]) | 0;
       if (gpioB >= 0) {
         gpioBText.value = gpioB.toString(10);
         gpioBBSpan.textContent = gpioB + 1;
@@ -265,7 +267,7 @@
         gpioBBSpan.textContent = "Disabled";
       }
 
-      const gpioC = (payload[14] << 24 | payload[15] << 16 | payload[16] << 8 | payload[17]) | 0;
+      const gpioC = (payload[15] << 24 | payload[16] << 16 | payload[17] << 8 | payload[18]) | 0;
       if (gpioC >= 0) {
         gpioCText.value = gpioC.toString(10);
         gpioCBSpan.textContent = gpioC + 1;
@@ -274,7 +276,7 @@
         gpioCBSpan.textContent = "Disabled";
       }
 
-      const gpioD = (payload[18] << 24 | payload[19] << 16 | payload[20] << 8 | payload[21]) | 0;
+      const gpioD = (payload[19] << 24 | payload[20] << 16 | payload[21] << 8 | payload[22]) | 0;
       if (gpioD >= 0) {
         gpioDText.value = gpioD.toString(10);
         gpioDBSpan.textContent = gpioD + 1;
@@ -283,47 +285,47 @@
         gpioDBSpan.textContent = "Disabled";
       }
 
-      const gpioDirA = (payload[22] << 24 | payload[23] << 16 | payload[24] << 8 | payload[25]) | 0;
+      const gpioDirA = (payload[23] << 24 | payload[24] << 16 | payload[25] << 8 | payload[26]) | 0;
       if (gpioDirA >= 0) {
         gpioADirText.value = gpioDirA.toString(10);
       } else {
         gpioADirText.value = "";
       }
 
-      const gpioDirB = (payload[26] << 24 | payload[27] << 16 | payload[28] << 8 | payload[29]) | 0;
+      const gpioDirB = (payload[27] << 24 | payload[28] << 16 | payload[29] << 8 | payload[30]) | 0;
       if (gpioDirB >= 0) {
         gpioBDirText.value = gpioDirB.toString(10);
       } else {
         gpioBDirText.value = "";
       }
 
-      const gpioDirC = (payload[30] << 24 | payload[31] << 16 | payload[32] << 8 | payload[33]) | 0;
+      const gpioDirC = (payload[31] << 24 | payload[32] << 16 | payload[33] << 8 | payload[34]) | 0;
       if (gpioDirC >= 0) {
         gpioCDirText.value = gpioDirC.toString(10);
       } else {
         gpioCDirText.value = "";
       }
 
-      const gpioDirD = (payload[34] << 24 | payload[35] << 16 | payload[36] << 8 | payload[37]) | 0;
+      const gpioDirD = (payload[35] << 24 | payload[36] << 16 | payload[37] << 8 | payload[38]) | 0;
       if (gpioDirD >= 0) {
         gpioDDirText.value = gpioDirD.toString(10);
       } else {
         gpioDDirText.value = "";
       }
 
-      gpioADirOutHighCheckbox.checked = (payload[38] != 0);
-      gpioBDirOutHighCheckbox.checked = (payload[39] != 0);
-      gpioCDirOutHighCheckbox.checked = (payload[40] != 0);
-      gpioDDirOutHighCheckbox.checked = (payload[41] != 0);
+      gpioADirOutHighCheckbox.checked = (payload[39] != 0);
+      gpioBDirOutHighCheckbox.checked = (payload[40] != 0);
+      gpioCDirOutHighCheckbox.checked = (payload[41] != 0);
+      gpioDDirOutHighCheckbox.checked = (payload[42] != 0);
 
-      const gpioLed = (payload[42] << 24 | payload[43] << 16 | payload[44] << 8 | payload[45]) | 0;
+      const gpioLed = (payload[43] << 24 | payload[44] << 16 | payload[45] << 8 | payload[46]) | 0;
       if (gpioLed >= 0) {
         gpioLedText.value = gpioLed;
       } else {
         gpioLedText.value = "";
       }
 
-      const gpioSimpleLed = (payload[46] << 24 | payload[47] << 16 | payload[48] << 8 | payload[49]) | 0;
+      const gpioSimpleLed = (payload[47] << 24 | payload[48] << 16 | payload[49] << 8 | payload[50]) | 0;
       if (gpioSimpleLed >= 0) {
         gpioSimpleLedText.value = gpioSimpleLed;
       } else {
@@ -377,12 +379,13 @@
     function startSaveSm() {
       setStatus("Saving...");
       const SEND_MSC_ADDR = 10;
-      const SEND_CONTROLLER_A_ADDR = 11;
-      const SEND_CONTROLLER_B_ADDR = 12;
-      const SEND_CONTROLLER_C_ADDR = 13;
-      const SEND_CONTROLLER_D_ADDR = 14;
-      const SEND_VALIDATE_ADDR = 15;
-      const SEND_SAVE_AND_RESTART_ADDR = 16;
+      const SEND_WEBUSB_ANNOUNCE_ADDR = 11;
+      const SEND_CONTROLLER_A_ADDR = 12;
+      const SEND_CONTROLLER_B_ADDR = 13;
+      const SEND_CONTROLLER_C_ADDR = 14;
+      const SEND_CONTROLLER_D_ADDR = 15;
+      const SEND_VALIDATE_ADDR = 16;
+      const SEND_SAVE_AND_RESTART_ADDR = 17;
 
       var saveSm = {};
       saveSm.disconnectExpected = false;
@@ -403,6 +406,13 @@
       }
       saveSm.process = function(addr, cmd, payload) {
         if (addr == SEND_MSC_ADDR) {
+          if (cmd == CMD_OK) {
+            const webusbAnnounceFlag = enableWebusbAnnounceCheck.checked ? 1 : 0;
+            send(SEND_WEBUSB_ANNOUNCE_ADDR, 'S'.charCodeAt(0), [87, webusbAnnounceFlag]);
+          } else {
+            stopSm('Failed to set WebUSB announcement flag', 'red', 'bold');
+          }
+        } else if (addr == SEND_WEBUSB_ANNOUNCE_ADDR) {
           if (cmd == CMD_OK) {
             send(SEND_CONTROLLER_A_ADDR, 'S'.charCodeAt(0), [80, 0, player1.value]);
           } else {

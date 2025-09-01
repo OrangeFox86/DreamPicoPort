@@ -40,9 +40,10 @@ static std::string packSettings(const DppSettings& settings)
 {
     std::string settingsData;
 
-    settingsData.reserve(50);
+    settingsData.reserve(51);
     settingsData.push_back(static_cast<std::uint8_t>(settings.cdcEn ? 1 : 0));
     settingsData.push_back(static_cast<std::uint8_t>(settings.mscEn ? 1 : 0));
+    settingsData.push_back(static_cast<std::uint8_t>(settings.webUsbAnnounceEn ? 1 : 0));
 
     for (std::uint8_t i = 0; i < DppSettings::kNumPlayers; ++i)
     {
@@ -138,6 +139,22 @@ void SettingsWebUsbCommandHandler::process(
             }
 
             mSettings.mscEn = (*iter != 0);
+            responseFn(kResponseSuccess, {});
+        }
+        return;
+
+        // Set WebUSB announcement flag
+        case 'W':
+        {
+            ++iter;
+            if (iter >= eol)
+            {
+                std::uint8_t payload = 0;
+                responseFn(kResponseFailure, {{&payload, 1}});
+                return;
+            }
+
+            mSettings.webUsbAnnounceEn = (*iter != 0);
             responseFn(kResponseSuccess, {});
         }
         return;

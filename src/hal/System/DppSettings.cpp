@@ -44,8 +44,9 @@ static CriticalSectionMutex gSaveMutex;
 
 static const uint32_t kMagic = 0xA875EBBB;
 
-static const uint32_t kUsbEnableCdcMask = 0x00000001;
-static const uint32_t kUsbEnableMscMask = 0x00000002;
+static const uint32_t kUsbEnableCdcMask = (1 << 0);
+static const uint32_t kUsbEnableMscMask = (1 << 1);
+static const uint32_t kUsbEnableWebusbAnnounceMask = (1 << 2);
 
 struct SettingsMemory
 {
@@ -110,6 +111,7 @@ std::optional<DppSettings> DppSettings::readSettingsAtAddr(uint32_t flashAddrOff
     DppSettings settings;
     settings.cdcEn = ((settingsMemory->usbEn & kUsbEnableCdcMask) > 0);
     settings.mscEn = ((settingsMemory->usbEn & kUsbEnableMscMask) > 0);
+    settings.webUsbAnnounceEn = ((settingsMemory->usbEn & kUsbEnableWebusbAnnounceMask) > 0);
     settings.usbLedGpio = settingsMemory->usbLedGpio;
     settings.simpleUsbLedGpio = settingsMemory->simpleUsbLedGpio;
     for (uint8_t i = 0; i < kNumPlayers; ++i)
@@ -265,7 +267,10 @@ void DppSettings::save(uint32_t delayMs) const
         .magic = kMagic,
         .size = kSettingsMemorySizeWords,
         .crc = 0xFFFFFFFF,
-        .usbEn = (cdcEn ? kUsbEnableCdcMask : 0) | (mscEn ? kUsbEnableMscMask : 0),
+        .usbEn =
+            (cdcEn ? kUsbEnableCdcMask : 0) |
+            (mscEn ? kUsbEnableMscMask : 0) |
+            (webUsbAnnounceEn ? kUsbEnableWebusbAnnounceMask : 0),
         .usbLedGpio = usbLedGpio,
         .simpleUsbLedGpio = simpleUsbLedGpio
     };
