@@ -204,12 +204,13 @@ void usb_stop()
   gUsbStopTime = time_us_32();
   gUsbStopped = true;
   dcd_disconnect(0);
+  tud_umount_cb();
 }
 
-void usb_restart()
+void usb_restart(uint32_t extraDelayMs)
 {
-  // This is much longer than what is needed, but it will ensure disconnection
-  gRestartDelayMs = 50;
+  // 50 ms is much longer than what is needed, but it will ensure disconnection
+  gRestartDelayMs = 50 + extraDelayMs;
   usb_stop();
 }
 
@@ -407,6 +408,11 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
           usb_restart();
         }
         else if (request->wValue == 0xFFFD)
+        {
+          // Special request: restart USB with extra delay
+          usb_restart(200);
+        }
+        else if (request->wValue == 0xFFFC)
         {
           // Special request: intentionally cause a STALL
           return false;

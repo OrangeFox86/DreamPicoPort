@@ -28,6 +28,7 @@
 #include "DreamcastControllerObserver.hpp"
 #include "hal/System/MutexInterface.hpp"
 #include <vector>
+#include <cstdint>
 
 static const uint32_t WATCHDOG_SETTINGS_USB_REBOOT = 0x4660DFDA;
 
@@ -46,7 +47,8 @@ void usb_start();
 //! Stop USB execution
 void usb_stop();
 //! Stop then schedule a restart of USB execution
-void usb_restart();
+//! @param[in] extraDelayMs Extra amount of milliseconds to delay before restarting the USB
+void usb_restart(uint32_t extraDelayMs = 0);
 //! USB task that needs to be called constantly by main()
 void usb_task();
 
