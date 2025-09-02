@@ -43,7 +43,10 @@ static_assert(DPP_RELEASE_VERSION_MAJOR < 100, "Cannot pack DPP_RELEASE_VERSION_
 static_assert(DPP_RELEASE_VERSION_MINOR < 10, "Cannot pack DPP_RELEASE_VERSION_MINOR into version BCD");
 static_assert(DPP_RELEASE_VERSION_PATCH < 10, "Cannot pack DPP_RELEASE_VERSION_PATCH into version BCD");
 
-#define DPP_RELEASE_VERSION_BCD ((DPP_RELEASE_VERSION_MAJOR << 8) | (DPP_RELEASE_VERSION_MINOR << 4) | DPP_RELEASE_VERSION_PATCH)
+#define DPP_RELEASE_VERSION_MAJOR_UPPER ((DPP_RELEASE_VERSION_MAJOR / 10U) & 0xF)
+#define DPP_RELEASE_VERSION_MAJOR_LOWER ((DPP_RELEASE_VERSION_MAJOR % 10U) & 0xF)
+
+#define DPP_RELEASE_VERSION_BCD ((DPP_RELEASE_VERSION_MAJOR_UPPER << 12) | (DPP_RELEASE_VERSION_MAJOR_LOWER << 8) | (DPP_RELEASE_VERSION_MINOR << 4) | DPP_RELEASE_VERSION_PATCH)
 
 static uint8_t numberOfGamepads = 0;
 static bool enabledGamepads[MAX_NUMBER_OF_USB_GAMEPADS] = {};
@@ -478,21 +481,26 @@ TU_VERIFY_STATIC(sizeof(desc_ms_os_20) == MS_OS_20_DESC_LEN, "Incorrect size");
 // String Descriptors
 //--------------------------------------------------------------------+
 
-// array of pointer to string descriptors
+// Serial is included in all product and interfaces to help link them together. This is because SDL doesn't always
+// expose the serial number of a device, depending on the operating system it's run on.
+#define DPP_BASE_PROD_DESC "DreamPicoPort-%s"
+
+// Array of pointer to string descriptors
+// In any of these, "%s" is replaced with the serial number
 char const *string_desc_arr[] =
 {
-    (const char[]) {0x09, 0x04}, // 0: is supported language is English (0x0409)
-    "OrangeFox86",               // 1: Manufacturer
-    "DreamPicoPort-%s v" DPP_RELEASE_VERSION_STR, // 2: Product
-    NULL,                        // 3: Serial (special case; get pico serial)
-    "DreamPicoPort-%s A",           // 4: Gamepad 1
-    "DreamPicoPort-%s B",           // 5: Gamepad 2
-    "DreamPicoPort-%s C",           // 6: Gamepad 3
-    "DreamPicoPort-%s D",           // 7: Gamepad 4
-    "DreamPicoPort-%s MSC",         // 8: Mass Storage Class
-    "DreamPicoPort-%s CDC",         // 9: Communication Device Class
-    "DreamPicoPort-%s Vendor",      // 10: WebUSB1 interface (for interfacing with emulators)
-    "DreamPicoPort-%s WebUSB",      // 11: WebUSB2 interface (for configuring)
+    (const char[]) {0x09, 0x04},    // 0: Supported language: English (0x0409)
+    "OrangeFox86",                  // 1: Manufacturer
+    DPP_BASE_PROD_DESC " v" DPP_RELEASE_VERSION_STR, // 2: Product
+    "%s",                           // 3: Serial
+    DPP_BASE_PROD_DESC " A",        // 4: Gamepad 1
+    DPP_BASE_PROD_DESC " B",        // 5: Gamepad 2
+    DPP_BASE_PROD_DESC " C",        // 6: Gamepad 3
+    DPP_BASE_PROD_DESC " D",        // 7: Gamepad 4
+    DPP_BASE_PROD_DESC " MSC",      // 8: Mass Storage Class
+    DPP_BASE_PROD_DESC " CDC",      // 9: Communication Device Class
+    DPP_BASE_PROD_DESC " Vendor",   // 10: WebUSB1 interface (for interfacing with emulators)
+    DPP_BASE_PROD_DESC " WebUSB",   // 11: WebUSB2 interface (for configuring)
 };
 
 #define MAX_DESC_SIZE 64
@@ -518,31 +526,11 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
 
         if (index == PLAYER_TO_STR_IDX(0) && numberOfGamepads == 1)
         {
-            // Special case - if there is only 1 controller, change the label
-            str = "DreamPicoPort";
+            // Special case - if there is only 1 controller in A, change the label
+            str = DPP_BASE_PROD_DESC;
         }
-        else if (str == NULL)
-        {
-            if (index == 3)
-            {
-                // Special case: try to get pico serial number
-                pico_get_unique_board_id_string(buffer, sizeof(buffer));
-                if (buffer[0] != '\0')
-                {
-                    str = buffer;
-                }
-                else
-                {
-                    // Something failed, have host assign serial
-                    return NULL;
-                }
-            }
-            else
-            {
-                return NULL;
-            }
-        }
-        else if (strstr(str, "%s"))
+
+        if (strstr(str, "%s"))
         {
             // String contains %s tag - replace with serial
             char serial[32];
