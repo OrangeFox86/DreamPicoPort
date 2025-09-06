@@ -262,7 +262,7 @@ void FlycastWebUsbCommandHandler::process(
             // Process through the MapleWebUsbCommandHandler
             auto rv = mMapleWebUsbCommandHandler->processMaplePacket(iter, size, responseFn);
 
-            if (rv.first < 0 || !rv.second.isValid())
+            if (!rv.first || !rv.second.isValid())
             {
                 // Failed
                 return;

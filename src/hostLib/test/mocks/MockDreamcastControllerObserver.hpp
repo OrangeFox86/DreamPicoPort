@@ -43,4 +43,6 @@ class MockDreamcastControllerObserver : public DreamcastControllerObserver
         MOCK_METHOD(void, setChangeCondition, (bool changeSignal), (override));
 
         MOCK_METHOD(void, setInstanceId, (uint8_t instance), (override));
+
+        MOCK_METHOD(void, forceSend, (), (override));
 };
