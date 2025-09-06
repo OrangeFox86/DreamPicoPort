@@ -468,6 +468,23 @@ void FlycastTtyCommandHandler::submit(const char* chars, uint32_t len)
             }
             return;
 
+            // XO to get connected gamepads
+            case 'O':
+            {
+                // For each, 0 means unavailable, 1 means available but not connected, 2 means available and connected
+                std::string connectedStr(DppSettings::kNumPlayers, '0');
+                for (std::pair<const uint8_t, DreamcastNodeData>& node : mDcNodes)
+                {
+                    if (!node.second.playerDef->autoDetectOnly)
+                    {
+                        connectedStr[node.first] = node.second.mainNode->isDeviceDetected() ? '2' : '1';
+                    }
+                }
+                send_response(connectedStr);
+                send_response("\n");
+            }
+            return;
+
             // Handle command as binary instead of ASCII
             case BINARY_START_CHAR:
             {

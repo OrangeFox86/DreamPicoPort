@@ -156,7 +156,7 @@ void maple_detect(std::map<uint8_t, DreamcastNodeData>& dcNodes, bool rebootNowO
             const uint8_t playerIdx = dcNode.first;
             if (dcNode.second.playerDef->autoDetectOnly)
             {
-                // Was disconnected, react on connection
+                // Was disconnected on boot, react on connection
                 if (dcNode.second.mainNode->isDeviceDetected())
                 {
                     mapleEnabledMask |= (1 << playerIdx);
@@ -171,9 +171,9 @@ void maple_detect(std::map<uint8_t, DreamcastNodeData>& dcNodes, bool rebootNowO
                     }
                 }
             }
-            else if (mode != DppSettings::PlayerDetectionMode::kAutoDynamicNoDisable)
+            else if (mode == DppSettings::PlayerDetectionMode::kAutoDynamic)
             {
-                // Was connected, react on disconnect
+                // Was connected on boot, react on disconnect
                 if (!dcNode.second.mainNode->isDeviceDetected())
                 {
                     mapleEnabledMask &= ~(1 << playerIdx);

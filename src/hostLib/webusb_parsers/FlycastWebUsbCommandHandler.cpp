@@ -252,6 +252,22 @@ void FlycastWebUsbCommandHandler::process(
         }
         return;
 
+        // XO to get connected gamepads
+        case 'O':
+        {
+            // For each, 0 means unavailable, 1 means available but not connected, 2 means available and connected
+            std::vector<std::uint8_t> connected(DppSettings::kNumPlayers, 0);
+            for (std::pair<const uint8_t, DreamcastNodeData>& node : mDcNodes)
+            {
+                if (!node.second.playerDef->autoDetectOnly)
+                {
+                    connected[node.first] = node.second.mainNode->isDeviceDetected() ? 2 : 1;
+                }
+            }
+            responseFn(kResponseSuccess, {{connected.data(), connected.size()}});
+        }
+        return;
+
         // Maple Bus passthrough
         case 0x05:
         {
