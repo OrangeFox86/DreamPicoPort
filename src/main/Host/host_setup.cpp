@@ -40,17 +40,15 @@
 #include "Mutex.hpp"
 #include "Clock.hpp"
 
-std::vector<DreamcastNodeData> setup_dreamcast_nodes(const std::vector<PlayerDefinition>& playerDefs)
+std::map<uint8_t, DreamcastNodeData> setup_dreamcast_nodes(const std::vector<PlayerDefinition>& playerDefs)
 {
-    std::vector<DreamcastNodeData> dcNodeData;
-    dcNodeData.reserve(playerDefs.size());
+    std::map<uint8_t, DreamcastNodeData> dcNodeData;
 
     static CriticalSectionMutex screenMutexes[MAX_DEVICES];
     DreamcastControllerObserver** observers = get_usb_controller_observers();
     static Mutex schedulerMutexes[MAX_DEVICES];
     static Clock clock;
     uint8_t instanceId = 0;
-    uint8_t i = 0;
     for (const PlayerDefinition& playerDef : playerDefs)
     {
         DreamcastControllerObserver& thisObserver = *(observers[playerDef.index]);
@@ -61,15 +59,18 @@ std::vector<DreamcastNodeData> setup_dreamcast_nodes(const std::vector<PlayerDef
 
         DreamcastNodeData thisNode;
 
-        thisNode.playerDef = playerDef;
+        thisNode.playerDef = std::make_shared<PlayerDefinition>(playerDef);
         thisNode.playerData = std::make_shared<PlayerData>(PlayerData{
             .playerIndex = playerDef.index,
             .gamepad = thisObserver,
-            .screenData = std::make_shared<ScreenData>(screenMutexes[i], i),
+            .screenData = std::make_shared<ScreenData>(screenMutexes[playerDef.index], playerDef.index),
             .clock = clock,
             .fileSystem = usb_msc_get_file_system()
         });
-        thisNode.scheduler = std::make_shared<PrioritizedTxScheduler>(schedulerMutexes[i], playerDef.mapleHostAddr);
+        thisNode.scheduler = std::make_shared<PrioritizedTxScheduler>(
+            schedulerMutexes[playerDef.index],
+            playerDef.mapleHostAddr
+        );
         thisNode.mainNode = std::make_shared<DreamcastMainNode>(
             create_maple_bus(playerDef.gpioA, playerDef.gpioDir, playerDef.dirOutHigh),
             thisNode.playerData,
@@ -77,69 +78,40 @@ std::vector<DreamcastNodeData> setup_dreamcast_nodes(const std::vector<PlayerDef
             playerDef.autoDetectOnly
         );
 
-        dcNodeData.push_back(std::move(thisNode));
-        ++i;
+        dcNodeData.insert_or_assign(playerDef.index, std::move(thisNode));
     }
 
     return dcNodeData;
 }
 
 std::unique_ptr<SerialStreamParser> make_parsers(
-    const std::vector<DreamcastNodeData>& dcNodes
+    const std::map<uint8_t, DreamcastNodeData>& dcNodes
 )
 {
-    // Make the necessary data containers
-    std::vector<std::shared_ptr<PrioritizedTxScheduler>> schedulers;
-    schedulers.reserve(dcNodes.size());
-    std::vector<std::shared_ptr<PlayerData>> playerData;
-    playerData.reserve(dcNodes.size());
-    std::vector<std::shared_ptr<DreamcastMainNode>> dreamcastMainNodes;
-    dreamcastMainNodes.reserve(dcNodes.size());
-    std::vector<uint8_t> mapleHostAddresses;
-    mapleHostAddresses.reserve(dcNodes.size());
-    for (const DreamcastNodeData& dcNode : dcNodes)
-    {
-        schedulers.push_back(dcNode.scheduler);
-        playerData.push_back(dcNode.playerData);
-        dreamcastMainNodes.push_back(dcNode.mainNode);
-        mapleHostAddresses.push_back(dcNode.playerDef.mapleHostAddr);
-    }
-
     // Initialize CDC to Maple Bus interfaces
     static Mutex ttyParserMutex;
     std::unique_ptr<SerialStreamParser> ttyParser = std::make_unique<SerialStreamParser>(ttyParserMutex, 'h');
     usb_cdc_set_parser(ttyParser.get());
-    ttyParser->addTtyCommandHandler(
-        std::make_shared<MaplePassthroughTtyCommandHandler>(
-            schedulers, mapleHostAddresses
-        )
-    );
+    ttyParser->addTtyCommandHandler(std::make_shared<MaplePassthroughTtyCommandHandler>(dcNodes));
     static PicoIdentification picoIdentification;
     static Mutex flycastTtyCommandHandlerMutex;
     ttyParser->addTtyCommandHandler(
         std::make_shared<FlycastTtyCommandHandler>(
             flycastTtyCommandHandlerMutex,
             picoIdentification,
-            schedulers,
-            mapleHostAddresses,
-            playerData,
-            dreamcastMainNodes
+            dcNodes
         )
     );
 
     // Initialize and register WebUsb parsers
     std::shared_ptr<MapleWebUsbCommandHandler> mapleWebUsbCommandHandler =
-        std::make_shared<MapleWebUsbCommandHandler>(
-            schedulers,
-            mapleHostAddresses
-        );
+        std::make_shared<MapleWebUsbCommandHandler>(dcNodes);
     webusb_add_parser(mapleWebUsbCommandHandler);
     std::shared_ptr<FlycastWebUsbCommandHandler> flycastWebUsbCommandParser =
         std::make_shared<FlycastWebUsbCommandHandler>(
             picoIdentification,
             mapleWebUsbCommandHandler,
-            playerData,
-            dreamcastMainNodes
+            dcNodes
         );
     webusb_add_parser(flycastWebUsbCommandParser);
     std::shared_ptr<SettingsWebUsbCommandHandler> settingsWebUsbCommandHandler = std::make_shared<SettingsWebUsbCommandHandler>();
@@ -152,40 +124,40 @@ static uint8_t mapleEnabledMask = 0;
 static DppSettings::PlayerDetectionMode mapleDetectUpdatedModes[DppSettings::kNumPlayers];
 static bool maplePlayerModesUpdated = false;
 
-void maple_detect_init(const std::vector<DreamcastNodeData>& dcNodes)
+void maple_detect_init(const std::map<uint8_t, DreamcastNodeData>& dcNodes)
 {
     for (uint8_t i = 0; i < DppSettings::kNumPlayers; ++i)
     {
         mapleDetectUpdatedModes[i] = DppSettings::getInitialSettings().playerDetectionModes[i];
     }
 
-    for (const DreamcastNodeData& node : dcNodes)
+    for (const std::pair<const uint8_t, DreamcastNodeData>& node : dcNodes)
     {
-        if (!node.playerDef.autoDetectOnly)
+        if (!node.second.playerDef->autoDetectOnly)
         {
-            mapleEnabledMask |= (1 << node.playerDef.index);
+            mapleEnabledMask |= (1 << node.first);
         }
     }
 }
 
-void maple_detect(std::vector<DreamcastNodeData>& dcNodes, bool rebootNowOnDetect)
+void maple_detect(std::map<uint8_t, DreamcastNodeData>& dcNodes, bool rebootNowOnDetect)
 {
     // Time markers for auto detect when anyMapleAutoDetect is true
     static uint64_t autoDetectTimeUs[MAX_DEVICES] = {};
     static uint64_t autoDetectReactionTimeUs = 0;
 
     uint8_t i = 0;
-    for (const DreamcastNodeData& dcNode : dcNodes)
+    for (const std::pair<const uint8_t, DreamcastNodeData>& dcNode : dcNodes)
     {
-        const DppSettings::PlayerDetectionMode& mode = dcNode.playerDef.detectionMode;
+        const DppSettings::PlayerDetectionMode& mode = dcNode.second.playerDef->detectionMode;
 
         if (mode > DppSettings::PlayerDetectionMode::kAutoThreshold && autoDetectTimeUs[i] == 0)
         {
-            const uint8_t playerIdx = dcNode.playerDef.index;
-            if (dcNode.playerDef.autoDetectOnly)
+            const uint8_t playerIdx = dcNode.first;
+            if (dcNode.second.playerDef->autoDetectOnly)
             {
                 // Was disconnected, react on connection
-                if (dcNode.mainNode->isDeviceDetected())
+                if (dcNode.second.mainNode->isDeviceDetected())
                 {
                     mapleEnabledMask |= (1 << playerIdx);
                     autoDetectTimeUs[i] = time_us_64();
@@ -202,7 +174,7 @@ void maple_detect(std::vector<DreamcastNodeData>& dcNodes, bool rebootNowOnDetec
             else if (mode != DppSettings::PlayerDetectionMode::kAutoDynamicNoDisable)
             {
                 // Was connected, react on disconnect
-                if (!dcNode.mainNode->isDeviceDetected())
+                if (!dcNode.second.mainNode->isDeviceDetected())
                 {
                     mapleEnabledMask &= ~(1 << playerIdx);
                     autoDetectTimeUs[i] = time_us_64();

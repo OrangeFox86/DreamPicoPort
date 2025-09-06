@@ -35,13 +35,11 @@ const std::uint8_t FlycastWebUsbCommandHandler::kInterfaceVersion[2] = {1, 0};
 FlycastWebUsbCommandHandler::FlycastWebUsbCommandHandler(
     SystemIdentification& identification,
     const std::shared_ptr<MapleWebUsbCommandHandler>& mapleWebUsbCommandHandler,
-    const std::vector<std::shared_ptr<PlayerData>>& playerData,
-    const std::vector<std::shared_ptr<DreamcastMainNode>>& nodes
+    const std::map<uint8_t, DreamcastNodeData>& dcNodes
 ) :
     mIdentification(identification),
     mMapleWebUsbCommandHandler(mapleWebUsbCommandHandler),
-    mPlayerData(playerData),
-    nodes(nodes)
+    mDcNodes(dcNodes)
 {}
 
 void FlycastWebUsbCommandHandler::process(
@@ -79,23 +77,27 @@ void FlycastWebUsbCommandHandler::process(
             {
                 // all
                 std::uint8_t count = 0;
-                for (std::shared_ptr<PlayerData>& playerData : mPlayerData)
+                for (std::pair<const uint8_t, DreamcastNodeData>& node : mDcNodes)
                 {
                     ++count;
-                    playerData->screenData->resetToDefault();
+                    node.second.playerData->screenData->resetToDefault();
                 }
                 std::string s = std::to_string(count);
                 responseFn(kResponseSuccess, {{&count, 1}});
             }
-            else if (static_cast<std::size_t>(idx) < mPlayerData.size())
-            {
-                mPlayerData[idx]->screenData->resetToDefault();
-                std::uint8_t count = 1;
-                responseFn(kResponseSuccess, {{&count, 1}});
-            }
             else
             {
-                responseFn(kResponseFailure, {});
+                std::map<uint8_t, DreamcastNodeData>::iterator nodeIter = mDcNodes.find(idx);
+                if (nodeIter != mDcNodes.end())
+                {
+                    nodeIter->second.playerData->screenData->resetToDefault();
+                    const std::uint8_t count = 1;
+                    responseFn(kResponseSuccess, {{&count, 1}});
+                }
+                else
+                {
+                    responseFn(kResponseFailure, {});
+                }
             }
         }
         return;
@@ -116,14 +118,15 @@ void FlycastWebUsbCommandHandler::process(
                 idxout = *iter++;
             }
 
+            std::map<uint8_t, DreamcastNodeData>::iterator dcNodeIter = mDcNodes.end();
             if (
                 idxin >= 0 &&
-                static_cast<std::size_t>(idxin) < mPlayerData.size() &&
+                (dcNodeIter = mDcNodes.find(idxin)) != mDcNodes.end() &&
                 idxout >= 0 &&
                 static_cast<std::size_t>(idxout) < ScreenData::NUM_DEFAULT_SCREENS
             )
             {
-                mPlayerData[idxin]->screenData->setDataToADefault(idxout);
+                dcNodeIter->second.playerData->screenData->setDataToADefault(idxout);
                 responseFn(kResponseSuccess, {});
             }
             else
@@ -154,9 +157,10 @@ void FlycastWebUsbCommandHandler::process(
                 idx = *iter;
             }
 
-            if (idx >= 0 && static_cast<std::size_t>(idx) < nodes.size())
+            std::map<uint8_t, DreamcastNodeData>::iterator dcNodeIter = mDcNodes.end();
+            if (idx >= 0 && (dcNodeIter = mDcNodes.find(idx)) != mDcNodes.end())
             {
-                nodes[idx]->requestSummary(
+                dcNodeIter->second.mainNode->requestSummary(
                     [responseFn](const std::list<std::list<std::array<uint32_t, 2>>>& summary)
                     {
                         std::string response;
@@ -226,6 +230,28 @@ void FlycastWebUsbCommandHandler::process(
         }
         return;
 
+        // XG[0-3] to refresh gamepad state over HID
+        case 'G':
+        {
+            // Remove the G
+            ++iter;
+            if (iter >= eol)
+            {
+                responseFn(kResponseCmdInvalid, {});
+                return;
+            }
+            const std::uint8_t idx = *iter;
+            std::map<uint8_t, DreamcastNodeData>::iterator dcNodeIter = mDcNodes.find(idx);
+            if (dcNodeIter == mDcNodes.end())
+            {
+                responseFn(kResponseFailure, {});
+                return;
+            }
+            dcNodeIter->second.playerData->gamepad.forceSend();
+            responseFn(kResponseSuccess, {});
+        }
+        return;
+
         // Maple Bus passthrough
         case 0x05:
         {
@@ -260,7 +286,7 @@ void FlycastWebUsbCommandHandler::process(
                     {
                         screenWords[i] = MaplePacket::flipWordBytes(screenWords[i]);
                     }
-                    mPlayerData[rv.first]->screenData->setData(screenWords, 0, 0x30, false);
+                    rv.first->playerData->screenData->setData(screenWords, 0, 0x30, false);
                 }
             }
         }

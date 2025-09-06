@@ -26,8 +26,9 @@
 #include <cstdint>
 #include <memory>
 #include <vector>
+#include <map>
 
-#include "DreamcastMainNode.hpp"
+#include "DreamcastNodeData.hpp"
 #include "SerialStreamParser.hpp"
 
 #include "hal/System/DppSettings.hpp"
@@ -36,26 +37,7 @@
 
 const uint32_t WATCHDOG_MAPLE_AUTO_DETECT_MAGIC = 0xEA68D4;
 
-struct PlayerDefinition
-{
-    uint8_t index; //!< Player index [0,3]
-    bool autoDetectOnly; //!< True if only waiting for detection, no USB communication
-    DppSettings::PlayerDetectionMode detectionMode;
-    uint32_t gpioA; //!< GPIO number of maple A, maple B is always very next one
-    uint32_t gpioDir; //!< GPIO number of direction output
-    bool dirOutHigh; //!< true if output is high when currently outputting, false for opposite
-    uint8_t mapleHostAddr; //!< The address of the host on the maple bus
-};
-
-struct DreamcastNodeData
-{
-    PlayerDefinition playerDef;
-    std::shared_ptr<DreamcastMainNode> mainNode;
-    std::shared_ptr<PrioritizedTxScheduler> scheduler;
-    std::shared_ptr<PlayerData> playerData;
-};
-
-std::vector<DreamcastNodeData> setup_dreamcast_nodes(const std::vector<PlayerDefinition>& playerDefs);
-std::unique_ptr<SerialStreamParser> make_parsers(const std::vector<DreamcastNodeData>& dcNodes);
-void maple_detect_init(const std::vector<DreamcastNodeData>& dcNodes);
-void maple_detect(std::vector<DreamcastNodeData>& dcNodes, bool rebootNowOnDetect = false);
+std::map<uint8_t, DreamcastNodeData> setup_dreamcast_nodes(const std::vector<PlayerDefinition>& playerDefs);
+std::unique_ptr<SerialStreamParser> make_parsers(const std::map<uint8_t, DreamcastNodeData>& dcNodes);
+void maple_detect_init(const std::map<uint8_t, DreamcastNodeData>& dcNodes);
+void maple_detect(std::map<uint8_t, DreamcastNodeData>& dcNodes, bool rebootNowOnDetect = false);

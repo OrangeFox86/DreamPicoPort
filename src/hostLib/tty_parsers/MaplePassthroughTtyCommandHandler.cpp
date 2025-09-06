@@ -63,11 +63,9 @@ public:
 } echoTransmitter;
 
 MaplePassthroughTtyCommandHandler::MaplePassthroughTtyCommandHandler(
-    const std::vector<std::shared_ptr<PrioritizedTxScheduler>>& schedulers,
-    const std::vector<uint8_t>& senderAddresses
+    const std::map<uint8_t, DreamcastNodeData>& dcNodes
 ) :
-    mSchedulers(schedulers),
-    mSenderAddresses(senderAddresses)
+    mDcNodes(dcNodes)
 {}
 
 const char* MaplePassthroughTtyCommandHandler::getCommandChars()
@@ -129,22 +127,39 @@ void MaplePassthroughTtyCommandHandler::submit(const char* chars, uint32_t len)
         if (packet.isValid())
         {
             uint8_t sender = packet.frame.senderAddr;
-            int32_t idx = -1;
-            uint32_t i = 0;
+            DreamcastNodeData* pDcNode = nullptr;
 
-            for (uint8_t addr : mSenderAddresses)
+            uint8_t availableNodes = 0;
+            for (std::pair<const uint8_t, DreamcastNodeData>& node : mDcNodes)
             {
-                if (sender == addr)
+                if (!node.second.playerDef->autoDetectOnly)
                 {
-                    idx = i;
+                    ++availableNodes;
+                    pDcNode = &node.second;
                 }
-
-                ++i;
             }
 
-            if (idx >= 0 && static_cast<std::size_t>(idx) < mSchedulers.size())
+            if (availableNodes == 1)
             {
-                uint32_t id = mSchedulers[idx]->add(
+                // Single player special case - always send to the one available, regardless of address
+                const uint8_t hostAddr = pDcNode->playerDef->mapleHostAddr;
+                packet.frame.senderAddr = hostAddr;
+                packet.frame.recipientAddr = (packet.frame.recipientAddr & 0x3F) | hostAddr;
+            }
+            else
+            {
+                for (std::pair<const uint8_t, DreamcastNodeData>& node : mDcNodes)
+                {
+                    if (sender == node.second.playerDef->mapleHostAddr)
+                    {
+                        pDcNode = &node.second;
+                    }
+                }
+            }
+
+            if (pDcNode && !pDcNode->playerDef->autoDetectOnly)
+            {
+                uint32_t id = pDcNode->scheduler->add(
                     PrioritizedTxScheduler::TransmissionProperties{
                         .priority = PrioritizedTxScheduler::EXTERNAL_TRANSMISSION_PRIORITY,
                         .txTime = PrioritizedTxScheduler::TX_TIME_ASAP,
@@ -160,7 +175,7 @@ void MaplePassthroughTtyCommandHandler::submit(const char* chars, uint32_t len)
                 {
                     printf(" %08lX", (long unsigned int)*iter);
                 }
-                printf("} -> [%li]\n", (long int)idx);
+                printf("} -> [%li]\n", (long int)pDcNode->playerDef->index);
             }
             else
             {

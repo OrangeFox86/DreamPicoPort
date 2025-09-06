@@ -25,9 +25,11 @@
 
 #include "hal/Usb/TtyCommandHandler.hpp"
 
+#include "DreamcastNodeData.hpp"
 #include "PrioritizedTxScheduler.hpp"
 
 #include <memory>
+#include <map>
 
 // Command structure: [whitespace]<command-char>[command]<\n>
 
@@ -35,10 +37,7 @@
 class MaplePassthroughTtyCommandHandler : public TtyCommandHandler
 {
 public:
-    MaplePassthroughTtyCommandHandler(
-        const std::vector<std::shared_ptr<PrioritizedTxScheduler>>& schedulers,
-        const std::vector<uint8_t>& senderAddresses
-    );
+    MaplePassthroughTtyCommandHandler(const std::map<uint8_t, DreamcastNodeData>& dcNodes);
 
     //! @returns the string of command characters this parser handles
     virtual const char* getCommandChars() final;
@@ -50,6 +49,5 @@ public:
     virtual void printHelp() final;
 
 private:
-    const std::vector<std::shared_ptr<PrioritizedTxScheduler>> mSchedulers;
-    const std::vector<uint8_t> mSenderAddresses;
+    std::map<uint8_t, DreamcastNodeData> mDcNodes;
 };

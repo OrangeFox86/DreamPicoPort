@@ -44,7 +44,7 @@ const uint8_t MAPLE_HOST_ADDRESSES[MAX_DEVICES] = {0x00, 0x40, 0x80, 0xC0};
 const uint32_t MAPLE_PINS[MAX_DEVICES] = {P1_BUS_START_PIN, P2_BUS_START_PIN, P3_BUS_START_PIN, P4_BUS_START_PIN};
 const uint32_t MAPLE_DIR_PINS[MAX_DEVICES] = {P1_DIR_PIN, P2_DIR_PIN, P3_DIR_PIN, P4_DIR_PIN};
 
-static std::vector<DreamcastNodeData> dcNodes;
+static std::map<uint8_t, DreamcastNodeData> dcNodes;
 
 // Second Core Process
 // The second core is in charge of handling communication with Dreamcast peripherals
@@ -59,7 +59,7 @@ void core1()
         for (auto& node : dcNodes)
         {
             // Worst execution duration of below is ~350 us at 133 MHz when debug print is disabled
-            node.mainNode->task(time_us_64());
+            node.second.mainNode->task(time_us_64());
         }
 
         // Process any waiting commands in the TTY parser
@@ -190,9 +190,9 @@ int main()
         uint64_t endTime = time_us_64() + 3500000;
         while (time_us_64() < endTime && !somethingDetected)
         {
-            for (const DreamcastNodeData& dcNode : dcNodes)
+            for (const std::pair<const uint8_t, DreamcastNodeData>& dcNode : dcNodes)
             {
-                if (dcNode.mainNode->isDeviceDetected())
+                if (dcNode.second.mainNode->isDeviceDetected())
                 {
                     somethingDetected = true;
                 }

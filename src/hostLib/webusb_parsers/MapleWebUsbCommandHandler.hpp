@@ -31,6 +31,7 @@
 
 #include "PlayerData.hpp"
 #include "DreamcastMainNode.hpp"
+#include "DreamcastNodeData.hpp"
 
 #include <memory>
 #include <list>
@@ -40,10 +41,7 @@
 class MapleWebUsbCommandHandler : public WebUsbCommandHandler
 {
 public:
-    MapleWebUsbCommandHandler(
-        const std::vector<std::shared_ptr<PrioritizedTxScheduler>>& schedulers,
-        const std::vector<uint8_t>& senderAddresses
-    );
+    MapleWebUsbCommandHandler(const std::map<uint8_t, DreamcastNodeData>& dcNodes);
 
     virtual ~MapleWebUsbCommandHandler() = default;
 
@@ -57,9 +55,9 @@ public:
     //! @param[in] payload Full maple packet payload, excluding CRC
     //! @param[in] payloadLen The length of \p payload
     //! @param[in] responseFn The function to respond on
-    //! @return [-1, MaplePacket::Frame::defaultFrame()] on failure
-    //! @return pair where the first value is the player index and the second value is the frame word transmitted
-    std::pair<int32_t, MaplePacket::Frame> processMaplePacket(
+    //! @return [nullptr, MaplePacket::Frame::defaultFrame()] on failure
+    //! @return pair where the first value is the DC node and the second value is the frame word transmitted to the node
+    std::pair<DreamcastNodeData*, MaplePacket::Frame> processMaplePacket(
         const std::uint8_t* payload,
         std::uint16_t payloadLen,
         const std::function<
@@ -77,6 +75,5 @@ public:
     ) override;
 
 private:
-    const std::vector<std::shared_ptr<PrioritizedTxScheduler>> mSchedulers;
-    const std::vector<uint8_t> mSenderAddresses;
+    std::map<uint8_t, DreamcastNodeData> mDcNodes;
 };

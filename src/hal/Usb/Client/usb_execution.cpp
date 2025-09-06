@@ -395,7 +395,6 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
 
     case TUSB_REQ_TYPE_CLASS:
       if (request->bRequest == 0x22) {
-        printf("index %i val %i", (int)request->wIndex, (int)request->wValue);
         if (request->wValue == 0xFFFF)
         {
           // Special request: cause reboot in 250 ms (longer than any other reboot delay)
@@ -424,8 +423,11 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
         }
         else
         {
-          // Webserial simulate the CDC_REQUEST_SET_CONTROL_LINE_STATE (0x22) to connect and disconnect.
-          webusb_connection_event(request->wIndex, request->wValue);
+          if (IS_WEBUSB_ITF(request->wIndex))
+          {
+            // Webserial simulate the CDC_REQUEST_SET_CONTROL_LINE_STATE (0x22) to connect and disconnect.
+            webusb_connection_event(request->wIndex, request->wValue);
+          }
         }
 
         // response with status OK

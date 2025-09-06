@@ -45,8 +45,7 @@ public:
     FlycastWebUsbCommandHandler(
         SystemIdentification& identification,
         const std::shared_ptr<MapleWebUsbCommandHandler>& mapleWebUsbCommandHandler,
-        const std::vector<std::shared_ptr<PlayerData>>& playerData,
-        const std::vector<std::shared_ptr<DreamcastMainNode>>& nodes
+        const std::map<uint8_t, DreamcastNodeData>& dcNodes
     );
 
     virtual ~FlycastWebUsbCommandHandler() = default;
@@ -70,6 +69,5 @@ private:
     static const std::uint8_t kInterfaceVersion[2];
     SystemIdentification& mIdentification;
     std::shared_ptr<MapleWebUsbCommandHandler> mMapleWebUsbCommandHandler;
-    std::vector<std::shared_ptr<PlayerData>> mPlayerData;
-    std::vector<std::shared_ptr<DreamcastMainNode>> nodes;
+    std::map<uint8_t, DreamcastNodeData> mDcNodes;
 };

@@ -30,15 +30,11 @@
 #include <vector>
 #include <cinttypes>
 
-MapleWebUsbCommandHandler::MapleWebUsbCommandHandler(
-    const std::vector<std::shared_ptr<PrioritizedTxScheduler>>& schedulers,
-    const std::vector<uint8_t>& senderAddresses
-) :
-    mSchedulers(schedulers),
-    mSenderAddresses(senderAddresses)
+MapleWebUsbCommandHandler::MapleWebUsbCommandHandler(const std::map<uint8_t, DreamcastNodeData>& dcNodes) :
+    mDcNodes(dcNodes)
 {}
 
-std::pair<int32_t, MaplePacket::Frame> MapleWebUsbCommandHandler::processMaplePacket(
+std::pair<DreamcastNodeData*, MaplePacket::Frame> MapleWebUsbCommandHandler::processMaplePacket(
     const std::uint8_t* payload,
     std::uint16_t payloadLen,
     const std::function<
@@ -52,7 +48,7 @@ std::pair<int32_t, MaplePacket::Frame> MapleWebUsbCommandHandler::processMaplePa
     if (iter >= eol)
     {
         responseFn(kResponseCmdInvalid, {});
-        return std::make_pair(static_cast<int32_t>(-1), MaplePacket::Frame::defaultFrame());
+        return std::make_pair(nullptr, MaplePacket::Frame::defaultFrame());
     }
 
     std::uint16_t size = payloadLen;
@@ -63,7 +59,7 @@ std::pair<int32_t, MaplePacket::Frame> MapleWebUsbCommandHandler::processMaplePa
         // Invalid - too few words, too many words, or number of bytes not divisible by 4
         std::uint8_t payload = 0;
         responseFn(kResponseFailure, {{&payload, 1}});
-        return std::make_pair(static_cast<int32_t>(-1), MaplePacket::Frame::defaultFrame());
+        return std::make_pair(nullptr, MaplePacket::Frame::defaultFrame());
     }
 
     // Incoming data will be in network order
@@ -85,39 +81,46 @@ std::pair<int32_t, MaplePacket::Frame> MapleWebUsbCommandHandler::processMaplePa
         // Built up packet is not valid
         std::uint8_t payload = 1;
         responseFn(kResponseFailure, {{&payload, 1}});
-        return std::make_pair(static_cast<int32_t>(-1), MaplePacket::Frame::defaultFrame());
+        return std::make_pair(nullptr, MaplePacket::Frame::defaultFrame());
     }
 
     uint8_t sender = packet.frame.senderAddr;
-    int32_t idx = -1;
+    DreamcastNodeData* pDcNode = nullptr;
 
-    if (mSenderAddresses.size() == 1)
+    uint8_t availableNodes = 0;
+    for (std::pair<const uint8_t, DreamcastNodeData>& node : mDcNodes)
     {
-        // Single player special case - always send to the one available, regardless of address
-        idx = 0;
-        packet.frame.senderAddr = mSenderAddresses[0];
-        packet.frame.recipientAddr = (packet.frame.recipientAddr & 0x3F) | mSenderAddresses[0];
-    }
-    else
-    {
-        uint32_t i = 0;
-        for (uint8_t addr : mSenderAddresses)
+        if (!node.second.playerDef->autoDetectOnly)
         {
-            if (sender == addr)
-            {
-                idx = i;
-            }
-
-            ++i;
+            ++availableNodes;
+            pDcNode = &node.second;
         }
     }
 
-    if (idx < 0 || static_cast<std::size_t>(idx) >= mSchedulers.size())
+    if (availableNodes == 1)
+    {
+        // Single player special case - always send to the one available, regardless of address
+        const uint8_t hostAddr = pDcNode->playerDef->mapleHostAddr;
+        packet.frame.senderAddr = hostAddr;
+        packet.frame.recipientAddr = (packet.frame.recipientAddr & 0x3F) | hostAddr;
+    }
+    else
+    {
+        for (std::pair<const uint8_t, DreamcastNodeData>& node : mDcNodes)
+        {
+            if (sender == node.second.playerDef->mapleHostAddr)
+            {
+                pDcNode = &node.second;
+            }
+        }
+    }
+
+    if (!pDcNode || pDcNode->playerDef->autoDetectOnly)
     {
         // Couldn't find the desired address
         std::uint8_t payload = 2;
         responseFn(kResponseFailure, {{&payload, 1}});
-        return std::make_pair(static_cast<int32_t>(-1), MaplePacket::Frame::defaultFrame());
+        return std::make_pair(nullptr, MaplePacket::Frame::defaultFrame());
     }
 
     class MaplePassthroughTransmitter : public Transmitter
@@ -165,7 +168,7 @@ std::pair<int32_t, MaplePacket::Frame> MapleWebUsbCommandHandler::processMaplePa
         > mResponseFn;
     };
 
-    mSchedulers[idx]->add(
+    pDcNode->scheduler->add(
         PrioritizedTxScheduler::TransmissionProperties{
             .priority = PrioritizedTxScheduler::EXTERNAL_TRANSMISSION_PRIORITY,
             .txTime = PrioritizedTxScheduler::TX_TIME_ASAP,
@@ -176,7 +179,7 @@ std::pair<int32_t, MaplePacket::Frame> MapleWebUsbCommandHandler::processMaplePa
         std::make_shared<MaplePassthroughTransmitter>(responseFn)
     );
 
-    return std::make_pair(idx, frame);
+    return std::make_pair(pDcNode, frame);
 }
 
 void MapleWebUsbCommandHandler::process(

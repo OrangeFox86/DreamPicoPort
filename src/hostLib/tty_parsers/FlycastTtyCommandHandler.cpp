@@ -136,21 +136,26 @@ void FlycastBinaryEchoTransmitter::txComplete(
 FlycastTtyCommandHandler::FlycastTtyCommandHandler(
     MutexInterface& m,
     SystemIdentification& identification,
-    const std::vector<std::shared_ptr<PrioritizedTxScheduler>>& schedulers,
-    const std::vector<uint8_t>& senderAddresses,
-    const std::vector<std::shared_ptr<PlayerData>>& playerData,
-    const std::vector<std::shared_ptr<DreamcastMainNode>>& nodes
+    const std::map<uint8_t, DreamcastNodeData>& dcNodes
 ) :
     mMutex(m),
     mIdentification(identification),
-    mSchedulers(schedulers),
-    mSenderAddresses(senderAddresses),
-    mPlayerData(playerData),
-    nodes(nodes),
+    mDcNodes(dcNodes),
+    mDefaultNode(nullptr),
+    mNumAvailableNodes(0),
     mSummaryCallback(std::bind(&FlycastTtyCommandHandler::summaryCallback, this, std::placeholders::_1))
 {
     mFlycastEchoTransmitter = std::make_unique<FlycastEchoTransmitter>(mMutex);
     mFlycastBinaryEchoTransmitter = std::make_unique<FlycastBinaryEchoTransmitter>(mMutex);
+
+    for (std::pair<const uint8_t, DreamcastNodeData>& node : mDcNodes)
+    {
+        if (!node.second.playerDef->autoDetectOnly)
+        {
+            ++mNumAvailableNodes;
+            mDefaultNode = &node.second;
+        }
+    }
 }
 
 const char* FlycastTtyCommandHandler::getCommandChars()
@@ -257,23 +262,26 @@ void FlycastTtyCommandHandler::submit(const char* chars, uint32_t len)
                 {
                     // all
                     int count = 0;
-                    for (std::shared_ptr<PlayerData>& playerData : mPlayerData)
+                    for (std::pair<const uint8_t, DreamcastNodeData>& node : mDcNodes)
                     {
                         ++count;
-                        playerData->screenData->resetToDefault();
+                        node.second.playerData->screenData->resetToDefault();
                     }
                     std::string s = std::to_string(count);
                     send_response(std::to_string(count));
                 }
-                else if (static_cast<std::size_t>(idx) < mPlayerData.size())
-                {
-                    mPlayerData[idx]->screenData->resetToDefault();
-                    send_response("1\n");
-                }
                 else
                 {
-                    send_response("0\n");
-
+                    DreamcastNodeData* pDcNode = getNode(idx);
+                    if (pDcNode)
+                    {
+                        pDcNode->playerData->screenData->resetToDefault();
+                        send_response("1\n");
+                    }
+                    else
+                    {
+                        send_response("0\n");
+                    }
                 }
             }
             return;
@@ -286,14 +294,17 @@ void FlycastTtyCommandHandler::submit(const char* chars, uint32_t len)
                 // Remove P
                 ++iter;
                 int idxin = -1;
+                DreamcastNodeData* pDcNode = nullptr;
                 int idxout = -1;
-                if (2 == sscanf(iter, "%i %i", &idxin, &idxout) &&
+                if (
+                    2 == sscanf(iter, "%i %i", &idxin, &idxout) &&
                     idxin >= 0 &&
-                    static_cast<std::size_t>(idxin) < mPlayerData.size() &&
+                    (pDcNode = getNode(idxin)) != nullptr &&
                     idxout >= 0 &&
-                    static_cast<std::size_t>(idxout) < ScreenData::NUM_DEFAULT_SCREENS)
+                    static_cast<std::size_t>(idxout) < ScreenData::NUM_DEFAULT_SCREENS
+                )
                 {
-                    mPlayerData[idxin]->screenData->setDataToADefault(idxout);
+                    pDcNode->playerData->screenData->setDataToADefault(idxout);
                     send_response("1\n");
                 }
                 else
@@ -332,10 +343,12 @@ void FlycastTtyCommandHandler::submit(const char* chars, uint32_t len)
                     }
                 }
 
-                if (idx >= 0 && static_cast<std::size_t>(idx) < nodes.size())
+                DreamcastNodeData* pDcNode = getNode(idx);
+
+                if (pDcNode)
                 {
                     // NOTE: Mutex will be taken in the callback
-                    nodes[idx]->requestSummary(mSummaryCallback);
+                    pDcNode->mainNode->requestSummary(mSummaryCallback);
                 }
                 else
                 {
@@ -399,22 +412,59 @@ void FlycastTtyCommandHandler::submit(const char* chars, uint32_t len)
                     send_response("*failed missing index\n");
                     return;
                 }
-                std::vector<std::uint8_t> state = get_controller_state(*iter - '0');
+
+                const std::uint8_t idx = (*iter - '0');
+                DreamcastNodeData* pDcNode = getNode(idx);
+
+                if (!pDcNode)
+                {
+                    send_response("*failed invalid index\n");
+                    return;
+                }
+
+                std::vector<std::uint8_t> state = get_controller_state(pDcNode->playerDef->index);
+
                 if (state.empty())
                 {
                     send_response("*failed no data retrieved\n");
                     return;
                 }
+
                 std::string hex;
                 hex.reserve(state.size() * 2 + 1);
                 char buffer[3] = {};
                 for (std::uint8_t b : state)
                 {
-                    snprintf(buffer, 3, "%hhX", b);
+                    snprintf(buffer, 3, "%02hhX", b);
                     hex.append(buffer);
                 }
                 hex.append("\n");
                 send_response(hex);
+            }
+            return;
+
+            // XG[0-3] to refresh gamepad state over HID
+            case 'G':
+            {
+                // Remove the G
+                ++iter;
+                if (iter >= eol)
+                {
+                    send_response("*failed missing index\n");
+                    return;
+                }
+
+                const std::uint8_t idx = (*iter - '0');
+                DreamcastNodeData* pDcNode = getNode(idx);
+
+                if (!pDcNode)
+                {
+                    send_response("*failed invalid index\n");
+                    return;
+                }
+
+                pDcNode->playerData->gamepad.forceSend();
+                send_response("1\n");
             }
             return;
 
@@ -520,39 +570,39 @@ void FlycastTtyCommandHandler::submit(const char* chars, uint32_t len)
         MaplePacket packet(frameWord, std::move(payloadWords), byteOrder);
         if (packet.isValid())
         {
-            uint8_t sender = packet.frame.senderAddr;
-            int32_t idx = -1;
+            const uint8_t sender = packet.frame.senderAddr;
+            DreamcastNodeData* pDcNode = nullptr;
 
-            if (mSenderAddresses.size() == 1)
+            if (mNumAvailableNodes == 1)
             {
                 // Single player special case - always send to the one available, regardless of address
-                idx = 0;
-                packet.frame.senderAddr = mSenderAddresses[0];
-                packet.frame.recipientAddr = (packet.frame.recipientAddr & 0x3F) | mSenderAddresses[0];
+                pDcNode = mDefaultNode;
+                const uint8_t hostAddr = pDcNode->playerDef->mapleHostAddr;
+                packet.frame.senderAddr = hostAddr;
+                packet.frame.recipientAddr = (packet.frame.recipientAddr & 0x3F) | hostAddr;
             }
             else
             {
-                uint32_t i = 0;
-                for (uint8_t addr : mSenderAddresses)
+                for (std::pair<const uint8_t, DreamcastNodeData>& node : mDcNodes)
                 {
-                    if (sender == addr)
+                    if (sender == node.second.playerDef->mapleHostAddr)
                     {
-                        idx = i;
+                        pDcNode = &node.second;
                     }
-
-                    ++i;
                 }
             }
 
-            if (idx >= 0 && static_cast<std::size_t>(idx) < mSchedulers.size())
+            if (pDcNode && !pDcNode->playerDef->autoDetectOnly)
             {
-                if (packet.frame.command == 0x0C &&
+                if (
+                    packet.frame.command == 0x0C &&
                     packet.frame.length == 0x32 &&
                     packet.payload[0] == DEVICE_FN_LCD &&
-                    packet.payload[1] == 0)
+                    packet.payload[1] == 0
+                )
                 {
                     // Save screen data
-                    mPlayerData[idx]->screenData->setData(&packet.payload[2], 0, 0x30, false);
+                    pDcNode->playerData->screenData->setData(&packet.payload[2], 0, 0x30, false);
                 }
 
                 Transmitter* t;
@@ -568,7 +618,7 @@ void FlycastTtyCommandHandler::submit(const char* chars, uint32_t len)
                     rxByteOrder = MaplePacket::ByteOrder::HOST;
                 }
 
-                mSchedulers[idx]->add(
+                pDcNode->scheduler->add(
                     PrioritizedTxScheduler::TransmissionProperties{
                         .priority = PrioritizedTxScheduler::EXTERNAL_TRANSMISSION_PRIORITY,
                         .txTime = PrioritizedTxScheduler::TX_TIME_ASAP,
@@ -601,6 +651,25 @@ void FlycastTtyCommandHandler::submit(const char* chars, uint32_t len)
 void FlycastTtyCommandHandler::printHelp()
 {
     send_response("X: commands from a flycast emulator\n");
+}
+
+DreamcastNodeData* FlycastTtyCommandHandler::getNode(uint8_t idx)
+{
+    DreamcastNodeData* pDcNode = nullptr;
+    if (idx == 0 && mNumAvailableNodes == 1)
+    {
+        // Special case to maintain backwards compatibility with older versions of flycast: Use the default
+        pDcNode = mDefaultNode;
+    }
+    else if (idx >= 0)
+    {
+        std::map<uint8_t, DreamcastNodeData>::iterator dcNodeIter = mDcNodes.find(idx);
+        if (dcNodeIter != mDcNodes.end())
+        {
+            pDcNode = &dcNodeIter->second;
+        }
+    }
+    return pDcNode;
 }
 
 void FlycastTtyCommandHandler::summaryCallback(const std::list<std::list<std::array<uint32_t, 2>>>& summary)

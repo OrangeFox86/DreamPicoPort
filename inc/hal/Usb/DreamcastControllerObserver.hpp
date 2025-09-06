@@ -57,6 +57,9 @@ class DreamcastControllerObserver
         //! Set the instance ID for sending report
         //! @param[in] instance The instance ID
         virtual void setInstanceId(uint8_t instance) = 0;
+
+        //! Force send of data over the HID interface
+        virtual void forceSend() = 0;
 };
 
 #endif // __DREAMCAST_CONTROLLER_OBSERVER_H__

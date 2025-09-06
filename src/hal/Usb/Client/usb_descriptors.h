@@ -32,8 +32,11 @@
 #define GAMEPAD_REPORT_SIZE 64
 
 #define ITF_NUM_GAMEPAD(idx) (idx)
+#define ITF_TO_GAMEPAD_IDX(interface) (interface)
 
 #define MAX_NUMBER_OF_USB_GAMEPADS (4)
+
+#define IS_GAMEPAD_ITF(interface) (interface < MAX_NUMBER_OF_USB_GAMEPADS)
 
 // For mass storage device
 #define ITF_NUM_MSC (4)
@@ -49,6 +52,7 @@
 #define ITF_NUM_WEBUSB2 (8)
 #define NUM_ITF_WEBUSB (2)
 
+#define IS_WEBUSB_ITF(itf) (itf >= ITF_NUM_WEBUSB1 && itf <= ITF_NUM_WEBUSB2)
 #define ITF_TO_WEBUSB_IDX(itf) (itf - ITF_NUM_WEBUSB1)
 
 #define ITF_COUNT(numGamepads, cdcEn, mscEn) (numGamepads + (mscEn ? NUM_ITF_MSC : 0) + (cdcEn ? NUM_ITF_CDC : 0) + NUM_ITF_WEBUSB)
