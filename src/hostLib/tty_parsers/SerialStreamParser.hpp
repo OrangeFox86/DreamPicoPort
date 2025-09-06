@@ -31,7 +31,7 @@
 
 #include "hal/System/MutexInterface.hpp"
 #include "hal/Usb/TtyParser.hpp"
-#include "hal/Usb/CommandParser.hpp"
+#include "hal/Usb/TtyCommandHandler.hpp"
 
 // Command structure: [whitespace]<command-char>[command]<\n>
 
@@ -42,11 +42,13 @@ public:
     //! Constructor
     SerialStreamParser(MutexInterface& m, char helpChar);
     //! Adds a command parser to my list of parsers - must be done before any other function called
-    virtual void addCommandParser(std::shared_ptr<CommandParser> parser) override final;
+    virtual void addTtyCommandHandler(std::shared_ptr<TtyCommandHandler> parser) override final;
     //! Called from the process receiving characters on the TTY
     void addChars(const char* chars, uint32_t len) override final;
     //! Called from the process handling maple bus execution
     virtual void process() final;
+    //! Reset received buffers
+    void reset() override final;
     //! @return the number of characters stored in the local buffer
     std::size_t numBufferedChars();
     //! @return the number of full commands stored in the local buffer
@@ -61,9 +63,6 @@ private:
     static const char* INPUT_EOL_CHARS;
     //! String of characters that are treated as a backspace
     static const char* BACKSPACE_CHARS;
-    //! When this character is seen, then binary data will proceed
-    //! For binary commands, 2-byte size followed by payload then final \n character
-    static const char BINARY_START_CHAR = CommandParser::BINARY_START_CHAR;
 
     //! Receive queue
     std::vector<char> mParserRx;
@@ -76,7 +75,7 @@ private:
     //! The command character which prints help for all commands
     const char mHelpChar;
     //! Parsers that may handle data
-    std::vector<std::shared_ptr<CommandParser>> mParsers;
+    std::vector<std::shared_ptr<TtyCommandHandler>> mParsers;
     //! true when overflow in mParserRx
     bool mOverflowDetected;
 

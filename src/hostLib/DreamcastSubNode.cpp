@@ -25,9 +25,11 @@
 #include "dreamcast_constants.h"
 #include "utils.h"
 
-DreamcastSubNode::DreamcastSubNode(uint8_t addr,
-                                   std::shared_ptr<EndpointTxSchedulerInterface> scheduler,
-                                   PlayerData playerData) :
+DreamcastSubNode::DreamcastSubNode(
+    uint8_t addr,
+    std::shared_ptr<EndpointTxSchedulerInterface> scheduler,
+    const std::shared_ptr<PlayerData>& playerData
+) :
     DreamcastNode(addr, scheduler, playerData),
     mConnected(false),
     mScheduleId(-1)
@@ -112,14 +114,17 @@ bool DreamcastSubNode::setConnected(bool connected, uint64_t currentTimeUs)
                 txTime = PrioritizedTxScheduler::computeNextTimeCadence(currentTimeUs, US_PER_CHECK);
             }
             mScheduleId = mEndpointTxScheduler->add(
-                txTime,
-                this,
-                COMMAND_DEVICE_INFO_REQUEST,
-                nullptr,
-                0,
-                true,
-                EXPECTED_DEVICE_INFO_PAYLOAD_WORDS,
-                US_PER_CHECK);
+                EndpointTxSchedulerInterface::TransmissionProperties{
+                    .txTime = txTime,
+                    .command = COMMAND_DEVICE_INFO_REQUEST,
+                    .payload = nullptr,
+                    .payloadLen = 0,
+                    .expectResponse = true,
+                    .expectedResponseNumPayloadWords = EXPECTED_DEVICE_INFO_PAYLOAD_WORDS,
+                    .autoRepeatUs = US_PER_CHECK
+                },
+                this
+            );
         }
         else
         {

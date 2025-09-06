@@ -69,25 +69,33 @@ TEST_F(TransmissionScheduleTest, multiAdd)
     bool expectResponse = true;
     uint32_t expectedResponseNumPayloadWords = 3;
     uint32_t autoRepeatUs = 16000;
-    uint32_t id1 = scheduler.add(priority,
-                                 txTime,
-                                 nullptr,
-                                 packet1,
-                                 expectResponse,
-                                 expectedResponseNumPayloadWords,
-                                 autoRepeatUs);
+    uint32_t id1 = scheduler.add(
+        PrioritizedTxScheduler::TransmissionProperties{
+            .priority = priority,
+            .txTime = txTime,
+            .packet = std::move(packet1),
+            .expectResponse = expectResponse,
+            .expectedResponseNumPayloadWords = expectedResponseNumPayloadWords,
+            .autoRepeatUs = autoRepeatUs
+        },
+        nullptr
+    );
     EXPECT_EQ(id1, 1);
 
     // 4
     txTime = 124;
     MaplePacket packet2({.command=0x01, .recipientAddr=0x10}, 0x11223344);
-    uint32_t id2 = scheduler.add(priority,
-                                 txTime,
-                                 nullptr,
-                                 packet2,
-                                 expectResponse,
-                                 expectedResponseNumPayloadWords,
-                                 autoRepeatUs);
+    uint32_t id2 = scheduler.add(
+        PrioritizedTxScheduler::TransmissionProperties{
+            .priority = priority,
+            .txTime = txTime,
+            .packet = std::move(packet2),
+            .expectResponse = expectResponse,
+            .expectedResponseNumPayloadWords = expectedResponseNumPayloadWords,
+            .autoRepeatUs = autoRepeatUs
+        },
+        nullptr
+    );
     EXPECT_EQ(id2, 2);
 
     // 1
@@ -96,26 +104,34 @@ TEST_F(TransmissionScheduleTest, multiAdd)
     priority = 0;
     txTime = 230;
     MaplePacket packet3({.command=0x12, .recipientAddr=0x34}, 0x56789012);
-    uint32_t id3 = scheduler.add(priority,
-                                 txTime,
-                                 nullptr,
-                                 packet3,
-                                 expectResponse,
-                                 expectedResponseNumPayloadWords,
-                                 autoRepeatUs);
+    uint32_t id3 = scheduler.add(
+        PrioritizedTxScheduler::TransmissionProperties{
+            .priority = priority,
+            .txTime = txTime,
+            .packet = std::move(packet3),
+            .expectResponse = expectResponse,
+            .expectedResponseNumPayloadWords = expectedResponseNumPayloadWords,
+            .autoRepeatUs = autoRepeatUs
+        },
+        nullptr
+    );
     EXPECT_EQ(id3, 3);
 
     // 2
     priority = 255;
     txTime = 22;
     MaplePacket packet4({.command=0x35, .recipientAddr=0x79}, 0x11111111);
-    uint32_t id4 = scheduler.add(priority,
-                                 txTime,
-                                 nullptr,
-                                 packet4,
-                                 expectResponse,
-                                 expectedResponseNumPayloadWords,
-                                 autoRepeatUs);
+    uint32_t id4 = scheduler.add(
+        PrioritizedTxScheduler::TransmissionProperties{
+            .priority = priority,
+            .txTime = txTime,
+            .packet = std::move(packet4),
+            .expectResponse = expectResponse,
+            .expectedResponseNumPayloadWords = expectedResponseNumPayloadWords,
+            .autoRepeatUs = autoRepeatUs
+        },
+        nullptr
+    );
     EXPECT_EQ(id4, 4);
 
     const std::vector<std::list<std::shared_ptr<Transmission>>> schedule = scheduler.getSchedule();
@@ -140,36 +156,48 @@ TEST_F(TransmissionScheduleTest, multiAddBoundary1)
     bool expectResponse = true;
     uint32_t expectedResponseNumPayloadWords = 3; // 304 us
     uint32_t autoRepeatUs = 16000;
-    uint32_t id1 = scheduler.add(priority,
-                                 txTime,
-                                 nullptr,
-                                 packet1,
-                                 expectResponse,
-                                 expectedResponseNumPayloadWords,
-                                 autoRepeatUs);
+    uint32_t id1 = scheduler.add(
+        PrioritizedTxScheduler::TransmissionProperties{
+            .priority = priority,
+            .txTime = txTime,
+            .packet = std::move(packet1),
+            .expectResponse = expectResponse,
+            .expectedResponseNumPayloadWords = expectedResponseNumPayloadWords,
+            .autoRepeatUs = autoRepeatUs
+        },
+        nullptr
+    );
     EXPECT_EQ(id1, 1);
 
     txTime = 124;
     MaplePacket packet2({.command=0x33, .recipientAddr=0xAA}, 0x99887766);
-    uint32_t id2 = scheduler.add(priority,
-                                 txTime,
-                                 nullptr,
-                                 packet2,
-                                 expectResponse,
-                                 expectedResponseNumPayloadWords,
-                                 autoRepeatUs);
+    uint32_t id2 = scheduler.add(
+        PrioritizedTxScheduler::TransmissionProperties{
+            .priority = priority,
+            .txTime = txTime,
+            .packet = std::move(packet2),
+            .expectResponse = expectResponse,
+            .expectedResponseNumPayloadWords = expectedResponseNumPayloadWords,
+            .autoRepeatUs = autoRepeatUs
+        },
+        nullptr
+    );
     EXPECT_EQ(id2, 2);
 
     priority = 0;
     txTime = 123 + 304;
     MaplePacket packet3({.command=0x22, .recipientAddr=0xAA}, 0x99887766);
-    uint32_t id3 = scheduler.add(priority,
-                                 txTime,
-                                 nullptr,
-                                 packet3,
-                                 expectResponse,
-                                 expectedResponseNumPayloadWords,
-                                 autoRepeatUs);
+    uint32_t id3 = scheduler.add(
+        PrioritizedTxScheduler::TransmissionProperties{
+            .priority = priority,
+            .txTime = txTime,
+            .packet = std::move(packet3),
+            .expectResponse = expectResponse,
+            .expectedResponseNumPayloadWords = expectedResponseNumPayloadWords,
+            .autoRepeatUs = autoRepeatUs
+        },
+        nullptr
+    );
     EXPECT_EQ(id3, 3);
 
     const std::vector<std::list<std::shared_ptr<Transmission>>> schedule = scheduler.getSchedule();
@@ -193,36 +221,48 @@ TEST_F(TransmissionScheduleTest, multiAddBoundary2)
     bool expectResponse = true;
     uint32_t expectedResponseNumPayloadWords = 3; // 304 us
     uint32_t autoRepeatUs = 16000;
-    uint32_t id1 = scheduler.add(priority,
-                                 txTime,
-                                 nullptr,
-                                 packet1,
-                                 expectResponse,
-                                 expectedResponseNumPayloadWords,
-                                 autoRepeatUs);
+    uint32_t id1 = scheduler.add(
+        PrioritizedTxScheduler::TransmissionProperties{
+            .priority = priority,
+            .txTime = txTime,
+            .packet = std::move(packet1),
+            .expectResponse = expectResponse,
+            .expectedResponseNumPayloadWords = expectedResponseNumPayloadWords,
+            .autoRepeatUs = autoRepeatUs
+        },
+        nullptr
+    );
     EXPECT_EQ(id1, 1);
 
     priority = 255;
     txTime = 123;
     MaplePacket packet2({.command=0x11, .recipientAddr=0xAA}, 0x99887766);
-    uint32_t id2 = scheduler.add(priority,
-                                 txTime,
-                                 nullptr,
-                                 packet2,
-                                 expectResponse,
-                                 expectedResponseNumPayloadWords,
-                                 autoRepeatUs);
+    uint32_t id2 = scheduler.add(
+        PrioritizedTxScheduler::TransmissionProperties{
+            .priority = priority,
+            .txTime = txTime,
+            .packet = std::move(packet2),
+            .expectResponse = expectResponse,
+            .expectedResponseNumPayloadWords = expectedResponseNumPayloadWords,
+            .autoRepeatUs = autoRepeatUs
+        },
+        nullptr
+    );
     EXPECT_EQ(id2, 2);
 
     txTime = 124;
     MaplePacket packet3({.command=0x33, .recipientAddr=0xAA}, 0x99887766);
-    uint32_t id3 = scheduler.add(priority,
-                                 txTime,
-                                 nullptr,
-                                 packet3,
-                                 expectResponse,
-                                 expectedResponseNumPayloadWords,
-                                 autoRepeatUs);
+    uint32_t id3 = scheduler.add(
+        PrioritizedTxScheduler::TransmissionProperties{
+            .priority = priority,
+            .txTime = txTime,
+            .packet = std::move(packet3),
+            .expectResponse = expectResponse,
+            .expectedResponseNumPayloadWords = expectedResponseNumPayloadWords,
+            .autoRepeatUs = autoRepeatUs
+        },
+        nullptr
+    );
     EXPECT_EQ(id3, 3);
 
     const std::vector<std::list<std::shared_ptr<Transmission>>> schedule = scheduler.getSchedule();
@@ -246,38 +286,50 @@ TEST_F(TransmissionScheduleTest, multiAddBoundary3)
     bool expectResponse = true;
     uint32_t expectedResponseNumPayloadWords = 10;
     uint32_t autoRepeatUs = 0;
-    uint32_t id1 = scheduler.add(priority,
-                    txTime,
-                    nullptr,
-                    packet1,
-                    expectResponse,
-                    expectedResponseNumPayloadWords,
-                    autoRepeatUs);
+    uint32_t id1 = scheduler.add(
+        PrioritizedTxScheduler::TransmissionProperties{
+            .priority = priority,
+            .txTime = txTime,
+            .packet = std::move(packet1),
+            .expectResponse = expectResponse,
+            .expectedResponseNumPayloadWords = expectedResponseNumPayloadWords,
+            .autoRepeatUs = autoRepeatUs
+        },
+        nullptr
+    );
     EXPECT_EQ(id1, 1);
 
     txTime = 2;
     expectedResponseNumPayloadWords = 3; // 304 us
     MaplePacket packet2({.command=0x22, .recipientAddr=0x02}, 0x99887766);
-    uint32_t id2 = scheduler.add(priority,
-                    txTime,
-                    nullptr,
-                    packet2,
-                    expectResponse,
-                    expectedResponseNumPayloadWords,
-                    autoRepeatUs);
+    uint32_t id2 = scheduler.add(
+        PrioritizedTxScheduler::TransmissionProperties{
+            .priority = priority,
+            .txTime = txTime,
+            .packet = std::move(packet2),
+            .expectResponse = expectResponse,
+            .expectedResponseNumPayloadWords = expectedResponseNumPayloadWords,
+            .autoRepeatUs = autoRepeatUs
+        },
+        nullptr
+    );
     EXPECT_EQ(id2, 2);
 
     priority = 0;
     txTime = 2 + 300;
     expectedResponseNumPayloadWords = 0;
     MaplePacket packet3({.command=0x33, .recipientAddr=0x02}, 0x99887766);
-    uint32_t id3 = scheduler.add(priority,
-                    txTime,
-                    nullptr,
-                    packet3,
-                    expectResponse,
-                    expectedResponseNumPayloadWords,
-                    autoRepeatUs);
+    uint32_t id3 = scheduler.add(
+        PrioritizedTxScheduler::TransmissionProperties{
+            .priority = priority,
+            .txTime = txTime,
+            .packet = std::move(packet3),
+            .expectResponse = expectResponse,
+            .expectedResponseNumPayloadWords = expectedResponseNumPayloadWords,
+            .autoRepeatUs = autoRepeatUs
+        },
+        nullptr
+    );
     EXPECT_EQ(id3, 3);
 
     const std::vector<std::list<std::shared_ptr<Transmission>>> schedule = scheduler.getSchedule();
@@ -307,32 +359,44 @@ class TransmissionSchedulePopTestA : public TransmissionScheduleTest
             bool expectResponse = true;
             uint32_t expectedResponseNumPayloadWords = 0;
             uint32_t autoRepeatUs = 0;
-            scheduler.add(priority,
-                          txTime,
-                          nullptr,
-                          packet1,
-                          expectResponse,
-                          expectedResponseNumPayloadWords,
-                          autoRepeatUs);
+            scheduler.add(
+                PrioritizedTxScheduler::TransmissionProperties{
+                    .priority = priority,
+                    .txTime = txTime,
+                    .packet = std::move(packet1),
+                    .expectResponse = expectResponse,
+                    .expectedResponseNumPayloadWords = expectedResponseNumPayloadWords,
+                    .autoRepeatUs = autoRepeatUs
+                },
+                nullptr
+            );
             txTime = 2;
             autoRepeatUs = 16000;
             MaplePacket packet2({.command=0x22, .recipientAddr=0x02}, 0x99887766);
-            scheduler.add(priority,
-                          txTime,
-                          nullptr,
-                          packet2,
-                          expectResponse,
-                          expectedResponseNumPayloadWords,
-                          autoRepeatUs);
+            scheduler.add(
+                PrioritizedTxScheduler::TransmissionProperties{
+                    .priority = priority,
+                    .txTime = txTime,
+                    .packet = std::move(packet2),
+                    .expectResponse = expectResponse,
+                    .expectedResponseNumPayloadWords = expectedResponseNumPayloadWords,
+                    .autoRepeatUs = autoRepeatUs
+                },
+                nullptr
+            );
             txTime = 3;
             MaplePacket packet3({.command=0x33, .recipientAddr=0x02}, 0x99887766);
-            scheduler.add(priority,
-                          txTime,
-                          nullptr,
-                          packet3,
-                          expectResponse,
-                          expectedResponseNumPayloadWords,
-                          autoRepeatUs);
+            scheduler.add(
+                PrioritizedTxScheduler::TransmissionProperties{
+                    .priority = priority,
+                    .txTime = txTime,
+                    .packet = std::move(packet3),
+                    .expectResponse = expectResponse,
+                    .expectedResponseNumPayloadWords = expectedResponseNumPayloadWords,
+                    .autoRepeatUs = autoRepeatUs
+                },
+                nullptr
+            );
         }
 };
 
@@ -411,36 +475,48 @@ class TransmissionSchedulePopTestB : public TransmissionScheduleTest
             bool expectResponse = true;
             uint32_t expectedResponseNumPayloadWords = 10;
             uint32_t autoRepeatUs = 0;
-            scheduler.add(priority,
-                          txTime,
-                          nullptr,
-                          packet1,
-                          expectResponse,
-                          expectedResponseNumPayloadWords,
-                          autoRepeatUs);
+            scheduler.add(
+                PrioritizedTxScheduler::TransmissionProperties{
+                    .priority = priority,
+                    .txTime = txTime,
+                    .packet = std::move(packet1),
+                    .expectResponse = expectResponse,
+                    .expectedResponseNumPayloadWords = expectedResponseNumPayloadWords,
+                    .autoRepeatUs = autoRepeatUs
+                },
+                nullptr
+            );
             priority = 0;
             txTime = 2 + 330;
             expectedResponseNumPayloadWords = 0;
             MaplePacket packet3({.command=0x22, .recipientAddr=0x02}, 0x99887766);
-            scheduler.add(priority,
-                          txTime,
-                          nullptr,
-                          packet3,
-                          expectResponse,
-                          expectedResponseNumPayloadWords,
-                          autoRepeatUs);
+            scheduler.add(
+                PrioritizedTxScheduler::TransmissionProperties{
+                    .priority = priority,
+                    .txTime = txTime,
+                    .packet = std::move(packet3),
+                    .expectResponse = expectResponse,
+                    .expectedResponseNumPayloadWords = expectedResponseNumPayloadWords,
+                    .autoRepeatUs = autoRepeatUs
+                },
+                nullptr
+            );
             priority = 255;
             txTime = 2;
             expectedResponseNumPayloadWords = 3; // 304 us
             MaplePacket packet2({.command=0x33, .recipientAddr=0x02}, 0x99887766);
             autoRepeatUs = 1111;
-            scheduler.add(priority,
-                          txTime,
-                          nullptr,
-                          packet2,
-                          expectResponse,
-                          expectedResponseNumPayloadWords,
-                          autoRepeatUs);
+            scheduler.add(
+                PrioritizedTxScheduler::TransmissionProperties{
+                    .priority = priority,
+                    .txTime = txTime,
+                    .packet = std::move(packet2),
+                    .expectResponse = expectResponse,
+                    .expectedResponseNumPayloadWords = expectedResponseNumPayloadWords,
+                    .autoRepeatUs = autoRepeatUs
+                },
+                nullptr
+            );
         }
 };
 
@@ -474,24 +550,32 @@ class TransmissionSchedulePopTestC : public TransmissionScheduleTest
             bool expectResponse = true;
             uint32_t expectedResponseNumPayloadWords = 0;
             uint32_t autoRepeatUs = 0;
-            scheduler.add(priority,
-                          txTime,
-                          nullptr,
-                          packet1,
-                          expectResponse,
-                          expectedResponseNumPayloadWords,
-                          autoRepeatUs);
+            scheduler.add(
+                PrioritizedTxScheduler::TransmissionProperties{
+                    .priority = priority,
+                    .txTime = txTime,
+                    .packet = std::move(packet1),
+                    .expectResponse = expectResponse,
+                    .expectedResponseNumPayloadWords = expectedResponseNumPayloadWords,
+                    .autoRepeatUs = autoRepeatUs
+                },
+                nullptr
+            );
             priority = 0;
             txTime = 100000;
             expectedResponseNumPayloadWords = 0;
             MaplePacket packet2({.command=0x22, .recipientAddr=0x02}, 0x99887766);
-            scheduler.add(priority,
-                          txTime,
-                          nullptr,
-                          packet2,
-                          expectResponse,
-                          expectedResponseNumPayloadWords,
-                          autoRepeatUs);
+            scheduler.add(
+                PrioritizedTxScheduler::TransmissionProperties{
+                    .priority = priority,
+                    .txTime = txTime,
+                    .packet = std::move(packet2),
+                    .expectResponse = expectResponse,
+                    .expectedResponseNumPayloadWords = expectedResponseNumPayloadWords,
+                    .autoRepeatUs = autoRepeatUs
+                },
+                nullptr
+            );
         }
 };
 

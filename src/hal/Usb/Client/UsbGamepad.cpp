@@ -35,6 +35,7 @@
 
 UsbGamepad::UsbGamepad(uint8_t playerIdx) :
   playerIdx(playerIdx),
+  instance(playerIdx),
   currentDpad(),
   currentButtons(0),
   buttonsUpdated(true)
@@ -244,7 +245,7 @@ bool UsbGamepad::send(bool force)
 {
   if (buttonsUpdated || force)
   {
-    bool sent = sendReport(ITF_NUM_GAMEPAD(playerIdx), GAMEPAD_MAIN_REPORT_ID);
+    bool sent = sendReport(instance, GAMEPAD_MAIN_REPORT_ID);
     if (sent)
     {
       buttonsUpdated = false;
@@ -292,4 +293,9 @@ uint16_t UsbGamepad::getReport(uint8_t *buffer, uint16_t reqlen)
   uint16_t setLen = (sizeof(report) <= reqlen) ? sizeof(report) : reqlen;
   memcpy(buffer, &report, setLen);
   return setLen;
+}
+
+void UsbGamepad::setInstanceId(uint8_t instance)
+{
+  this->instance = instance;
 }

@@ -51,7 +51,7 @@ public:
     //! Constructor
     //! @param[in] bus  The maple bus that scheduled transmissions are written to
     //! @param[in] schedule  The schedule to pop transmissions from
-    TransmissionTimeliner(MapleBusInterface& bus, std::shared_ptr<PrioritizedTxScheduler> schedule);
+    TransmissionTimeliner(const std::shared_ptr<MapleBusInterface>& bus, std::shared_ptr<PrioritizedTxScheduler> schedule);
 
     //! Read timeliner task - called periodically to process timeliner read events
     //! @param[in] currentTimeUs  The current time task is run
@@ -65,7 +65,7 @@ public:
 
 protected:
     //! The maple bus that scheduled transmissions are written to
-    MapleBusInterface& mBus;
+    const std::shared_ptr<MapleBusInterface> mBus;
     //! The schedule that transmissions are popped from
     std::shared_ptr<PrioritizedTxScheduler> mSchedule;
     //! The currently sending transmission

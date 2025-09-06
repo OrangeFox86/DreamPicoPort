@@ -28,20 +28,39 @@
 #include "DreamcastControllerObserver.hpp"
 #include "hal/System/MutexInterface.hpp"
 #include <vector>
+#include <cstdint>
+
+static const uint32_t WATCHDOG_SETTINGS_USB_REBOOT = 0x4660DFDA;
 
 //! @returns array of the USB controller observers
 DreamcastControllerObserver** get_usb_controller_observers();
 //! USB initialization
 void usb_init(
   MutexInterface* mscMutex,
-  MutexInterface* cdcStdioMutex);
+  MutexInterface* cdcStdioMutex,
+  MutexInterface* webUsbMutex,
+  int32_t usbLedGpio,
+  int32_t simpleUsbLedGpio
+);
+//! Start USB execution
+void usb_start();
+//! Stop USB execution
+void usb_stop();
+//! Stop then schedule a restart of USB execution
+//! @param[in] extraDelayMs Extra amount of milliseconds to delay before restarting the USB
+void usb_restart(uint32_t extraDelayMs = 0);
 //! USB task that needs to be called constantly by main()
 void usb_task();
-//! @returns number of USB controllers
-uint32_t get_num_usb_controllers();
 
 //! Must return the file system
 UsbFileSystem& usb_msc_get_file_system();
 
+//! Get the controller state for a controller at \p idx
+//! @param[in] idx The controller index
+//! @return controller state or empty vector if idx is invalid
+std::vector<uint8_t> get_controller_state(uint8_t idx);
+
+//! Enable or disable WebUSB announcement link
+void usb_webusb_link_announce_enable(bool enabled);
 
 #endif // __USB_INTERFACE_H__

@@ -128,6 +128,9 @@ class UsbGamepad : public UsbControllerDevice
     //! @param[out] buffer  Where the report is written
     //! @param[in] reqlen  The length of buffer
     uint16_t getReport(uint8_t *buffer, uint16_t reqlen) final;
+    //! Set the instance ID for sending report
+    //! @param[in] instance The instance ID
+    void setInstanceId(uint8_t instance);
 
   protected:
     //! @returns the hat value based on current dpad state
@@ -152,6 +155,7 @@ class UsbGamepad : public UsbControllerDevice
 
   private:
     const uint8_t playerIdx;
+    uint8_t instance;
     //! Current left analog states (x,y,z)
     int8_t currentLeftAnalog[3];
     //! Current right analog states (x,y,z)

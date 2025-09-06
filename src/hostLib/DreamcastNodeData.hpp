@@ -21,9 +21,33 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include <stdint.h>
+#pragma once
 
-extern "C" {
-void set_usb_descriptor_number_of_gamepads(uint8_t num);
-uint8_t get_usb_descriptor_number_of_gamepads();
-}
+#include <cstdint>
+#include <memory>
+#include <vector>
+#include <map>
+
+#include "DreamcastMainNode.hpp"
+#include "SerialStreamParser.hpp"
+
+#include "hal/System/DppSettings.hpp"
+
+struct PlayerDefinition
+{
+    uint8_t index; //!< Player index [0,3]
+    bool autoDetectOnly; //!< True if only waiting for detection, no USB communication
+    DppSettings::PlayerDetectionMode detectionMode;
+    uint32_t gpioA; //!< GPIO number of maple A, maple B is always very next one
+    uint32_t gpioDir; //!< GPIO number of direction output
+    bool dirOutHigh; //!< true if output is high when currently outputting, false for opposite
+    uint8_t mapleHostAddr; //!< The address of the host on the maple bus
+};
+
+struct DreamcastNodeData
+{
+    std::shared_ptr<PlayerDefinition> playerDef;
+    std::shared_ptr<DreamcastMainNode> mainNode;
+    std::shared_ptr<PrioritizedTxScheduler> scheduler;
+    std::shared_ptr<PlayerData> playerData;
+};

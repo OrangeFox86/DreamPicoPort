@@ -1,11 +1,12 @@
 #pragma once
 
-#include "hal/Usb/CommandParser.hpp"
+#include "hal/Usb/TtyCommandHandler.hpp"
 #include "hal/System/SystemIdentification.hpp"
 #include "hal/System/MutexInterface.hpp"
 
 #include "PrioritizedTxScheduler.hpp"
 
+#include "DreamcastNodeData.hpp"
 #include "PlayerData.hpp"
 #include "DreamcastMainNode.hpp"
 
@@ -58,17 +59,14 @@ private:
 };
 
 //! Command parser for commands from flycast emulator
-class FlycastCommandParser : public CommandParser
+class FlycastTtyCommandHandler : public TtyCommandHandler
 {
 public:
-    FlycastCommandParser(
+    FlycastTtyCommandHandler(
         MutexInterface& m,
         SystemIdentification& identification,
-        std::shared_ptr<PrioritizedTxScheduler>* schedulers,
-        const uint8_t* senderAddresses,
-        uint32_t numSenders,
-        const std::vector<std::shared_ptr<PlayerData>>& playerData,
-        const std::vector<std::shared_ptr<DreamcastMainNode>>& nodes);
+        const std::map<uint8_t, DreamcastNodeData>& dcNodes
+    );
 
     //! @returns the string of command characters this parser handles
     virtual const char* getCommandChars() final;
@@ -80,17 +78,19 @@ public:
     virtual void printHelp() final;
 
 private:
+    //! @return pointer to DreamcastNodeData for the given index if found
+    //! @return nullptr otherwise
+    DreamcastNodeData* getNode(uint8_t idx);
+
     void summaryCallback(const std::list<std::list<std::array<uint32_t, 2>>>& summary);
 
 private:
     static const char* INTERFACE_VERSION;
     MutexInterface& mMutex;
     SystemIdentification& mIdentification;
-    std::shared_ptr<PrioritizedTxScheduler>* const mSchedulers;
-    const uint8_t* const mSenderAddresses;
-    const uint32_t mNumSenders;
-    std::vector<std::shared_ptr<PlayerData>> mPlayerData;
-    std::vector<std::shared_ptr<DreamcastMainNode>> nodes;
+    std::map<uint8_t, DreamcastNodeData> mDcNodes;
+    DreamcastNodeData* mDefaultNode;
+    uint8_t mNumAvailableNodes;
     std::unique_ptr<FlycastEchoTransmitter> mFlycastEchoTransmitter;
     std::unique_ptr<FlycastBinaryEchoTransmitter> mFlycastBinaryEchoTransmitter;
     std::function<void(const std::list<std::list<std::array<uint32_t, 2>>>& summary)> mSummaryCallback;

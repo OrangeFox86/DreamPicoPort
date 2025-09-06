@@ -25,10 +25,14 @@
 #include "UsbGamepadDreamcastControllerObserver.hpp"
 #include "UsbGamepad.h"
 #include "configuration.h"
-#include "hal/Usb/client_usb_interface.hpp"
+#include "hal/Usb/client_usb_interface.h"
+#include "hal/Usb/usb_interface.hpp"
+#include "hal/System/DppSettings.hpp"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <string>
+#include <cstdint>
 
 #include "bsp/board.h"
 #include "pico/stdlib.h"
@@ -38,6 +42,9 @@
 #include "class/hid/hid_device.h"
 #include "msc_disk.hpp"
 #include "cdc.hpp"
+#include "webusb.hpp"
+
+#include <hardware/watchdog.h>
 
 UsbGamepad usbGamepads[MAX_NUMBER_OF_USB_GAMEPADS] = {
   UsbGamepad(0),
@@ -72,123 +79,147 @@ DreamcastControllerObserver** get_usb_controller_observers()
   return observers;
 }
 
-uint32_t get_num_usb_controllers()
+std::vector<uint8_t> get_controller_state(uint8_t idx)
 {
-  uint8_t installedGamepads = get_usb_descriptor_number_of_gamepads();
-
-  if (installedGamepads <= MAX_NUMBER_OF_USB_GAMEPADS)
+  std::vector<uint8_t> report;
+  if (idx < MAX_NUMBER_OF_USB_GAMEPADS)
   {
-    return installedGamepads;
+    report.resize(devices[idx]->getReportSize());
+    devices[idx]->getReport(&report[0], static_cast<uint16_t>(report.size()));
   }
-  else
-  {
-    return MAX_NUMBER_OF_USB_GAMEPADS;
-  }
+  return report;
 }
 
 bool usbEnabled = false;
 
-UsbControllerDevice** pAllUsbDevices = nullptr;
-
-uint8_t numUsbDevices = 0;
-
 bool usbDisconnecting = false;
 absolute_time_t usbDisconnectTime;
 
-void set_usb_devices(UsbControllerDevice** devices, uint8_t n)
-{
-  pAllUsbDevices = devices;
-  numUsbDevices = n;
-}
-
 bool gIsConnected = false;
+
+int32_t gUsbLedGpio = -1;
+int32_t gSimpleUsbLedGpio = -1;
+
+static bool gUsbStopped = false;
+static uint32_t gUsbStopTime = 0;
+static uint32_t gRestartDelayMs = 0;
 
 void led_task()
 {
-#if USB_LED_PIN >= 0
-  static bool ledOn = false;
-  static uint32_t startMs = 0;
-  if (usbDisconnecting)
+  if (gUsbLedGpio >= 0)
   {
-    // Currently counting down to disconnect; flash LED
-    static const uint32_t BLINK_TIME_MS = 500;
-    uint32_t t = board_millis() - startMs;
-    if (t >= BLINK_TIME_MS)
+    static bool ledOn = false;
+    static uint32_t startMs = 0;
+    if (usbDisconnecting)
     {
-      startMs += BLINK_TIME_MS;
-      ledOn = !ledOn;
-    }
-  }
-  else
-  {
-    bool keyPressed = false;
-    UsbControllerDevice** pdevs = pAllUsbDevices;
-    for (uint32_t i = numUsbDevices; i > 0; --i, ++pdevs)
-    {
-      if ((*pdevs)->isButtonPressed())
-      {
-        keyPressed = true;
-        break;
-      }
-    }
-    if (gIsConnected)
-    {
-      // When connected, LED is ON only when no key is pressed
-      ledOn = !keyPressed;
-    }
-    else
-    {
-      // When not connected, LED blinks when key is pressed
-      static const uint32_t BLINK_TIME_MS = 100;
+      // Currently counting down to disconnect; flash LED
+      static const uint32_t BLINK_TIME_MS = 500;
       uint32_t t = board_millis() - startMs;
       if (t >= BLINK_TIME_MS)
       {
         startMs += BLINK_TIME_MS;
         ledOn = !ledOn;
       }
-      ledOn = ledOn && keyPressed;
     }
+    else
+    {
+      bool keyPressed = false;
+      UsbControllerDevice** pdevs = devices;
+      for (uint32_t i = 0; i < MAX_NUMBER_OF_USB_GAMEPADS; ++i, ++pdevs)
+      {
+        if (is_usb_descriptor_gamepad_en(i))
+        {
+          if ((*pdevs)->isButtonPressed())
+          {
+            keyPressed = true;
+            break;
+          }
+        }
+      }
+      if (gIsConnected)
+      {
+        // When connected, LED is ON only when no key is pressed
+        ledOn = !keyPressed;
+      }
+      else
+      {
+        // When not connected, LED blinks when key is pressed
+        static const uint32_t BLINK_TIME_MS = 100;
+        uint32_t t = board_millis() - startMs;
+        if (t >= BLINK_TIME_MS)
+        {
+          startMs += BLINK_TIME_MS;
+          ledOn = !ledOn;
+        }
+        ledOn = ledOn && keyPressed;
+      }
+    }
+    gpio_put(gUsbLedGpio, ledOn);
   }
-  gpio_put(USB_LED_PIN, ledOn);
-#endif
 
-#if SIMPLE_USB_LED_PIN >= 0
-  gpio_put(SIMPLE_USB_LED_PIN, gIsConnected);
-#endif
-
+  if (gSimpleUsbLedGpio >= 0)
+  {
+    gpio_put(gSimpleUsbLedGpio, gIsConnected);
+  }
 }
 
 void usb_init(
   MutexInterface* mscMutex,
-  MutexInterface* cdcStdioMutex)
+  MutexInterface* cdcStdioMutex,
+  MutexInterface* webUsbMutex,
+  int32_t usbLedGpio,
+  int32_t simpleUsbLedGpio
+)
 {
-  uint32_t numDevices = get_num_usb_controllers();
-
-  uint32_t max = sizeof(devices) / sizeof(devices[1]);
-  if (numDevices > max)
-  {
-    numDevices = max;
-  }
-  set_usb_devices(devices, numDevices);
-
   board_init();
-  tusb_init();
   msc_init(mscMutex);
   cdc_init(cdcStdioMutex);
+  webusb_init(webUsbMutex);
 
-#if USB_LED_PIN >= 0
-  gpio_init(USB_LED_PIN);
-  gpio_set_dir_out_masked(1<<USB_LED_PIN);
-#endif
+  gUsbLedGpio = usbLedGpio;
+  if (gUsbLedGpio >= 0)
+  {
+    gpio_init(gUsbLedGpio);
+    gpio_set_dir_out_masked(1<<gUsbLedGpio);
+  }
 
-#if SIMPLE_USB_LED_PIN >= 0
-  gpio_init(SIMPLE_USB_LED_PIN);
-  gpio_set_dir_out_masked(1<<SIMPLE_USB_LED_PIN);
-#endif
+  gSimpleUsbLedGpio = simpleUsbLedGpio;
+  if (gSimpleUsbLedGpio >= 0)
+  {
+    gpio_init(gSimpleUsbLedGpio);
+    gpio_set_dir_out_masked(1<<gSimpleUsbLedGpio);
+  }
+}
+
+void usb_start()
+{
+  dcd_connect(0);
+  tusb_init();
+  gRestartDelayMs = 0;
+  gUsbStopped = false;
+}
+
+void usb_stop()
+{
+  gUsbStopTime = time_us_32();
+  gUsbStopped = true;
+  dcd_disconnect(0);
+  tud_umount_cb();
+}
+
+void usb_restart(uint32_t extraDelayMs)
+{
+  // 50 ms is much longer than what is needed, but it will ensure disconnection
+  gRestartDelayMs = 50 + extraDelayMs;
+  usb_stop();
 }
 
 void usb_task()
 {
+  if (gUsbStopped && gRestartDelayMs > 0 && (time_us_32() - gUsbStopTime) >= gRestartDelayMs)
+  {
+    usb_start();
+  }
   tud_task(); // tinyusb device task
   led_task();
   cdc_task();
@@ -201,11 +232,14 @@ void usb_task()
 // Invoked when device is mounted
 void tud_mount_cb(void)
 {
-  UsbControllerDevice** pdevs = pAllUsbDevices;
-  for (uint32_t i = numUsbDevices; i > 0; --i, ++pdevs)
+  UsbControllerDevice** pdevs = devices;
+  for (uint32_t i = 0; i < MAX_NUMBER_OF_USB_GAMEPADS; ++i, ++pdevs)
   {
-    (*pdevs)->updateUsbConnected(true);
-    (*pdevs)->send(true);
+      if (is_usb_descriptor_gamepad_en(i))
+      {
+        (*pdevs)->updateUsbConnected(true);
+        (*pdevs)->send(true);
+      }
   }
   gIsConnected = true;
 }
@@ -213,10 +247,13 @@ void tud_mount_cb(void)
 // Invoked when device is unmounted
 void tud_umount_cb(void)
 {
-  UsbControllerDevice** pdevs = pAllUsbDevices;
-  for (uint32_t i = numUsbDevices; i > 0; --i, ++pdevs)
+  UsbControllerDevice** pdevs = devices;
+  for (uint32_t i = 0; i < MAX_NUMBER_OF_USB_GAMEPADS; ++i, ++pdevs)
   {
-    (*pdevs)->updateUsbConnected(false);
+    if (is_usb_descriptor_gamepad_en(i))
+    {
+      (*pdevs)->updateUsbConnected(false);
+    }
   }
   gIsConnected = false;
 }
@@ -227,10 +264,13 @@ void tud_umount_cb(void)
 void tud_suspend_cb(bool remote_wakeup_en)
 {
   (void) remote_wakeup_en;
-  UsbControllerDevice** pdevs = pAllUsbDevices;
-  for (uint32_t i = numUsbDevices; i > 0; --i, ++pdevs)
+  UsbControllerDevice** pdevs = devices;
+  for (uint32_t i = 0; i < MAX_NUMBER_OF_USB_GAMEPADS; ++i, ++pdevs)
   {
-    (*pdevs)->updateUsbConnected(false);
+    if (is_usb_descriptor_gamepad_en(i))
+    {
+      (*pdevs)->updateUsbConnected(false);
+    }
   }
   gIsConnected = false;
 }
@@ -238,11 +278,14 @@ void tud_suspend_cb(bool remote_wakeup_en)
 // Invoked when usb bus is resumed
 void tud_resume_cb(void)
 {
-  UsbControllerDevice** pdevs = pAllUsbDevices;
-  for (uint32_t i = numUsbDevices; i > 0; --i, ++pdevs)
+  UsbControllerDevice** pdevs = devices;
+  for (uint32_t i = 0; i < MAX_NUMBER_OF_USB_GAMEPADS; ++i, ++pdevs)
   {
-    (*pdevs)->updateUsbConnected(true);
-    (*pdevs)->send(true);
+    if (is_usb_descriptor_gamepad_en(i))
+    {
+      (*pdevs)->updateUsbConnected(true);
+      (*pdevs)->send(true);
+    }
   }
   gIsConnected = true;
 }
@@ -258,15 +301,15 @@ uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, hid_report_t
 {
   (void) report_id;
   (void) report_type;
-  if (instance >= numUsbDevices)
+
+  int16_t idx = usb_gamepad_instance_to_index(instance);
+  if (idx < 0)
   {
     return 0;
   }
-  else
-  {
-    // Build the report for the given report ID and return the size set
-    return pAllUsbDevices[instance]->getReport(buffer, reqlen);
-  }
+
+  // Build the report for the given report ID and return the size set
+  return devices[idx]->getReport(buffer, reqlen);
 }
 
 // Invoked when received SET_REPORT control request or
@@ -282,3 +325,144 @@ void tud_hid_set_report_cb(uint8_t instance,
   // echo back anything we received from host
   tud_hid_n_report(instance, report_id, buffer, bufsize);
 }
+
+//--------------------------------------------------------------------+
+// USB Vendor (WebUSB/WinUSB)
+//--------------------------------------------------------------------+
+
+void tud_vendor_rx_cb(uint8_t itf, uint8_t const* buffer, uint16_t bufsize)
+{
+  webusb_rx(itf, buffer, bufsize);
+
+  // if using RX buffered is enabled, we need to flush the buffer to make room for new data
+  #if CFG_TUD_VENDOR_RX_BUFSIZE > 0
+  tud_vendor_read_flush();
+  #endif
+}
+
+static bool webusb_link_announce_enable = true;
+void usb_webusb_link_announce_enable(bool enabled)
+{
+  webusb_link_announce_enable = enabled;
+}
+
+// Invoked when a control transfer occurred on an interface of this class
+// Driver response accordingly to the request and the transfer stage (setup/data/ack)
+// return false to stall control endpoint (e.g unsupported request)
+bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const* request)
+{
+  // nothing to with DATA & ACK stage
+  if (stage != CONTROL_STAGE_SETUP) return true;
+
+  switch (request->bmRequestType_bit.type) {
+    case TUSB_REQ_TYPE_VENDOR:
+      switch (request->bRequest) {
+        case VENDOR_REQUEST_WEBUSB:
+        {
+          // match vendor request in BOS descriptor
+          // Get landing page url
+          const std::uint8_t headerLen = 3;
+          const std::uint8_t bufLen = headerLen + strlen(webusb_url);
+          std::uint8_t buffer[bufLen];
+          buffer[0] = bufLen;
+          buffer[1] = 3; // WEBUSB URL type
+          buffer[2] = 1; // 0: http, 1: https
+          if (webusb_link_announce_enable)
+          {
+            memcpy(&buffer[3], webusb_url, strlen(webusb_url));
+            return tud_control_xfer(rhport, request, buffer, bufLen);
+          }
+          else
+          {
+            return tud_control_xfer(rhport, request, buffer, headerLen);
+          }
+        }
+
+        case VENDOR_REQUEST_MICROSOFT:
+          if (request->wIndex == 7) {
+            // Get Microsoft OS 2.0 compatible descriptor
+            uint16_t total_len;
+            memcpy(&total_len, desc_ms_os_20 + 8, 2);
+
+            return tud_control_xfer(rhport, request, (void*)(uintptr_t)desc_ms_os_20, total_len);
+          } else {
+            return false;
+          }
+
+        default: break;
+      }
+      break;
+
+    case TUSB_REQ_TYPE_CLASS:
+      if (request->bRequest == 0x22) {
+        if (request->wValue == 0xFFFF)
+        {
+          // Special request: cause reboot in 250 ms (longer than any other reboot delay)
+          watchdog_hw->scratch[0] = WATCHDOG_SETTINGS_USB_REBOOT;
+          watchdog_reboot(0, 0, 250);
+        }
+        else if (request->wValue == 0xFFFE)
+        {
+          // Special request: restart USB
+          usb_restart();
+        }
+        else if (request->wValue == 0xFFFD)
+        {
+          // Special request: restart USB with extra delay
+          usb_restart(200);
+        }
+        else if (request->wValue == 0xFFFC)
+        {
+          // Special request: intentionally cause a STALL
+          return false;
+        }
+        else if (request->wValue == 0xA5A5)
+        {
+          // Special request: reset cdc parser buffers
+          usb_cdc_reset_parser_buffers();
+        }
+        else
+        {
+          if (IS_WEBUSB_ITF(request->wIndex))
+          {
+            // Webserial simulate the CDC_REQUEST_SET_CONTROL_LINE_STATE (0x22) to connect and disconnect.
+            webusb_connection_event(request->wIndex, request->wValue);
+          }
+        }
+
+        // response with status OK
+        return tud_control_status(rhport, request);
+      }
+      break;
+
+    default: break;
+  }
+
+  // stall unknown request
+  return false;
+}
+
+static bool cdc_en = false;
+
+void set_usb_cdc_en(bool en)
+{
+    cdc_en = en;
+}
+
+bool is_usb_cdc_en()
+{
+    return cdc_en;
+}
+
+static bool msc_en = false;
+
+void set_usb_msc_en(bool en)
+{
+    msc_en = en;
+}
+
+bool is_usb_msc_en()
+{
+    return msc_en;
+}
+

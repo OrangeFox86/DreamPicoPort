@@ -24,12 +24,14 @@
 #include "DreamcastTimer.hpp"
 #include <memory.h>
 
-DreamcastTimer::DreamcastTimer(uint8_t addr,
-                               uint32_t fd,
-                               std::shared_ptr<EndpointTxSchedulerInterface> scheduler,
-                               PlayerData playerData) :
-    DreamcastPeripheral("timer", addr, fd, scheduler, playerData.playerIndex),
-    mGamepad(playerData.gamepad),
+DreamcastTimer::DreamcastTimer(
+    uint8_t addr,
+    uint32_t fd,
+    const std::shared_ptr<EndpointTxSchedulerInterface>& scheduler,
+    const std::shared_ptr<PlayerData>& playerData
+) :
+    DreamcastPeripheral("timer", addr, fd, scheduler, playerData->playerIndex),
+    mGamepad(playerData->gamepad),
     mButtonStatusId(0)
 {
     // Poll only the upper VMU button states
@@ -37,14 +39,17 @@ DreamcastTimer::DreamcastTimer(uint8_t addr,
     {
         uint32_t payload = FUNCTION_CODE;
         mButtonStatusId = mEndpointTxScheduler->add(
-            PrioritizedTxScheduler::TX_TIME_ASAP,
-            this,
-            COMMAND_GET_CONDITION,
-            &payload,
-            1,
-            true,
-            2,
-            BUTTON_POLL_PERIOD_US);
+            EndpointTxSchedulerInterface::TransmissionProperties{
+                .txTime = PrioritizedTxScheduler::TX_TIME_ASAP,
+                .command = COMMAND_GET_CONDITION,
+                .payload = &payload,
+                .payloadLen = 1,
+                .expectResponse = true,
+                .expectedResponseNumPayloadWords = 2,
+                .autoRepeatUs = BUTTON_POLL_PERIOD_US
+            },
+            this
+        );
     }
 }
 

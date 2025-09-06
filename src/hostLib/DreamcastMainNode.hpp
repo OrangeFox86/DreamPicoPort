@@ -42,9 +42,14 @@ class DreamcastMainNode : public DreamcastNode
         //! Constructor
         //! @param[in] bus  The bus on which this node communicates
         //! @param[in] playerData  The player data passed to any connected peripheral
-        DreamcastMainNode(MapleBusInterface& bus,
-                          PlayerData playerData,
-                          std::shared_ptr<PrioritizedTxScheduler> prioritizedTxScheduler);
+        //! @param[in] prioritizedTxScheduler The scheduler handling Maple Bus commands
+        //! @param[in] detectionOnly When true, poll the node until its presence is detected
+        DreamcastMainNode(
+            const std::shared_ptr<MapleBusInterface>& bus,
+            const std::shared_ptr<PlayerData>& playerData,
+            const std::shared_ptr<PrioritizedTxScheduler>& prioritizedTxScheduler,
+            bool detectionOnly = false
+        );
 
         //! Virtual destructor
         virtual ~DreamcastMainNode();
@@ -74,8 +79,16 @@ class DreamcastMainNode : public DreamcastNode
         void printSummary();
 
         //! Register a callback to be called within Maple core context when summary is obtained
-        //! @param[in] callback  The callback to call when the information is obtained
+        //! @param[in] callback  The callback to call when the information is obtained which is called within the task()
+        //!                      context. The outer list explain each main node. The inner list explain each peripheral.
+        //!                      The inner array index [0] is function code and [1] is function definitions word.
         void requestSummary(const std::function<void(const std::list<std::list<std::array<uint32_t, 2>>>&)>& callback);
+
+        //! @return true iff device detected on this node
+        inline bool isDeviceDetected()
+        {
+            return mDeviceDetected;
+        }
 
     private:
         //! Execute and process read task from the timeliner
@@ -93,18 +106,27 @@ class DreamcastMainNode : public DreamcastNode
         //! Adds an auto reload info request to the transmission schedule
         void addInfoRequestToSchedule(uint64_t currentTimeUs = 0);
 
+        //! Cancel the auto reload info request from the transmission schedule
+        void cancelInfoRequest();
+
         //! Called when one or more peripherals have been added or removed
         void peripheralChangeEvent(uint64_t currentTimeUs);
 
     public:
         //! Number of microseconds in between each info request when no peripheral is detected
         static const uint32_t US_PER_CHECK = 16000;
+        //! Overrides the above when this node is used for detection only
+        static const uint32_t DETECTION_ONLY_US_PER_CHECK = 250000;
         //! Number of communication failures before main peripheral is disconnected
         static const uint32_t MAX_FAILURE_DISCONNECT_COUNT = 10;
         //! Number of milliseconds that a connect signal is asserted
         static const uint32_t CONNECT_EVENT_SIGNAL_TIME_MS = 25;
 
     protected:
+        //! True when the node only operates for detection only
+        const bool mDetectionOnly;
+        //! True when a device is detected on this node
+        bool mDeviceDetected;
         //! The sub nodes under this node
         std::vector<std::shared_ptr<DreamcastSubNode>> mSubNodes;
         //! Executes transmissions from the schedule

@@ -45,6 +45,7 @@ extern "C" {
 // Enable TUD algs
 #define CFG_TUD_ENABLED 1
 
+// The RP2040 and RP2350 are only capable of full speed or low speed - select full
 #define CFG_TUSB_RHPORT0_MODE     (OPT_MODE_DEVICE | OPT_MODE_FULL_SPEED)
 
 #ifndef CFG_TUSB_OS
@@ -82,11 +83,16 @@ extern "C" {
 #define CFG_TUD_MSC             1 // MSC always defined, even when not used
 #define CFG_TUD_HID             MAX_NUMBER_OF_USB_GAMEPADS
 #define CFG_TUD_MIDI            0
-#define CFG_TUD_VENDOR          0
+#define CFG_TUD_VENDOR          2
 
 // CDC FIFO size of TX and RX
 #define CFG_TUD_CDC_RX_BUFSIZE   2100
 #define CFG_TUD_CDC_TX_BUFSIZE   2100
+
+// Vendor FIFO size of TX and RX
+// If zero: vendor endpoints will not be buffered
+#define CFG_TUD_VENDOR_RX_BUFSIZE 0
+#define CFG_TUD_VENDOR_TX_BUFSIZE 1050
 
 // CDC Endpoint transfer buffer size, more is faster
 #define CFG_TUD_CDC_EP_BUFSIZE   64

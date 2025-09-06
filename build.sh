@@ -30,6 +30,11 @@ GPP="/usr/bin/arm-none-eabi-g++"
 rm ${BUILD_DIR}/src/*/*/*.elf
 rm ${BUILD_DIR}/src/*/*/*.uf2
 
+mkdir -p ./${BUILD_DIR}
+BUILD_OUTPUT_FILE="./${BUILD_DIR}/build.out"
+
+echo "\$cmake configure" > ${BUILD_OUTPUT_FILE}
+
 cmake \
     --no-warn-unused-cli \
     -DPICO_BOARD=${FLAVOR} \
@@ -40,7 +45,7 @@ cmake \
     -DDREAMCAST_CONTROLLER_USB_PICO_TEST:BOOL=FALSE \
     -S. \
     -B./${BUILD_DIR} \
-    -G "Unix Makefiles" \
+    -G "Unix Makefiles" | tee -a ${BUILD_OUTPUT_FILE}
 
 STATUS=$?
 if [ $STATUS -ne 0 ]; then
@@ -49,11 +54,13 @@ if [ $STATUS -ne 0 ]; then
     exit $STATUS
 fi
 
+echo "\$cmake build" >> ${BUILD_OUTPUT_FILE}
+
 cmake \
     --build ${BUILD_DIR} \
     --config Release \
     --target all \
-    -j 10 \
+    -j 10 | tee -a ${BUILD_OUTPUT_FILE}
 
 STATUS=$?
 if [ $STATUS -ne 0 ]; then

@@ -24,36 +24,32 @@
 #include "EndpointTxScheduler.hpp"
 
 EndpointTxScheduler::EndpointTxScheduler(
-    std::shared_ptr<PrioritizedTxScheduler> prioritizedScheduler,
+    const std::shared_ptr<PrioritizedTxScheduler>& prioritizedScheduler,
     uint8_t fixedPriority,
-    uint8_t recipientAddr):
-        mPrioritizedScheduler(prioritizedScheduler),
-        mFixedPriority(fixedPriority),
-        mRecipientAddr(recipientAddr)
+    uint8_t recipientAddr
+):
+    mPrioritizedScheduler(prioritizedScheduler),
+    mFixedPriority(fixedPriority),
+    mRecipientAddr(recipientAddr)
 {}
 
 EndpointTxScheduler::~EndpointTxScheduler()
 {}
 
-uint32_t EndpointTxScheduler::add(uint64_t txTime,
-                                  Transmitter* transmitter,
-                                  uint8_t command,
-                                  uint32_t* payload,
-                                  uint8_t payloadLen,
-                                  bool expectResponse,
-                                  uint32_t expectedResponseNumPayloadWords,
-                                  uint32_t autoRepeatUs,
-                                  uint64_t autoRepeatEndTimeUs)
+uint32_t EndpointTxScheduler::add(TransmissionProperties properties, Transmitter* transmitter)
 {
-    MaplePacket packet({.command=command, .recipientAddr=mRecipientAddr}, payload, payloadLen);
-    return mPrioritizedScheduler->add(mFixedPriority,
-                                      txTime,
-                                      transmitter,
-                                      packet,
-                                      expectResponse,
-                                      expectedResponseNumPayloadWords,
-                                      autoRepeatUs,
-                                      autoRepeatEndTimeUs);
+    return mPrioritizedScheduler->add(
+        properties.toSchedulerProperties(mFixedPriority, mRecipientAddr),
+        transmitter
+    );
+}
+
+uint32_t EndpointTxScheduler::add(TransmissionProperties properties, const std::shared_ptr<Transmitter>& transmitter)
+{
+    return mPrioritizedScheduler->add(
+        properties.toSchedulerProperties(mFixedPriority, mRecipientAddr),
+        transmitter
+    );
 }
 
 uint32_t EndpointTxScheduler::cancelById(uint32_t transmissionId)

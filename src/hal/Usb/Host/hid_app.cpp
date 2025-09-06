@@ -80,6 +80,7 @@ public:
     mInstance(0),
     mCurrentTime(0),
     mStopTime(0),
+    mDuration(0),
     mStartingIntensity(0),
     mCurrentInclination(0),
     mCurrentMotorIntensity(0),

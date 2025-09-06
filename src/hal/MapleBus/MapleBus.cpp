@@ -31,6 +31,8 @@
 #include "string.h"
 #include "utils.h"
 
+#include <limits>
+
 std::shared_ptr<MapleBusInterface> create_maple_bus(uint32_t pinA, int32_t dirPin, bool dirOutHigh)
 {
     return std::make_shared<MapleBus>(pinA, dirPin, dirOutHigh);
@@ -135,7 +137,9 @@ MapleBus::MapleBus(uint32_t pinA, int32_t dirPin, bool dirOutHigh) :
     mLastRead(),
     mCurrentPhase(MapleBus::Phase::IDLE),
     mExpectingResponse(false),
-    mProcKillTime(0xFFFFFFFFFFFFFFFFULL),
+    mResponseTimeoutUs(1000),
+    mRxByteOrder(MaplePacket::ByteOrder::HOST),
+    mProcKillTime(std::numeric_limits<uint64_t>::max()),
     mLastReceivedWordTimeUs(0),
     mLastReadTransferCount(0)
 {
@@ -276,9 +280,12 @@ void MapleBus::setDirection(bool output)
     }
 }
 
-bool MapleBus::write(const MaplePacket& packet,
-                     bool autostartRead,
-                     uint64_t readTimeoutUs)
+bool MapleBus::write(
+    const MaplePacket& packet,
+    bool autostartRead,
+    uint64_t readTimeoutUs,
+    MaplePacket::ByteOrder rxByteOrder
+)
 {
     bool rv = false;
 
@@ -296,26 +303,35 @@ bool MapleBus::write(const MaplePacket& packet,
 
         // First 32 bits sent to the state machine is how many bits to output.
         // Since channel_config_set_bswap is set to make the packet bytes the right order, these
-        // bytes need to be flipped so the PIO state machine can work with it correctly.
+        // bytes may need to be flipped so the PIO state machine can work with it correctly.
         uint32_t len = 0;
-        mWriteBuffer[len++] = flipWordBytes(packet.getNumTotalBits());
+        const bool flipBytes = (packet.payloadByteOrder != MaplePacket::ByteOrder::NETWORK);
+        const uint32_t totalNumBits = packet.getNumTotalBits();
+        mWriteBuffer[len++] = flipBytes ? flipWordBytes(totalNumBits) : totalNumBits;
         // Load the frame word and start computing the crc
         mWriteBuffer[len++] = frameWord;
         // Load the rest of the packet
         wordCpy(&mWriteBuffer[len], packet.payload.data(), packet.payload.size());
         len += packet.payload.size();
-        // Last byte is the CRC
-        mWriteBuffer[len++] = crc;
+        // Last byte is the CRC (set to the MSB if NOT flipped)
+        mWriteBuffer[len++] = flipBytes ? crc : static_cast<uint32_t>(crc) << 24;
 
         if (lineCheck())
         {
             // Update flags before beginning to write
             mExpectingResponse = autostartRead;
             mResponseTimeoutUs = readTimeoutUs;
+            mRxByteOrder = rxByteOrder;
             mCurrentPhase = Phase::WRITE_IN_PROGRESS;
 
             if (autostartRead)
             {
+                // Setup read byte order
+                const bool rxFlipBytes = (rxByteOrder != MaplePacket::ByteOrder::NETWORK);
+                dma_channel_config rc = dma_get_channel_config(mDmaReadChannel);
+                channel_config_set_bswap(&rc, rxFlipBytes);
+                dma_channel_set_config(mDmaReadChannel, &rc, false);
+
                 // Start read DMA (won't start filling until mSmIn.start() is called)
                 mLastReadTransferCount = sizeof(mReadBuffer) / sizeof(mReadBuffer[0]);
                 dma_channel_transfer_to_buffer_now(
@@ -323,6 +339,11 @@ bool MapleBus::write(const MaplePacket& packet,
                 // Prestart the input state machine to save time during transition
                 mSmIn.prestart();
             }
+
+            // Setup write byte order
+            dma_channel_config c = dma_get_channel_config(mDmaWriteChannel);
+            channel_config_set_bswap(&c, flipBytes);
+            dma_channel_set_config(mDmaWriteChannel, &c, false);
 
             // Start the state machine which will stall until DMA is filled
             mSmOut.start();
@@ -348,7 +369,7 @@ bool MapleBus::write(const MaplePacket& packet,
     return rv;
 }
 
-bool MapleBus::startRead(uint64_t readTimeoutUs)
+bool MapleBus::startRead(uint64_t readTimeoutUs, MaplePacket::ByteOrder rxByteOrder)
 {
     bool rv = false;
 
@@ -357,6 +378,13 @@ bool MapleBus::startRead(uint64_t readTimeoutUs)
         // Make sure previous DMA instances are killed
         dma_channel_abort(mDmaWriteChannel);
         dma_channel_abort(mDmaReadChannel);
+
+        // Setup read byte order
+        mRxByteOrder = rxByteOrder;
+        const bool flipBytes = (rxByteOrder != MaplePacket::ByteOrder::NETWORK);
+        dma_channel_config c = dma_get_channel_config(mDmaReadChannel);
+        channel_config_set_bswap(&c, flipBytes);
+        dma_channel_set_config(mDmaReadChannel, &c, false);
 
         // Start read DMA
         mLastReadTransferCount = sizeof(mReadBuffer) / sizeof(mReadBuffer[0]);
@@ -412,7 +440,21 @@ MapleBusInterface::Status MapleBus::processEvents(uint64_t currentTimeUs)
             // For at least 1 instance (VMU extended device info) the number of words received will
             // not match len. For this reason, the following allows for more words to be read than
             // specified by the frame word as long as the CRC is still correct.
-            uint32_t len = mReadBuffer[0] & 0xFF;
+            uint8_t len;
+            uint8_t expectedCrc;
+            if (mRxByteOrder != MaplePacket::ByteOrder::NETWORK)
+            {
+                // Host order
+                len = mReadBuffer[0] & 0xFF;
+                expectedCrc = mReadBuffer[dmaWordsRead - 1] & 0xFF;
+            }
+            else
+            {
+                // Network order
+                len = mReadBuffer[0] >> 24;
+                expectedCrc = mReadBuffer[dmaWordsRead - 1] >> 24;
+            }
+
             if (len <= (dmaWordsRead - 2))
             {
                 // Copy what was read and compute CRC
@@ -420,10 +462,11 @@ MapleBusInterface::Status MapleBus::processEvents(uint64_t currentTimeUs)
                 uint8_t crc = 0;
                 crc8(&mLastRead[0], dmaWordsRead - 1, crc);
                 // Data is only valid if the CRC is correct
-                if (crc == mReadBuffer[dmaWordsRead - 1])
+                if (crc == expectedCrc)
                 {
                     status.readBuffer = mLastRead;
                     status.readBufferLen = dmaWordsRead - 1;
+                    status.rxByteOrder = mRxByteOrder;
                 }
                 else
                 {

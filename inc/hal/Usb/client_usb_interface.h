@@ -21,20 +21,25 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#pragma once
+#include <stdint.h>
 
-#include <hal/Usb/CommandParser.hpp>
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-#include <gtest/gtest.h>
-#include <gmock/gmock.h>
+void set_usb_descriptor_gamepad_en(uint8_t idx, bool en);
+bool is_usb_descriptor_gamepad_en(uint8_t idx);
+int16_t usb_gamepad_instance_to_index(uint8_t instance);
 
-class MockCommandParser : public CommandParser
-{
-public:
-    MockCommandParser() = default;
-    virtual ~MockCommandParser() = default;
+//! Enables or disables the USB CDC (Communication Data Class aka "serial" or "tty") interface
+void set_usb_cdc_en(bool en);
+//! @return true iff USB CDC is enabled
+bool is_usb_cdc_en();
+//! Enables or disables the USB MSC (Mass Storage Class) interface
+void set_usb_msc_en(bool en);
+//! @return true iff USB MSC is enabled
+bool is_usb_msc_en();
 
-    MOCK_METHOD(const char*, getCommandChars, (), (override));
-    MOCK_METHOD(void, submit, (const char* chars, uint32_t len), (override));
-    MOCK_METHOD(void, printHelp, (), (override));
-};
+#ifdef __cplusplus
+}
+#endif

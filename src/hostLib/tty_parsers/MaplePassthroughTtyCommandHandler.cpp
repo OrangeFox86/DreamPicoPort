@@ -21,7 +21,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "MaplePassthroughCommandParser.hpp"
+#include "MaplePassthroughTtyCommandHandler.hpp"
 #include "hal/MapleBus/MaplePacket.hpp"
 
 #include <stdio.h>
@@ -62,21 +62,19 @@ public:
     }
 } echoTransmitter;
 
-MaplePassthroughCommandParser::MaplePassthroughCommandParser(std::shared_ptr<PrioritizedTxScheduler>* schedulers,
-                                                             const uint8_t* senderAddresses,
-                                                             uint32_t numSenders) :
-    mSchedulers(schedulers),
-    mSenderAddresses(senderAddresses),
-    mNumSenders(numSenders)
+MaplePassthroughTtyCommandHandler::MaplePassthroughTtyCommandHandler(
+    const std::map<uint8_t, DreamcastNodeData>& dcNodes
+) :
+    mDcNodes(dcNodes)
 {}
 
-const char* MaplePassthroughCommandParser::getCommandChars()
+const char* MaplePassthroughTtyCommandHandler::getCommandChars()
 {
     // Anything beginning with a hex character should be considered a passthrough command
     return "0123456789ABCDEFabcdef";
 }
 
-void MaplePassthroughCommandParser::submit(const char* chars, uint32_t len)
+void MaplePassthroughTtyCommandHandler::submit(const char* chars, uint32_t len)
 {
     bool valid = false;
     const char* const eol = chars + len;
@@ -129,32 +127,55 @@ void MaplePassthroughCommandParser::submit(const char* chars, uint32_t len)
         if (packet.isValid())
         {
             uint8_t sender = packet.frame.senderAddr;
-            int32_t idx = -1;
-            const uint8_t* senderAddress = mSenderAddresses;
+            DreamcastNodeData* pDcNode = nullptr;
 
-            for (uint32_t i = 0; i < mNumSenders && idx < 0; ++i, ++senderAddress)
+            uint8_t availableNodes = 0;
+            for (std::pair<const uint8_t, DreamcastNodeData>& node : mDcNodes)
             {
-                if (sender == *senderAddress)
+                if (!node.second.playerDef->autoDetectOnly)
                 {
-                    idx = i;
+                    ++availableNodes;
+                    pDcNode = &node.second;
                 }
             }
 
-            if (idx >= 0)
+            if (availableNodes == 1)
             {
-                uint32_t id = mSchedulers[idx]->add(
-                    PrioritizedTxScheduler::EXTERNAL_TRANSMISSION_PRIORITY,
-                    PrioritizedTxScheduler::TX_TIME_ASAP,
-                    &echoTransmitter,
-                    packet,
-                    true);
+                // Single player special case - always send to the one available, regardless of address
+                const uint8_t hostAddr = pDcNode->playerDef->mapleHostAddr;
+                packet.frame.senderAddr = hostAddr;
+                packet.frame.recipientAddr = (packet.frame.recipientAddr & 0x3F) | hostAddr;
+            }
+            else
+            {
+                for (std::pair<const uint8_t, DreamcastNodeData>& node : mDcNodes)
+                {
+                    if (sender == node.second.playerDef->mapleHostAddr)
+                    {
+                        pDcNode = &node.second;
+                    }
+                }
+            }
+
+            if (pDcNode && !pDcNode->playerDef->autoDetectOnly)
+            {
+                uint32_t id = pDcNode->scheduler->add(
+                    PrioritizedTxScheduler::TransmissionProperties{
+                        .priority = PrioritizedTxScheduler::EXTERNAL_TRANSMISSION_PRIORITY,
+                        .txTime = PrioritizedTxScheduler::TX_TIME_ASAP,
+                        .packet = std::move(packet),
+                        .expectResponse = true
+                    },
+                    &echoTransmitter
+                );
+
                 std::vector<uint32_t>::iterator iter = words.begin();
                 printf("%lu: added {%08lX", (long unsigned int)id, (long unsigned int)*iter++);
                 for(; iter < words.end(); ++iter)
                 {
                     printf(" %08lX", (long unsigned int)*iter);
                 }
-                printf("} -> [%li]\n", (long int)idx);
+                printf("} -> [%li]\n", (long int)pDcNode->playerDef->index);
             }
             else
             {
@@ -172,7 +193,7 @@ void MaplePassthroughCommandParser::submit(const char* chars, uint32_t len)
     }
 }
 
-void MaplePassthroughCommandParser::printHelp()
+void MaplePassthroughTtyCommandHandler::printHelp()
 {
     printf("0-1 a-f A-F: the beginning of a hex value to send to maple bus without CRC\n");
 }

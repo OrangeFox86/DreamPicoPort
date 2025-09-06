@@ -62,7 +62,7 @@ class ScreenData
 
     public:
         //! Number of words in a screen
-        static const uint32_t NUM_SCREEN_WORDS = 48;
+        static const uint8_t NUM_SCREEN_WORDS = 48;
         //! Number of default screens
         static const uint32_t NUM_DEFAULT_SCREENS = 4;
 

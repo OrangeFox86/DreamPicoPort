@@ -28,5 +28,6 @@
 
 // CDC is used to create a debug serial interface
 
+void usb_cdc_reset_parser_buffers();
 void cdc_init(MutexInterface* cdcStdioMutex);
 void cdc_task();

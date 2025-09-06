@@ -54,6 +54,13 @@ class UsbGamepadDreamcastControllerObserver : public DreamcastControllerObserver
         //! Called when controller disconnected
         virtual void controllerDisconnected() final;
 
+        //! Set the instance ID for sending report
+        //! @param[in] instance The instance ID
+        virtual void setInstanceId(uint8_t instance) override final;
+
+        //! Force send of data over the HID interface
+        virtual void forceSend() override final;
+
     private:
         //! The USB controller I update
         UsbGamepad& mUsbController;

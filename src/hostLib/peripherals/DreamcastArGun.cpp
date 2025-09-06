@@ -23,11 +23,13 @@
 
 #include "DreamcastArGun.hpp"
 
-DreamcastArGun::DreamcastArGun(uint8_t addr,
-                               uint32_t fd,
-                               std::shared_ptr<EndpointTxSchedulerInterface> scheduler,
-                               PlayerData playerData) :
-    DreamcastPeripheral("AR gun", addr, fd, scheduler, playerData.playerIndex)
+DreamcastArGun::DreamcastArGun(
+    uint8_t addr,
+    uint32_t fd,
+    const std::shared_ptr<EndpointTxSchedulerInterface>& scheduler,
+    const std::shared_ptr<PlayerData>& playerData
+) :
+    DreamcastPeripheral("AR gun", addr, fd, scheduler, playerData->playerIndex)
 {}
 
 DreamcastArGun::~DreamcastArGun()

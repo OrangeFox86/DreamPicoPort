@@ -26,10 +26,56 @@
 #include "hal/MapleBus/MaplePacket.hpp"
 #include "dreamcast_constants.h"
 #include "Transmitter.hpp"
+#include "PrioritizedTxScheduler.hpp"
 
 class EndpointTxSchedulerInterface
 {
 public:
+    //! Contains properties for a transmission
+    struct TransmissionProperties
+    {
+        //! Time at which this should transmit in microseconds
+        uint64_t txTime;
+        //! The command to send
+        uint8_t command;
+        //! The payload of the above command
+        uint32_t* payload;
+        //! The length of the above payload
+        uint8_t payloadLen;
+        //! true iff a response is expected after transmission
+        bool expectResponse;
+        //! Number of payload words to expect in response (used for priority timing calculations)
+        uint32_t expectedResponseNumPayloadWords=0;
+        //! How often to repeat this transmission in microseconds
+        uint32_t autoRepeatUs=0;
+        //! If not 0, auto repeat will cancel after this time
+        uint64_t autoRepeatEndTimeUs=0;
+        //! The desired byte order of the response
+        MaplePacket::ByteOrder rxByteOrder=MaplePacket::ByteOrder::HOST;
+
+        //! Converts this object into PrioritizedTxScheduler::TransmissionProperties
+        inline PrioritizedTxScheduler::TransmissionProperties toSchedulerProperties(
+            uint8_t priority,
+            uint8_t recipientAddr
+        )
+        {
+            return PrioritizedTxScheduler::TransmissionProperties{
+                .priority = priority,
+                .txTime = txTime,
+                .packet = MaplePacket(
+                    MaplePacket::Frame{.command=command, .recipientAddr=recipientAddr},
+                    payload,
+                    payloadLen
+                ),
+                .expectResponse = expectResponse,
+                .expectedResponseNumPayloadWords = expectedResponseNumPayloadWords,
+                .autoRepeatUs = autoRepeatUs,
+                .autoRepeatEndTimeUs = autoRepeatEndTimeUs,
+                .rxByteOrder = rxByteOrder
+            };
+        }
+    };
+
     //! Default constructor
     EndpointTxSchedulerInterface() {}
 
@@ -37,25 +83,22 @@ public:
     virtual ~EndpointTxSchedulerInterface() {}
 
     //! Add a transmission to the schedule
-    //! @param[in] txTime  Time at which this should transmit in microseconds
+    //! @param[in] properties  The selected properties for this transmission
     //! @param[in] transmitter  Pointer to transmitter that is adding this
-    //! @param[in] command  The command to send
-    //! @param[in] payload  The payload of the above command
-    //! @param[in] payloadLen  The length of the above payload
-    //! @param[in] expectResponse  true iff a response is expected after transmission
-    //! @param[in] expectedResponseNumPayloadWords  Number of payload words to expect in response
-    //! @param[in] autoRepeatUs  How often to repeat this transmission in microseconds
-    //! @param[in] autoRepeatEndTimeUs  If not 0, auto repeat will cancel after this time
     //! @returns transmission ID
-    virtual uint32_t add(uint64_t txTime,
-                         Transmitter* transmitter,
-                         uint8_t command,
-                         uint32_t* payload,
-                         uint8_t payloadLen,
-                         bool expectResponse,
-                         uint32_t expectedResponseNumPayloadWords=0,
-                         uint32_t autoRepeatUs=0,
-                         uint64_t autoRepeatEndTimeUs=0) = 0;
+    virtual uint32_t add(
+        TransmissionProperties properties,
+        Transmitter* transmitter
+    ) = 0;
+
+    //! Add a transmission to the schedule
+    //! @param[in] properties  The selected properties for this transmission
+    //! @param[in] transmitter  Pointer to transmitter that is adding this (kept alive until transmission completes)
+    //! @returns transmission ID
+    virtual uint32_t add(
+        TransmissionProperties properties,
+        const std::shared_ptr<Transmitter>& transmitter
+    ) = 0;
 
     //! Cancels scheduled transmission by transmission ID
     //! @param[in] transmissionId  The transmission ID of the transmissions to cancel

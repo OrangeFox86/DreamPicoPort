@@ -32,29 +32,38 @@
 #define GAMEPAD_REPORT_SIZE 64
 
 #define ITF_NUM_GAMEPAD(idx) (idx)
+#define ITF_TO_GAMEPAD_IDX(interface) (interface)
 
 #define MAX_NUMBER_OF_USB_GAMEPADS (4)
 
+#define IS_GAMEPAD_ITF(interface) (interface < MAX_NUMBER_OF_USB_GAMEPADS)
+
 // For mass storage device
 #define ITF_NUM_MSC (4)
-
-#if USB_MSC_ENABLED
-    #define NUM_ITF_MSC (1)
-#else
-    #define NUM_ITF_MSC (0)
-#endif
+#define NUM_ITF_MSC (1)
 
 // For serial device
 #define ITF_NUM_CDC (5)
 #define ITF_NUM_CDC_DATA (6) // Implied, not directly used
+#define NUM_ITF_CDC (2)
 
-#if USB_CDC_ENABLED
-    #define NUM_ITF_CDC (2)
-#else
-    #define NUM_ITF_CDC (0)
-#endif
+// For WebUSB
+#define ITF_NUM_WEBUSB1 (7)
+#define ITF_NUM_WEBUSB2 (8)
+#define NUM_ITF_WEBUSB (2)
 
-#define ITF_COUNT(numGamepads) (numGamepads + NUM_ITF_CDC + NUM_ITF_MSC)
+#define IS_WEBUSB_ITF(itf) (itf >= ITF_NUM_WEBUSB1 && itf <= ITF_NUM_WEBUSB2)
+#define ITF_TO_WEBUSB_IDX(itf) (itf - ITF_NUM_WEBUSB1)
+
+#define ITF_COUNT(numGamepads, cdcEn, mscEn) (numGamepads + (mscEn ? NUM_ITF_MSC : 0) + (cdcEn ? NUM_ITF_CDC : 0) + NUM_ITF_WEBUSB)
+
+enum
+{
+  VENDOR_REQUEST_WEBUSB = 1,
+  VENDOR_REQUEST_MICROSOFT = 2
+};
+
+extern uint8_t const desc_ms_os_20[];
 
 //! Minumum analog value defined in USB HID descriptors
 static const int8_t MIN_ANALOG_VALUE = -127;

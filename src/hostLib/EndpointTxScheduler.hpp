@@ -33,48 +33,47 @@ class EndpointTxScheduler : public EndpointTxSchedulerInterface
 {
 public:
     //! Default constructor
-    EndpointTxScheduler(std::shared_ptr<PrioritizedTxScheduler> prioritizedScheduler,
-                        uint8_t fixedPriority,
-                        uint8_t recipientAddr);
+    EndpointTxScheduler(
+        const std::shared_ptr<PrioritizedTxScheduler>& prioritizedScheduler,
+        uint8_t fixedPriority,
+        uint8_t recipientAddr
+    );
 
     //! Virtual destructor
     virtual ~EndpointTxScheduler();
 
     //! Add a transmission to the schedule
-    //! @param[in] txTime  Time at which this should transmit in microseconds
+    //! @param[in] properties  The selected properties for this transmission
     //! @param[in] transmitter  Pointer to transmitter that is adding this
-    //! @param[in] command  The command to send
-    //! @param[in] payload  The payload of the above command
-    //! @param[in] payloadLen  The length of the above payload
-    //! @param[in] expectResponse  true iff a response is expected after transmission
-    //! @param[in] expectedResponseNumPayloadWords  Number of payload words to expect in response
-    //! @param[in] autoRepeatUs  How often to repeat this transmission in microseconds
-    //! @param[in] autoRepeatEndTimeUs  If not 0, auto repeat will cancel after this time
     //! @returns transmission ID
-    virtual uint32_t add(uint64_t txTime,
-                         Transmitter* transmitter,
-                         uint8_t command,
-                         uint32_t* payload,
-                         uint8_t payloadLen,
-                         bool expectResponse,
-                         uint32_t expectedResponseNumPayloadWords=0,
-                         uint32_t autoRepeatUs=0,
-                         uint64_t autoRepeatEndTimeUs=0) final;
+    virtual uint32_t add(
+        TransmissionProperties properties,
+        Transmitter* transmitter
+    ) override final;
+
+    //! Add a transmission to the schedule
+    //! @param[in] properties  The selected properties for this transmission
+    //! @param[in] transmitter  Pointer to transmitter that is adding this (kept alive until transmission completes)
+    //! @returns transmission ID
+    virtual uint32_t add(
+        TransmissionProperties properties,
+        const std::shared_ptr<Transmitter>& transmitter
+    ) override final;
 
     //! Cancels scheduled transmission by transmission ID
     //! @param[in] transmissionId  The transmission ID of the transmissions to cancel
     //! @returns number of transmissions successfully canceled
-    virtual uint32_t cancelById(uint32_t transmissionId) final;
+    virtual uint32_t cancelById(uint32_t transmissionId) override final;
 
     //! Cancels scheduled transmission by recipient address
     //! @param[in] recipientAddr  The recipient address of the transmissions to cancel
     //! @returns number of transmissions successfully canceled
-    virtual uint32_t cancelByRecipient(uint8_t recipientAddr) final;
+    virtual uint32_t cancelByRecipient(uint8_t recipientAddr) override final;
 
     //! Count how many scheduled transmissions have a given recipient address
     //! @param[in] recipientAddr  The recipient address
     //! @returns the number of transmissions have the given recipient address
-    virtual uint32_t countRecipients(uint8_t recipientAddr) final;
+    virtual uint32_t countRecipients(uint8_t recipientAddr) override final;
 
     //! Cancels all items in the schedule
     //! @returns number of transmissions successfully canceled

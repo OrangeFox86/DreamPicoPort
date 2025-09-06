@@ -27,17 +27,26 @@
 #include "DreamcastController.hpp"
 #include "EndpointTxScheduler.hpp"
 
-DreamcastMainNode::DreamcastMainNode(MapleBusInterface& bus,
-                                     PlayerData playerData,
-                                     std::shared_ptr<PrioritizedTxScheduler> prioritizedTxScheduler) :
-    DreamcastNode(DreamcastPeripheral::MAIN_PERIPHERAL_ADDR_MASK,
-                  std::make_shared<EndpointTxScheduler>(
-                    prioritizedTxScheduler,
-                    PrioritizedTxScheduler::MAIN_TRANSMISSION_PRIORITY,
-                    DreamcastPeripheral::getRecipientAddress(
-                        playerData.playerIndex, DreamcastPeripheral::MAIN_PERIPHERAL_ADDR_MASK)
-                  ),
-                  playerData),
+DreamcastMainNode::DreamcastMainNode(
+    const std::shared_ptr<MapleBusInterface>& bus,
+    const std::shared_ptr<PlayerData>& playerData,
+    const std::shared_ptr<PrioritizedTxScheduler>& prioritizedTxScheduler,
+    bool detectionOnly
+) :
+    DreamcastNode(
+        DreamcastPeripheral::MAIN_PERIPHERAL_ADDR_MASK,
+        std::make_shared<EndpointTxScheduler>(
+            prioritizedTxScheduler,
+            PrioritizedTxScheduler::MAIN_TRANSMISSION_PRIORITY,
+            DreamcastPeripheral::getRecipientAddress(
+                playerData->playerIndex,
+                DreamcastPeripheral::MAIN_PERIPHERAL_ADDR_MASK
+            )
+        ),
+        playerData
+    ),
+    mDetectionOnly(detectionOnly),
+    mDeviceDetected(false),
     mSubNodes(),
     mTransmissionTimeliner(bus, prioritizedTxScheduler),
     mScheduleId(-1),
@@ -56,7 +65,7 @@ DreamcastMainNode::DreamcastMainNode(MapleBusInterface& bus,
             std::make_shared<EndpointTxScheduler>(
                 prioritizedTxScheduler,
                 PrioritizedTxScheduler::SUB_TRANSMISSION_PRIORITY,
-                DreamcastPeripheral::getRecipientAddress(playerData.playerIndex, addr)),
+                DreamcastPeripheral::getRecipientAddress(playerData->playerIndex, addr)),
             mPlayerData));
     }
 }
@@ -64,23 +73,29 @@ DreamcastMainNode::DreamcastMainNode(MapleBusInterface& bus,
 DreamcastMainNode::~DreamcastMainNode()
 {}
 
-void DreamcastMainNode::txComplete(std::shared_ptr<const MaplePacket> packet,
-                                   std::shared_ptr<const Transmission> tx)
+void DreamcastMainNode::txComplete(
+    std::shared_ptr<const MaplePacket> packet,
+    std::shared_ptr<const Transmission> tx
+)
 {
     // Handle device info from main peripheral
     if (packet != nullptr && packet->frame.command == COMMAND_RESPONSE_DEVICE_INFO)
     {
-        if (packet->payload.size() > 3)
+        mDeviceDetected = true;
+
+        if (mDetectionOnly)
+        {
+            // This node will now be completely idle
+            cancelInfoRequest();
+        }
+        else if (packet->payload.size() > 3)
         {
             uint32_t mask = peripheralFactory(packet->payload);
             if (mPeripherals.size() > 0)
             {
                 // Remove the auto reload device info request transmission from schedule
-                if (mScheduleId >= 0)
-                {
-                    mEndpointTxScheduler->cancelById(mScheduleId);
-                    mScheduleId = -1;
-                }
+                cancelInfoRequest();
+
                 DEBUG_PRINT("P%lu connected (", mPlayerData.playerIndex + 1);
                 debugPrintPeripherals();
                 DEBUG_PRINT(")\n");
@@ -103,6 +118,7 @@ void DreamcastMainNode::txComplete(std::shared_ptr<const MaplePacket> packet,
 
 void DreamcastMainNode::disconnectMainPeripheral(uint64_t currentTimeUs)
 {
+    mDeviceDetected = false;
     peripheralChangeEvent(currentTimeUs);
     mPeripherals.clear();
     mEndpointTxScheduler->cancelByRecipient(getRecipientAddress());
@@ -174,8 +190,15 @@ void DreamcastMainNode::readTask(uint64_t currentTimeUs)
         }
 
         // Send this off to the one who transmitted this
+        const std::shared_ptr<Transmitter>& spTransmitter = readStatus.transmission->spTransmitter;
         Transmitter* transmitter = readStatus.transmission->transmitter;
-        if (transmitter != nullptr)
+
+        if (!transmitter)
+        {
+            transmitter = spTransmitter.get();
+        }
+
+        if (transmitter)
         {
             transmitter->txComplete(readStatus.received, readStatus.transmission);
         }
@@ -183,8 +206,15 @@ void DreamcastMainNode::readTask(uint64_t currentTimeUs)
     else if (readStatus.busPhase == MapleBusInterface::Phase::WRITE_COMPLETE)
     {
         // Send this off to the one who transmitted this
+        const std::shared_ptr<Transmitter>& spTransmitter = readStatus.transmission->spTransmitter;
         Transmitter* transmitter = readStatus.transmission->transmitter;
-        if (transmitter != nullptr)
+
+        if (!transmitter)
+        {
+            transmitter = spTransmitter.get();
+        }
+
+        if (transmitter)
         {
             transmitter->txComplete(readStatus.received, readStatus.transmission);
         }
@@ -193,8 +223,15 @@ void DreamcastMainNode::readTask(uint64_t currentTimeUs)
              || readStatus.busPhase == MapleBusInterface::Phase::WRITE_FAILED)
     {
         // Send this off to the one who transmitted this
+        const std::shared_ptr<Transmitter>& spTransmitter = readStatus.transmission->spTransmitter;
         Transmitter* transmitter = readStatus.transmission->transmitter;
-        if (transmitter != nullptr)
+
+        if (!transmitter)
+        {
+            transmitter = spTransmitter.get();
+        }
+
+        if (transmitter)
         {
             transmitter->txFailed(readStatus.busPhase == MapleBusInterface::Phase::WRITE_FAILED,
                                     readStatus.busPhase == MapleBusInterface::Phase::READ_FAILED,
@@ -220,7 +257,7 @@ void DreamcastMainNode::readTask(uint64_t currentTimeUs)
     }
     else if (currentTimeUs >= mChangeReleaseTime)
     {
-        mPlayerData.gamepad.setChangeCondition(false);
+        mPlayerData->gamepad.setChangeCondition(false);
         mChangeReleaseTime = 0;
     }
 }
@@ -244,13 +281,16 @@ void DreamcastMainNode::runDependentTasks(uint64_t currentTimeUs)
         {
             uint64_t txTime = PrioritizedTxScheduler::computeNextTimeCadence(currentTimeUs, US_PER_CHECK);
             mEndpointTxScheduler->add(
-                txTime,
-                nullptr,
-                COMMAND_DEVICE_INFO_REQUEST,
-                nullptr,
-                0,
-                true,
-                EXPECTED_DEVICE_INFO_PAYLOAD_WORDS);
+                EndpointTxSchedulerInterface::TransmissionProperties{
+                    .txTime = txTime,
+                    .command = COMMAND_DEVICE_INFO_REQUEST,
+                    .payload = nullptr,
+                    .payloadLen = 0,
+                    .expectResponse = true,
+                    .expectedResponseNumPayloadWords = EXPECTED_DEVICE_INFO_PAYLOAD_WORDS
+                },
+                nullptr
+            );
         }
     }
 
@@ -308,8 +348,15 @@ void DreamcastMainNode::writeTask(uint64_t currentTimeUs)
     if (sentTx != nullptr)
     {
         // Send this off to the one who transmitted this
+        const std::shared_ptr<Transmitter>& spTransmitter = sentTx->spTransmitter;
         Transmitter* transmitter = sentTx->transmitter;
-        if (transmitter != nullptr)
+
+        if (!transmitter)
+        {
+            transmitter = spTransmitter.get();
+        }
+
+        if (transmitter)
         {
             transmitter->txStarted(sentTx);
         }
@@ -330,19 +377,32 @@ void DreamcastMainNode::addInfoRequestToSchedule(uint64_t currentTimeUs)
     {
         txTime = PrioritizedTxScheduler::computeNextTimeCadence(currentTimeUs, US_PER_CHECK);
     }
+
     mScheduleId = mEndpointTxScheduler->add(
-        txTime,
-        this,
-        COMMAND_DEVICE_INFO_REQUEST,
-        nullptr,
-        0,
-        true,
-        EXPECTED_DEVICE_INFO_PAYLOAD_WORDS,
-        US_PER_CHECK);
+        EndpointTxSchedulerInterface::TransmissionProperties{
+            .txTime = txTime,
+            .command = COMMAND_DEVICE_INFO_REQUEST,
+            .payload = nullptr,
+            .payloadLen = 0,
+            .expectResponse = true,
+            .expectedResponseNumPayloadWords = EXPECTED_DEVICE_INFO_PAYLOAD_WORDS,
+            .autoRepeatUs = (mDetectionOnly ? DETECTION_ONLY_US_PER_CHECK : US_PER_CHECK)
+        },
+        this
+    );
+}
+
+void DreamcastMainNode::cancelInfoRequest()
+{
+    if (mScheduleId >= 0)
+    {
+        mEndpointTxScheduler->cancelById(mScheduleId);
+        mScheduleId = -1;
+    }
 }
 
 void DreamcastMainNode::peripheralChangeEvent(uint64_t currentTimeUs)
 {
-    mPlayerData.gamepad.setChangeCondition(true);
+    mPlayerData->gamepad.setChangeCondition(true);
     mChangeReleaseTime = currentTimeUs + (CONNECT_EVENT_SIGNAL_TIME_MS * 1000);
 }

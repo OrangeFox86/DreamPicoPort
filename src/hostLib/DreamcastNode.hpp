@@ -67,7 +67,7 @@ class DreamcastNode : public Transmitter
         //! @returns recipient address for this node
         inline uint8_t getRecipientAddress()
         {
-            return DreamcastPeripheral::getRecipientAddress(mPlayerData.playerIndex, mAddr);
+            return DreamcastPeripheral::getRecipientAddress(mPlayerData->playerIndex, mAddr);
         }
 
         //! Prints summary of connected devices
@@ -90,7 +90,8 @@ class DreamcastNode : public Transmitter
             printf("}");
         }
 
-        //! @return summary of peripherals on this node
+        //! @return summary of peripherals on this node where the inner array index [0] is function code and [1] is
+        //!         function definitions word
         std::list<std::array<uint32_t, 2>> getPeripherals()
         {
             std::list<std::array<uint32_t, 2>> summary;
@@ -103,10 +104,15 @@ class DreamcastNode : public Transmitter
 
     protected:
         //! Main constructor with scheduler
-        DreamcastNode(uint8_t addr,
-                      std::shared_ptr<EndpointTxSchedulerInterface> scheduler,
-                      PlayerData playerData) :
-            mAddr(addr), mEndpointTxScheduler(scheduler), mPlayerData(playerData), mPeripherals()
+        DreamcastNode(
+            uint8_t addr,
+            const std::shared_ptr<EndpointTxSchedulerInterface>& scheduler,
+            const std::shared_ptr<PlayerData>& playerData
+        ) :
+            mAddr(addr),
+            mEndpointTxScheduler(scheduler),
+            mPlayerData(playerData),
+            mPeripherals()
         {}
 
         //! Copy constructor
@@ -114,10 +120,8 @@ class DreamcastNode : public Transmitter
             mAddr(rhs.mAddr),
             mEndpointTxScheduler(rhs.mEndpointTxScheduler),
             mPlayerData(rhs.mPlayerData),
-            mPeripherals()
-        {
-            mPeripherals = rhs.mPeripherals;
-        }
+            mPeripherals(rhs.mPeripherals)
+        {}
 
         //! Run all peripheral tasks
         //! @param[in] currentTimeUs  The current time in microseconds
@@ -223,7 +227,7 @@ class DreamcastNode : public Transmitter
         //! Keeps all scheduled transmissions for my bus
         const std::shared_ptr<EndpointTxSchedulerInterface> mEndpointTxScheduler;
         //! Player data on this node
-        PlayerData mPlayerData;
+        const std::shared_ptr<PlayerData> mPlayerData;
         //! The connected peripherals addressed to this node (usually 0 to 3 items)
         std::vector<std::shared_ptr<DreamcastPeripheral>> mPeripherals;
 };

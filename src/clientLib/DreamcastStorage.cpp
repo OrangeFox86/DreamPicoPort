@@ -227,9 +227,13 @@ bool client::DreamcastStorage::handlePacket(const MaplePacket& in, MaplePacket& 
                     {
                         out.frame.command = COMMAND_RESPONSE_DATA_XFER;
                         out.reservePayload(WORDS_PER_BLOCK + 2);
-                        out.setPayload(&mFunctionCode, 1);
-                        out.appendPayload(locationWord);
-                        out.appendPayloadFlipWords(reinterpret_cast<const uint32_t*>(mem), WORDS_PER_BLOCK);
+                        out.setPayload(&mFunctionCode, 1, MaplePacket::ByteOrder::HOST);
+                        out.appendPayload(locationWord, MaplePacket::ByteOrder::HOST);
+                        out.appendPayload(
+                            reinterpret_cast<const uint32_t*>(mem),
+                            WORDS_PER_BLOCK,
+                            MaplePacket::ByteOrder::NETWORK
+                        );
                     }
                     else
                     {

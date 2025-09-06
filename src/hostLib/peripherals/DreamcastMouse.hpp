@@ -35,10 +35,12 @@ class DreamcastMouse : public DreamcastPeripheral
         //! @param[in] fd  Function definition from the device info for this peripheral
         //! @param[in] scheduler  The transmission scheduler this peripheral is to add to
         //! @param[in] playerData  Data tied to player which controls this mouse device
-        DreamcastMouse(uint8_t addr,
-                       uint32_t fd,
-                       std::shared_ptr<EndpointTxSchedulerInterface> scheduler,
-                       PlayerData playerData);
+        DreamcastMouse(
+            uint8_t addr,
+            uint32_t fd,
+            const std::shared_ptr<EndpointTxSchedulerInterface>& scheduler,
+            const std::shared_ptr<PlayerData>& playerData
+        );
 
         //! Virtual destructor
         virtual ~DreamcastMouse();

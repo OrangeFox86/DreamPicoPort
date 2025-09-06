@@ -23,11 +23,13 @@
 
 #include "DreamcastMouse.hpp"
 
-DreamcastMouse::DreamcastMouse(uint8_t addr,
-                               uint32_t fd,
-                               std::shared_ptr<EndpointTxSchedulerInterface> scheduler,
-                               PlayerData playerData) :
-    DreamcastPeripheral("mouse", addr, fd, scheduler, playerData.playerIndex)
+DreamcastMouse::DreamcastMouse(
+    uint8_t addr,
+    uint32_t fd,
+    const std::shared_ptr<EndpointTxSchedulerInterface>& scheduler,
+    const std::shared_ptr<PlayerData>& playerData
+) :
+    DreamcastPeripheral("mouse", addr, fd, scheduler, playerData->playerIndex)
 {}
 
 DreamcastMouse::~DreamcastMouse()

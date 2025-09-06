@@ -71,6 +71,27 @@ public:
             uint64_t mTime;
     };
 
+    //! Contains properties for a transmission
+    struct TransmissionProperties
+    {
+        //! Priority of this transmission (0 is highest priority)
+        uint8_t priority;
+        //! Time at which this should transmit in microseconds
+        uint64_t txTime;
+        //! Packet data to send (internal data is moved out of this object on add())
+        MaplePacket packet;
+        //! true iff a response is expected after transmission
+        bool expectResponse;
+        //! Number of payload words to expect in response (used for priority timing calculations)
+        uint32_t expectedResponseNumPayloadWords=0;
+        //! How often to repeat this transmission in microseconds
+        uint32_t autoRepeatUs=0;
+        //! If not 0, auto repeat will cancel after this time
+        uint64_t autoRepeatEndTimeUs=0;
+        //! The desired byte order of the response
+        MaplePacket::ByteOrder rxByteOrder=MaplePacket::ByteOrder::HOST;
+    };
+
 public:
     //! Default constructor
     //! @param[in] senderAddress  The sender address set in every packet added
@@ -81,23 +102,22 @@ public:
     virtual ~PrioritizedTxScheduler();
 
     //! Add a transmission to the schedule
-    //! @param[in] priority  priority of this transmission (0 is highest priority)
-    //! @param[in] txTime  Time at which this should transmit in microseconds
+    //! @param[in] properties  The selected properties for this transmission
     //! @param[in] transmitter  Pointer to transmitter that is adding this
-    //! @param[in,out] packet  Packet data to send (internal data is moved upon calling this)
-    //! @param[in] expectResponse  true iff a response is expected after transmission
-    //! @param[in] expectedResponseNumPayloadWords  Number of payload words to expect in response
-    //! @param[in] autoRepeatUs  How often to repeat this transmission in microseconds
-    //! @param[in] autoRepeatEndTimeUs  If not 0, auto repeat will cancel after this time
     //! @returns transmission ID
-    uint32_t add(uint8_t priority,
-                 uint64_t txTime,
-                 Transmitter* transmitter,
-                 MaplePacket& packet,
-                 bool expectResponse,
-                 uint32_t expectedResponseNumPayloadWords=0,
-                 uint32_t autoRepeatUs=0,
-                 uint64_t autoRepeatEndTimeUs=0);
+    uint32_t add(
+        TransmissionProperties properties,
+        Transmitter* transmitter
+    );
+
+    //! Add a transmission to the schedule
+    //! @param[in] properties  The selected properties for this transmission
+    //! @param[in] transmitter  Pointer to transmitter that is adding this (kept alive until transmission completes)
+    //! @returns transmission ID
+    uint32_t add(
+        TransmissionProperties properties,
+        const std::shared_ptr<Transmitter>& transmitter
+    );
 
     //! Peeks the next scheduled packet, given the current time
     //! @param[in] time  The current time

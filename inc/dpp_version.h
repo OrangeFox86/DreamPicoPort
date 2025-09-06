@@ -21,35 +21,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#pragma once
+#ifndef __DPP_VERSION_H__
+#define __DPP_VERSION_H__
 
-#include "hal/Usb/CommandParser.hpp"
+#define DPP_RELEASE_VERSION_MAJOR 1
+#define DPP_RELEASE_VERSION_MINOR 2
+#define DPP_RELEASE_VERSION_PATCH 0
 
-#include "PrioritizedTxScheduler.hpp"
-
-#include <memory>
-
-// Command structure: [whitespace]<command-char>[command]<\n>
-
-//! Command parser for processing commands from a TTY stream
-class MaplePassthroughCommandParser : public CommandParser
-{
-public:
-    MaplePassthroughCommandParser(std::shared_ptr<PrioritizedTxScheduler>* schedulers,
-                                  const uint8_t* senderAddresses,
-                                  uint32_t numSenders);
-
-    //! @returns the string of command characters this parser handles
-    virtual const char* getCommandChars() final;
-
-    //! Called when newline reached; submit command and reset
-    virtual void submit(const char* chars, uint32_t len) final;
-
-    //! Prints help message for this command
-    virtual void printHelp() final;
-
-private:
-    std::shared_ptr<PrioritizedTxScheduler>* const mSchedulers;
-    const uint8_t* const mSenderAddresses;
-    const uint32_t mNumSenders;
-};
+#endif // __DPP_VERSION_H__

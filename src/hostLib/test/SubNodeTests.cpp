@@ -48,9 +48,11 @@ using ::testing::DoAll;
 class DreamcastSubNodeOverride : public DreamcastSubNode
 {
     public:
-        DreamcastSubNodeOverride(uint8_t addr,
-                                 std::shared_ptr<EndpointTxSchedulerInterface> scheduler,
-                                 PlayerData playerData) :
+        DreamcastSubNodeOverride(
+            uint8_t addr,
+            const std::shared_ptr<EndpointTxSchedulerInterface>& scheduler,
+            const std::shared_ptr<PlayerData>& playerData
+        ) :
             DreamcastSubNode(addr, scheduler, playerData)
         {
         }
@@ -96,8 +98,8 @@ class SubNodeTest : public ::testing::Test
         SubNodeTest() :
             mDreamcastControllerObserver(),
             mMutex(),
-            mScreenData(mMutex),
-            mPlayerData{1, mDreamcastControllerObserver, mScreenData, mClock, mUsbFileSystem},
+            mScreenData(std::make_shared<ScreenData>(mMutex)),
+            mPlayerData(std::make_shared<PlayerData>(PlayerData{1, mDreamcastControllerObserver, mScreenData, mClock, mUsbFileSystem})),
             mPrioritizedTxScheduler(std::make_shared<PrioritizedTxScheduler>(mMutex2, 0x00)),
             mEndpointTxScheduler(std::make_shared<EndpointTxScheduler>(
                 mPrioritizedTxScheduler, 0, DreamcastPeripheral::getRecipientAddress(1, 0x01))),
@@ -110,8 +112,8 @@ class SubNodeTest : public ::testing::Test
         MockMutex mMutex2;
         MockClock mClock;
         MockUsbFileSystem mUsbFileSystem;
-        ScreenData mScreenData;
-        PlayerData mPlayerData;
+        std::shared_ptr<ScreenData> mScreenData;
+        std::shared_ptr<PlayerData> mPlayerData;
         std::shared_ptr<PrioritizedTxScheduler> mPrioritizedTxScheduler;
         std::shared_ptr<EndpointTxScheduler> mEndpointTxScheduler;
         DreamcastSubNodeOverride mDreamcastSubNode;
@@ -129,10 +131,10 @@ class SubNodeTest : public ::testing::Test
             std::vector<std::shared_ptr<DreamcastPeripheral>>& peripherals =
                 mDreamcastSubNode.getPeripherals();
             mockDreamcastPeripheral1 =
-                std::make_shared<MockDreamcastPeripheral>(0x01, 0, mEndpointTxScheduler, mPlayerData.playerIndex);
+                std::make_shared<MockDreamcastPeripheral>(0x01, 0, mEndpointTxScheduler, mPlayerData->playerIndex);
             peripherals.push_back(mockDreamcastPeripheral1);
             mockDreamcastPeripheral2 =
-                std::make_shared<MockDreamcastPeripheral>(0x01, 0, mEndpointTxScheduler, mPlayerData.playerIndex);
+                std::make_shared<MockDreamcastPeripheral>(0x01, 0, mEndpointTxScheduler, mPlayerData->playerIndex);
             peripherals.push_back(mockDreamcastPeripheral2);
         }
 };
@@ -147,7 +149,7 @@ TEST_F(SubNodeTest, handleDataCommandNoPeripheralsAdded)
     std::shared_ptr<MaplePacket> txPacket = std::make_shared<MaplePacket>(
         MaplePacket::Frame{.command=4, .recipientAddr=1}, 7654321);
     std::shared_ptr<const Transmission> tx =
-        std::make_shared<Transmission>(0, 0, true, 123, 0, 0, 0, txPacket, nullptr);
+        std::make_shared<Transmission>(0, 0, true, 123, 0, 0, 0, txPacket, MaplePacket::ByteOrder::HOST, nullptr);
 
     // --- TEST EXECUTION ---
     mDreamcastSubNode.txComplete(packet, tx);
@@ -161,7 +163,7 @@ TEST_F(SubNodeTest, handleDataCommandPeripheralAdded)
     // --- MOCKING ---
     // The mocked factory will add a mocked peripheral
     std::shared_ptr<MockDreamcastPeripheral> mockedDreamcastPeripheral =
-        std::make_shared<MockDreamcastPeripheral>(0x01, 0, mEndpointTxScheduler, mPlayerData.playerIndex);
+        std::make_shared<MockDreamcastPeripheral>(0x01, 0, mEndpointTxScheduler, mPlayerData->playerIndex);
     mDreamcastSubNode.mPeripheralsToAdd.push_back(mockedDreamcastPeripheral);
     EXPECT_CALL(mDreamcastSubNode, mockMethodPeripheralFactory(_)).Times(1);
     uint32_t payload[4] = {1234567, 0, 0, 0};
@@ -170,7 +172,7 @@ TEST_F(SubNodeTest, handleDataCommandPeripheralAdded)
     std::shared_ptr<MaplePacket> txPacket = std::make_shared<MaplePacket>(
         MaplePacket::Frame{.command=4, .recipientAddr=1}, 7654321);
     std::shared_ptr<const Transmission> tx =
-        std::make_shared<Transmission>(0, 0, true, 123, 0, 0, 0, txPacket, nullptr);
+        std::make_shared<Transmission>(0, 0, true, 123, 0, 0, 0, txPacket, MaplePacket::ByteOrder::HOST, nullptr);
 
     // --- TEST EXECUTION ---
     mDreamcastSubNode.txComplete(packet, tx);
@@ -184,14 +186,14 @@ TEST_F(SubNodeTest, handleDataCommandInvalidPayloadSize)
     // --- MOCKING ---
     // The mocked factory will add a mocked peripheral
     std::shared_ptr<MockDreamcastPeripheral> mockedDreamcastPeripheral =
-        std::make_shared<MockDreamcastPeripheral>(0x01, 0, mEndpointTxScheduler, mPlayerData.playerIndex);
+        std::make_shared<MockDreamcastPeripheral>(0x01, 0, mEndpointTxScheduler, mPlayerData->playerIndex);
     mDreamcastSubNode.mPeripheralsToAdd.push_back(mockedDreamcastPeripheral);
     std::shared_ptr<MaplePacket> packet = std::make_shared<MaplePacket>(
         MaplePacket::Frame{.command=5, .recipientAddr=0}, (uint32_t*)NULL, 0);
     std::shared_ptr<MaplePacket> txPacket = std::make_shared<MaplePacket>(
         MaplePacket::Frame{.command=4, .recipientAddr=1}, 7654321);
     std::shared_ptr<const Transmission> tx =
-        std::make_shared<Transmission>(0, 0, true, 123, 0, 0, 0, txPacket, nullptr);
+        std::make_shared<Transmission>(0, 0, true, 123, 0, 0, 0, txPacket, MaplePacket::ByteOrder::HOST, nullptr);
     EXPECT_CALL(mDreamcastSubNode, mockMethodPeripheralFactory(_)).Times(0);
 
     // --- TEST EXECUTION ---
