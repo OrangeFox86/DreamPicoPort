@@ -186,6 +186,7 @@ public:
             mBuffer.insert(mBuffer.end(), buffer, buffer + bytesToConsume);
 
             mRcvIdx += bytesToConsume;
+            buffer += bytesToConsume;
             bufsize -= bytesToConsume;
 
             payloadIdx = mRcvIdx - kSizeSize;
