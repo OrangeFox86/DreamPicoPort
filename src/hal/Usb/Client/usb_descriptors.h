@@ -48,6 +48,7 @@
 #define NUM_ITF_CDC (2)
 
 // For WebUSB
+// NOTE: DreamPicoPort-API uses the minimum VENDOR interface number (7) when libusb is used
 #define ITF_NUM_WEBUSB1 (7)
 #define ITF_NUM_WEBUSB2 (8)
 #define NUM_ITF_WEBUSB (2)
