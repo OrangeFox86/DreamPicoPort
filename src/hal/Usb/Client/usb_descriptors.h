@@ -51,6 +51,8 @@
 // NOTE: DreamPicoPort-API uses the minimum VENDOR interface number (7) when libusb is used.
 //       The minimum VENDOR interface must be WinUSB compatible and link to the WebUSB parser.
 #define ITF_NUM_WEBUSB1 (7)
+// NOTE: The settings web page uses the maximum VENDOR interface number (8).
+//       The maximum VENDOR interface must be WebUSB compatible and link to the WebUSB parser.
 #define ITF_NUM_WEBUSB2 (8)
 #define NUM_ITF_WEBUSB (2)
 
