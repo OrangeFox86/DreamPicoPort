@@ -188,6 +188,7 @@ tusb_desc_device_t const desc_device =
     // VID 1209 comes from https://pid.codes/
     // PID 2F07 is a subassignment granted through github
     // https://github.com/pidcodes/pidcodes.github.com/blob/74f95539d2ad737c1ba2871eeb25b3f5f5d5c790/1209/2F07/index.md
+    // NOTE: default DreamPicoPort-API filter uses these vendor and product IDs
     .idVendor           = 0x1209,
     .idProduct          = 0x2F07,
 
@@ -449,6 +450,8 @@ uint8_t const desc_ms_os_20[] =
   'r', 0x00, 'f', 0x00, 'a', 0x00, 'c', 0x00, 'e', 0x00, 'G', 0x00, 'U', 0x00, 'I', 0x00, 'D', 0x00, 's', 0x00, 0x00, 0x00,
   U16_TO_U8S_LE(0x0050), // wPropertyDataLength
 	//bPropertyData: “{31C4F7D3-1AF2-4AD0-B461-3A760CBBD4FB}”.
+    // NOTE: DreamPicoPort-API looks for this class on Windows - DO NOT CHANGE.
+    //       This interface must be be WinUSB compatible and link to the WebUSB parser.
   '{', 0x00, '3', 0x00, '1', 0x00, 'C', 0x00, '4', 0x00, 'F', 0x00, '7', 0x00, 'D', 0x00, '3', 0x00, '-', 0x00,
   '1', 0x00, 'A', 0x00, 'F', 0x00, '2', 0x00, '-', 0x00, '4', 0x00, 'A', 0x00, 'D', 0x00, '0', 0x00, '-', 0x00,
   'B', 0x00, '4', 0x00, '6', 0x00, '1', 0x00, '-', 0x00, '3', 0x00, 'A', 0x00, '7', 0x00, '6', 0x00, '0', 0x00,

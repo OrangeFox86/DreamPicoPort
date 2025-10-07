@@ -24,6 +24,8 @@
 #ifndef __DPP_VERSION_H__
 #define __DPP_VERSION_H__
 
+// NOTE: default DreamPicoPort-API filter filters for minimum of version 1.2.1
+
 #define DPP_RELEASE_VERSION_MAJOR 1
 #define DPP_RELEASE_VERSION_MINOR 2
 #define DPP_RELEASE_VERSION_PATCH 1
