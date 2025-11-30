@@ -39,6 +39,20 @@
         },
         {
             "type": "shell",
+            "label": "Build Debug",
+            "command": "./build.sh",
+            "args": ["pico", "Debug", "Debug"],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "type": "shell",
             "label": "Build Tests",
             "command": "./build_tests.sh",
             "args": [],
