@@ -272,6 +272,8 @@ private:
     static void vendorWrite(std::uint8_t itf, const void* buffer, std::uint32_t bufsize, bool flush = false)
     {
         const std::uint8_t* buffer8 = reinterpret_cast<const std::uint8_t*>(buffer);
+        bool first = true;
+        bool lastWritten = false;
         while (bufsize > 0)
         {
             std::uint32_t written = tud_vendor_n_write(itf, buffer8, bufsize);
@@ -279,10 +281,20 @@ private:
             bufsize -= written;
             buffer8 += written;
 
+            if (written == 0 && !first && !lastWritten)
+            {
+                // TODO: this is an error, and we may end up looping forever otherwise
+                //       This doesn't fix the issue - it just allows execution to continue.
+                return;
+            }
+
             if (bufsize > 0 || flush)
             {
                 tud_vendor_n_write_flush(itf);
             }
+
+            first = false;
+            lastWritten = (written > 0);
         }
     }
 
