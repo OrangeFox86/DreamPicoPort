@@ -96,7 +96,7 @@ void DreamcastMainNode::txComplete(
                 // Remove the auto reload device info request transmission from schedule
                 cancelInfoRequest();
 
-                DEBUG_PRINT("P%lu connected (", mPlayerData.playerIndex + 1);
+                DEBUG_PRINT("P%lu connected (", mPlayerData->playerIndex + 1);
                 debugPrintPeripherals();
                 DEBUG_PRINT(")\n");
 
@@ -109,7 +109,7 @@ void DreamcastMainNode::txComplete(
             if (mask > 0)
             {
                 DEBUG_PRINT("P%lu unknown device(s) in mask: 0x%08lx\n",
-                            mPlayerData.playerIndex + 1,
+                            mPlayerData->playerIndex + 1,
                             mask);
             }
         }
@@ -129,7 +129,7 @@ void DreamcastMainNode::disconnectMainPeripheral(uint64_t currentTimeUs)
         (*iter)->mainPeripheralDisconnected();
     }
     addInfoRequestToSchedule(currentTimeUs);
-    DEBUG_PRINT("P%lu disconnected\n", mPlayerData.playerIndex + 1);
+    DEBUG_PRINT("P%lu disconnected\n", mPlayerData->playerIndex + 1);
 }
 
 void DreamcastMainNode::printSummary()

@@ -55,7 +55,7 @@ void DreamcastSubNode::txComplete(std::shared_ptr<const MaplePacket> packet,
             if (mPeripherals.size() > 0)
             {
                 DEBUG_PRINT("P%lu-%li connected (",
-                            mPlayerData.playerIndex + 1,
+                            mPlayerData->playerIndex + 1,
                             DreamcastPeripheral::subPeripheralIndex(mAddr) + 1);
                 debugPrintPeripherals();
                 DEBUG_PRINT(")\n");
@@ -64,7 +64,7 @@ void DreamcastSubNode::txComplete(std::shared_ptr<const MaplePacket> packet,
             if (mask > 0)
             {
                 DEBUG_PRINT("P%lu-%li unknown device(s) in mask: 0x%08lx\n",
-                            mPlayerData.playerIndex + 1,
+                            mPlayerData->playerIndex + 1,
                             DreamcastPeripheral::subPeripheralIndex(mAddr) + 1,
                             mask);
             }
@@ -129,7 +129,7 @@ bool DreamcastSubNode::setConnected(bool connected, uint64_t currentTimeUs)
         else
         {
             DEBUG_PRINT("P%lu-%li disconnected\n",
-                        mPlayerData.playerIndex + 1,
+                        mPlayerData->playerIndex + 1,
                         DreamcastPeripheral::subPeripheralIndex(mAddr) + 1);
         }
 

@@ -269,12 +269,29 @@ private:
         }
     }
 
-    static void vendorWrite(std::uint8_t itf, const void* buffer, std::uint32_t bufsize, bool flush = false)
+    static std::uint32_t vendorWrite(std::uint8_t itf, const void* buffer, std::uint32_t bufsize, bool flush = false)
     {
         const std::uint8_t* buffer8 = reinterpret_cast<const std::uint8_t*>(buffer);
+        std::uint32_t consecutiveFailures = 0;
+        std::uint32_t totalWritten = 0;
         while (bufsize > 0)
         {
             std::uint32_t written = tud_vendor_n_write(itf, buffer8, bufsize);
+
+            if (written == 0 && bufsize > 0)
+            {
+                ++consecutiveFailures;
+                if (consecutiveFailures >= 2)
+                {
+                    // Failed to write twice - return now
+                    return totalWritten;
+                }
+            }
+            else
+            {
+                consecutiveFailures = 0;
+            }
+
             written = (written >= bufsize) ? bufsize : written;
             bufsize -= written;
             buffer8 += written;
@@ -283,7 +300,11 @@ private:
             {
                 tud_vendor_n_write_flush(itf);
             }
+
+            totalWritten += written;
         }
+
+        return totalWritten;
     }
 
     static void sendPkt(
@@ -321,12 +342,26 @@ private:
         {
             LockGuard lock(*webusb_mutex);
 
-            vendorWrite(itfIdx, header, headerSize);
+            if (vendorWrite(itfIdx, header, headerSize) != headerSize)
+            {
+                // Failed to write
+                return;
+            }
+
             for (const auto& it : payloadList)
             {
-                vendorWrite(itfIdx, it.first, it.second);
+                if (vendorWrite(itfIdx, it.first, it.second) != it.second)
+                {
+                    // Failed to write
+                    return;
+                }
             }
-            vendorWrite(itfIdx, crcBuffer, sizeof(crcBuffer), true);
+
+            if (vendorWrite(itfIdx, crcBuffer, sizeof(crcBuffer), true) != sizeof(crcBuffer))
+            {
+                // Failed to write
+                return;
+            }
         }
     }
 

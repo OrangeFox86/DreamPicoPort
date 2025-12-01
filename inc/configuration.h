@@ -26,7 +26,11 @@
 
 // true to setup and print debug messages over UART0 (pin 1, 115200 8N1)
 // Warning: enabling debug messages drastically degrades communication performance
-#define SHOW_DEBUG_MESSAGES false
+#ifdef _DEBUG
+    #define SHOW_DEBUG_MESSAGES true
+#else
+    #define SHOW_DEBUG_MESSAGES false
+#endif
 
 // Adjust the CPU clock frequency here (133 MHz is maximum documented stable frequency)
 #ifndef CPU_FREQ_KHZ

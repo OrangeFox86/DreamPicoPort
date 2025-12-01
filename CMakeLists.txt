@@ -4,6 +4,10 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 
 set(CMAKE_CXX_STANDARD 23)
 
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  add_definitions(-D_DEBUG)
+endif()
+
 if(NOT ENABLE_UNIT_TEST)
   # Have pico_sdk_import.cmake use the local SDK if it was pulled down; otherwise, use path at
   # PICO_SDK_PATH environment variable as specified within pico_sdk_import.cmake

@@ -9,6 +9,7 @@
 
 FLAVOR=pico
 DIST_PREFIX=
+CONFIGURATION=Release
 
 if [ $# -gt 0 ]; then
 FLAVOR=$1
@@ -16,11 +17,18 @@ shift
 fi
 
 if [ $# -gt 0 ]; then
+if [ -z "${DIST_PREFIX}" ]; then
 DIST_PREFIX="${1}_"
+fi
 shift
 fi
 
-BUILD_DIR="build-${FLAVOR}"
+if [ $# -gt 0 ]; then
+CONFIGURATION=$1
+shift
+fi
+
+BUILD_DIR="build-${FLAVOR}-${CONFIGURATION}"
 DIST_DIR="./dist"
 GCC="/usr/bin/arm-none-eabi-gcc"
 GPP="/usr/bin/arm-none-eabi-g++"
@@ -39,7 +47,7 @@ cmake \
     --no-warn-unused-cli \
     -DPICO_BOARD=${FLAVOR} \
     -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE \
-    -DCMAKE_BUILD_TYPE:STRING=Release \
+    -DCMAKE_BUILD_TYPE:STRING=${CONFIGURATION} \
     -DCMAKE_C_COMPILER:FILEPATH=${GCC} \
     -DCMAKE_CXX_COMPILER:FILEPATH=${GPP} \
     -DDREAMCAST_CONTROLLER_USB_PICO_TEST:BOOL=FALSE \
@@ -58,7 +66,7 @@ echo "\$cmake build" >> ${BUILD_OUTPUT_FILE}
 
 cmake \
     --build ${BUILD_DIR} \
-    --config Release \
+    --config ${CONFIGURATION} \
     --target all \
     -j 10 | tee -a ${BUILD_OUTPUT_FILE}
 
