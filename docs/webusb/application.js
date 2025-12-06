@@ -778,7 +778,7 @@
             profilerSm.innerHTML += "<br>";
           }
           let idx = profilerSm.currentIdx;
-          profilerSm.innerHTML += (String.fromCharCode('A'.charCodeAt(0) + idx) + ": ")
+          profilerSm.innerHTML += ("<b>" + String.fromCharCode('A'.charCodeAt(0) + idx) + ": </b>")
           let connectionState = profilerSm.connectionStates[idx];
           if (connectionState == 0) {
             // Unavailable
@@ -838,7 +838,7 @@
       profilerSm.sendNextDeviceInfo = function() {
         while (profilerSm.currentPeripheralSummary.length > ++profilerSm.currentPeripheralIdx) {
           if (profilerSm.currentPeripheralIdx > 0) {
-            profilerSm.innerHTML += ("<br>&nbsp;&nbsp;&nbsp;&nbsp;Slot " + String.fromCharCode('0'.charCodeAt(0) + profilerSm.currentPeripheralIdx) + ": ");
+            profilerSm.innerHTML += ("<br><b>&nbsp;&nbsp;&nbsp;&nbsp;Slot " + String.fromCharCode('0'.charCodeAt(0) + profilerSm.currentPeripheralIdx) + ": </b>");
           }
           if (profilerSm.currentPeripheralSummary[profilerSm.currentPeripheralIdx].length <= 0) {
             profilerSm.innerHTML += "Empty";
@@ -925,7 +925,41 @@
             let maxCurrent = (payload[115] << 8 | payload[114]) / 10.0;
             currentStr = `; ${minCurrent} to ${maxCurrent} mA`
           }
-          profilerSm.innerHTML += description + capabilities + currentStr;
+          let functionDefs = "";
+          let profileData = profilerSm.currentPeripheralSummary[profilerSm.currentPeripheralIdx];
+          if (profileData.length > 0) {
+            functionDefs = "; Functions:";
+            let idx = 0;
+            while (idx < profileData.length) {
+              let fn = profileData[idx][0];
+              let fnName = "";
+              if (fn == 0x00000001) {
+                fnName = "Controller";
+              } else if (fn == 0x00000002) {
+                fnName = "Storage";
+              } else if (fn == 0x00000004) {
+                fnName = "Screen";
+              } else if (fn == 0x00000008) {
+                fnName = "Timer";
+              } else if (fn == 0x00000010) {
+                fnName = "Audio Input";
+              } else if (fn == 0x00000020) {
+                fnName = "AR Gun";
+              } else if (fn == 0x00000040) {
+                fnName = "Keyboard";
+              } else if (fn == 0x00000080) {
+                fnName = "Gun";
+              } else if (fn == 0x00000100) {
+                fnName = "Vibration";
+              } else if (fn == 0x00000200) {
+                fnName = "Mouse";
+              }
+              let codeStr = "0x" + profileData[idx][1].toString(16).padStart(8, '0');
+              functionDefs += ` ${fnName}(${codeStr})`
+              ++idx;
+            }
+          }
+          profilerSm.innerHTML += description + capabilities + currentStr + functionDefs;
           if (!profilerSm.sendNextDeviceInfo()) {
             let nextIdx = profilerSm.nextIdx();
             if (nextIdx >= 0) {
