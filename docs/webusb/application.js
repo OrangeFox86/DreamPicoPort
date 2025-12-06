@@ -31,7 +31,6 @@
     let port;
     let selectedSerial = null;
     let receiveSm = null; // must define cancel(), start(), process(), and timeout() in the object
-    let receiveSmExpectReboot = false; // true if reboot may occur before next event
     let receiveSmTimeoutId = -1;
     let offlineHint = document.querySelector('#offline-hint');
     let vmu1ARadio = document.querySelector('#vmu1-a-radio');
@@ -68,6 +67,13 @@
     let gpioSimpleLedText = document.querySelector('#gpio-simple-led');
     let saveGpioButton = document.querySelector('#save-advanced');
     let resetSettingsButton = document.querySelector('#reset-settings');
+
+    // Tests tab
+    let testsProfileButton = document.querySelector('#tests-profile');
+    let testsBasicButton = document.querySelector('#tests-basic');
+    let testsStressButton = document.querySelector('#tests-stress');
+    let testsStatusDisplay = document.querySelector('#tests-status');
+
     const CMD_OK = 0x0A; // Command success
     const CMD_ATTENTION = 0x0B; // Command success, but attention is needed
     const CMD_FAIL = 0x0F; // Command failed - data was parsed but execution failed
@@ -207,7 +213,6 @@
       } else {
         stopSmTimeout();
       }
-      receiveSmExpectReboot = false;
       receiveSm = sm;
       if (!selectedSerial && !selectedPort) {
         setStatus('Please select a device first');
@@ -747,6 +752,196 @@
       startSm(writeVmuSm);
     }
 
+    // Starts the state machine which loads the settings from the device
+    function startProfilingSm() {
+      setStatus("Getting device information...");
+      // 1. GetConnectedGamepads(), and then for each controller:
+      //    A. GetDcSummary()
+      //    B. Maple command: extended device info request
+      // 2. Display all data
+      const GET_CONNECTED_GAMEPADS_ADDR = 40;
+      const GET_DC_SUMMARY_BASE_ADDR = 41;
+      const GET_DEVICE_INFO_BASE_ADDR = 45;
+
+      testsStatusDisplay.innerHTML = "";
+
+      var profilerSm = {};
+      profilerSm.currentIdx = -1;
+      profilerSm.connectionStates = [];
+      profilerSm.currentPeripheralSummary = [];
+      profilerSm.currentPeripheralIdx = -1;
+      profilerSm.sentBasicInfoReq = false;
+      profilerSm.innerHTML = ""
+      profilerSm.nextIdx = function() {
+        while (profilerSm.connectionStates.length > ++profilerSm.currentIdx) {
+          if (profilerSm.innerHTML.length > 0) {
+            profilerSm.innerHTML += "<br>";
+          }
+          let idx = profilerSm.currentIdx;
+          profilerSm.innerHTML += (String.fromCharCode('A'.charCodeAt(0) + idx) + ": ")
+          let connectionState = profilerSm.connectionStates[idx];
+          if (connectionState == 0) {
+            // Unavailable
+            profilerSm.innerHTML += "N/A";
+          } else if (connectionState == 1) {
+            profilerSm.innerHTML += "Not Connected";
+          } else {
+            // Connected
+            return idx;
+          }
+        }
+        return -1;
+      }
+      profilerSm.loadDcSummary = function(payload) {
+        profilerSm.currentPeripheralSummary = []
+        profilerSm.currentPeripheralIdx = -1;
+        let pidx = 0;
+        while (pidx < payload.length) {
+          let currentPeriph = [];
+          let arr = [];
+          let aidx = 0;
+          // Pipe means that 4-byte function data should follow (should be in pairs)
+          while (pidx < payload.length && payload[pidx] === 124) { // 124 is '|'
+            pidx++; // skip past pipe
+            if (pidx + 4 <= payload.length) {
+              // Convert 4 bytes to uint32 (big-endian)
+              const val = (payload[pidx] << 24) | (payload[pidx + 1] << 16) | (payload[pidx + 2] << 8) | payload[pidx + 3];
+              arr[aidx++] = val;
+              if (aidx >= 2) {
+                currentPeriph.push([...arr]);
+                arr = [];
+                aidx = 0;
+              }
+              pidx += 4;
+            } else {
+              // Not enough data - skip to the end
+              pidx = payload.length;
+            }
+          }
+          // Add the accumulated peripheral data
+          profilerSm.currentPeripheralSummary.push([...currentPeriph]);
+          if (pidx < payload.length) {
+            // This is assumed to be a semicolon which terminates the current peripheral
+            pidx++;
+          }
+        }
+      }
+      profilerSm.getDestAddr = function(hostAddr) {
+        let destAddr = hostAddr;
+        if (profilerSm.currentPeripheralIdx == 0) {
+          destAddr |= 0x20;
+        } else {
+          destAddr |= (1 << (profilerSm.currentPeripheralIdx - 1));
+        }
+        return destAddr;
+      }
+      profilerSm.sendNextDeviceInfo = function() {
+        while (profilerSm.currentPeripheralSummary.length > ++profilerSm.currentPeripheralIdx) {
+          if (profilerSm.currentPeripheralIdx > 0) {
+            profilerSm.innerHTML += ("<br>&nbsp;&nbsp;&nbsp;&nbsp;Slot " + String.fromCharCode('0'.charCodeAt(0) + profilerSm.currentPeripheralIdx) + ": ");
+          }
+          if (profilerSm.currentPeripheralSummary[profilerSm.currentPeripheralIdx].length <= 0) {
+            profilerSm.innerHTML += "Empty";
+          } else {
+            let hostAddr = getMapleHostAddr(profilerSm.currentIdx);
+            let destAddr = profilerSm.getDestAddr(hostAddr);
+            profilerSm.sentBasicInfoReq = false;
+            send(GET_DEVICE_INFO_BASE_ADDR + profilerSm.currentIdx, '0'.charCodeAt(0), [0x02, destAddr, hostAddr, 0]);
+            return true;
+          }
+        }
+        return false;
+      }
+      profilerSm.complete = function() {
+        testsStatusDisplay.innerHTML = profilerSm.innerHTML;
+        stopSm('Get device information complete');
+      };
+      profilerSm.cancel = function(reason) {
+        setStatus('Get device information canceled', 'red', 'bold');
+      };
+      profilerSm.timeout = function() {
+        disconnect('Get device information failed', 'red', 'bold');
+      };
+      profilerSm.start = function() {
+        // Load the currently staged settings, not the settings on flash
+        send(GET_CONNECTED_GAMEPADS_ADDR, 'X'.charCodeAt(0), ['O'.charCodeAt(0)]);
+      }
+      profilerSm.process = function(addr, cmd, payload) {
+        if (addr == GET_CONNECTED_GAMEPADS_ADDR) {
+          if (cmd == CMD_OK) {
+            if (payload.length >= 1) {
+              // Retrieved connected gamepads
+              profilerSm.connectionStates = [...payload];
+              let nextIdx = profilerSm.nextIdx();
+              if (nextIdx >= 0) {
+                send(GET_DC_SUMMARY_BASE_ADDR + nextIdx, 'X'.charCodeAt(0), ['?'.charCodeAt(0), nextIdx]);
+                return;
+              }
+            } else {
+              profilerSm.innerHTML = "No peripherals connected"
+            }
+
+            profilerSm.complete();
+            return;
+          }
+        } else if (addr >= GET_DC_SUMMARY_BASE_ADDR && addr < GET_DC_SUMMARY_BASE_ADDR + 4) {
+          if (cmd == CMD_OK) {
+            profilerSm.loadDcSummary(payload);
+            if (!profilerSm.sendNextDeviceInfo()) {
+              let nextIdx = profilerSm.nextIdx();
+              if (nextIdx >= 0) {
+                send(GET_DC_SUMMARY_BASE_ADDR + nextIdx, 'X'.charCodeAt(0), ['?'.charCodeAt(0), nextIdx]);
+              } else {
+                profilerSm.complete();
+              }
+            }
+            return;
+          }
+        } else {
+          if (payload.length < 52 && !profilerSm.sentBasicInfoReq) {
+            // Some 3rd party devices don't support the extended device info - try getting the basic info
+            profilerSm.sentBasicInfoReq = true;
+            let hostAddr = getMapleHostAddr(profilerSm.currentIdx);
+            let destAddr = profilerSm.getDestAddr(hostAddr);
+            send(GET_DEVICE_INFO_BASE_ADDR + profilerSm.currentIdx, '0'.charCodeAt(0), [0x01, destAddr, hostAddr, 0]);
+            return;
+          }
+          let description = "";
+          if (payload.length >= 52) {
+            description = String.fromCharCode(...payload.slice(22, 52)).trim();
+          }
+          // This is always the same string, so it isn't important
+          // let producer = "";
+          // if (payload.length >= 112) {
+          //   producer = String.fromCharCode(...payload.slice(52, 112)).trim();
+          // }
+          let capabilities = "";
+          if (payload.length >= 192) {
+            capabilities = "; " + String.fromCharCode(...payload.slice(116, 192)).trim();
+          }
+          let currentStr = "";
+          if (payload.length >= 116) {
+            let minCurrent = (payload[113] << 8 | payload[112]) / 10.0;
+            let maxCurrent = (payload[115] << 8 | payload[114]) / 10.0;
+            currentStr = `; ${minCurrent} to ${maxCurrent} mA`
+          }
+          profilerSm.innerHTML += description + capabilities + currentStr;
+          if (!profilerSm.sendNextDeviceInfo()) {
+            let nextIdx = profilerSm.nextIdx();
+            if (nextIdx >= 0) {
+              send(GET_DC_SUMMARY_BASE_ADDR + nextIdx, 'X'.charCodeAt(0), ['?'.charCodeAt(0), nextIdx]);
+            } else {
+              profilerSm.complete();
+            }
+          }
+          return;
+        }
+        stopSm('Failed to get device information', 'red', 'bold')
+      }
+
+      startSm(profilerSm);
+    }
+
     // Converts an int32 value to a byte stream
     function int32ToBytes(val) {
       const buffer = new ArrayBuffer(4);
@@ -1223,6 +1418,11 @@
     // VMU Memory Cancel Button - click handler
     vmuMemoryCancelButton.addEventListener('click', function () {
       cancelSm(CANCEL_REASON_USER);
+    });
+
+    // Test: Profiling
+    testsProfileButton.addEventListener('click', function() {
+      startProfilingSm();
     });
 
     // Save GPIO Settings Button - click handler
