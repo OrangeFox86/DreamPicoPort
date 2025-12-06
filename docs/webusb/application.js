@@ -286,7 +286,7 @@
       let tabcontent = document.getElementsByClassName("tabcontent");
       for (let i = 0; i < tabcontent.length; i++) {
         tabcontent[i].style.pointerEvents = 'none';
-        tabcontent[i].style.opacity = 1.0;
+        tabcontent[i].style.opacity = 0.7;
       }
     }
 
@@ -411,111 +411,13 @@
       selectedDevice.textContent = selectedDeviceText;
       enableAllControls();
       setStatus("Loading settings...");
-      const GET_SETTINGS_ADDR = 123;
-      var loadSm = {};
-      loadSm.name = "Load";
-      loadSm.start = function() {
-        // Load the currently staged settings, not the settings on flash
-        send(GET_SETTINGS_ADDR, 'S'.charCodeAt(0), [103]);
-      }
-      loadSm.process = function(addr, cmd, payload) {
-        if (addr == GET_SETTINGS_ADDR) {
-          if (cmd == CMD_OK && setSettingsFromPayload(payload)) {
-            // Retrieved settings
-            stopSm('Settings loaded');
-            return;
-          }
-        }
-        stopSm('Failed to load settings', 'red', 'bold')
-      }
-
-      startSm(loadSm, selectedPort);
+      startSm(new LoadStateMachine(), selectedPort);
     }
 
     // Starts the state machine which saves the general settings
     function startSaveSm() {
       setStatus("Saving...");
-      const SEND_MSC_ADDR = 10;
-      const SEND_WEBUSB_ANNOUNCE_ADDR = 11;
-      const SEND_CONTROLLER_A_ADDR = 12;
-      const SEND_CONTROLLER_B_ADDR = 13;
-      const SEND_CONTROLLER_C_ADDR = 14;
-      const SEND_CONTROLLER_D_ADDR = 15;
-      const SEND_VALIDATE_ADDR = 16;
-      const SEND_SAVE_AND_RESTART_ADDR = 17;
-
-      var saveSm = {};
-      saveSm.name = "Save";
-      saveSm.disconnectExpected = false;
-      saveSm.done = function(reason) {
-        if (reason == SM_DONE_REASON_DISCONNECT && saveSm.disconnectExpected) {
-          // Didn't get a chance to get response before reboot occurred
-          setStatus('Save successful!');
-        } else {
-          saveSm.defaultDone(reason);
-        }
-      };
-      saveSm.start = function() {
-        const mscValue = mscCheckbox.checked ? 1 : 0;
-        send(SEND_MSC_ADDR, 'S'.charCodeAt(0), [77, mscValue]);
-      }
-      saveSm.process = function(addr, cmd, payload) {
-        if (addr == SEND_MSC_ADDR) {
-          if (cmd == CMD_OK) {
-            const webusbAnnounceFlag = enableWebusbAnnounceCheck.checked ? 1 : 0;
-            send(SEND_WEBUSB_ANNOUNCE_ADDR, 'S'.charCodeAt(0), [87, webusbAnnounceFlag]);
-          } else {
-            stopSm('Failed to set WebUSB announcement flag', 'red', 'bold');
-          }
-        } else if (addr == SEND_WEBUSB_ANNOUNCE_ADDR) {
-          if (cmd == CMD_OK) {
-            send(SEND_CONTROLLER_A_ADDR, 'S'.charCodeAt(0), [80, 0, player1.value]);
-          } else {
-            stopSm('Failed to set Mass Storage Class setting', 'red', 'bold');
-          }
-        } else if (addr == SEND_CONTROLLER_A_ADDR) {
-          if (cmd == CMD_OK) {
-            send(SEND_CONTROLLER_B_ADDR, 'S'.charCodeAt(0), [80, 1, player2.value]);
-          } else {
-            stopSm('Failed to set controller A setting', 'red', 'bold');
-          }
-        } else if (addr == SEND_CONTROLLER_B_ADDR) {
-          if (cmd == CMD_OK) {
-            send(SEND_CONTROLLER_C_ADDR, 'S'.charCodeAt(0), [80, 2, player3.value]);
-          } else {
-            stopSm('Failed to set controller B setting', 'red', 'bold');
-          }
-        } else if (addr == SEND_CONTROLLER_C_ADDR) {
-          if (cmd == CMD_OK) {
-            send(SEND_CONTROLLER_D_ADDR, 'S'.charCodeAt(0), [80, 3, player4.value]);
-          } else {
-            stopSm('Failed to set controller C setting', 'red', 'bold');
-          }
-        } else if (addr == SEND_CONTROLLER_D_ADDR) {
-          if (cmd == CMD_OK) {
-            send(SEND_VALIDATE_ADDR, 'S'.charCodeAt(0), [115]);
-          } else {
-            stopSm('Failed to set controller D setting', 'red', 'bold');
-          }
-        } else if (addr == SEND_VALIDATE_ADDR) {
-          if (cmd == CMD_OK || cmd == CMD_ATTENTION) {
-            setSettingsFromPayload(payload);
-            send(SEND_SAVE_AND_RESTART_ADDR, 'S'.charCodeAt(0), [83]);
-            // Reboot may occur before the next event
-            saveSm.disconnectExpected = true;
-          } else {
-            stopSm('Failed to validate settings', 'red', 'bold');
-          }
-        } else if (addr == SEND_SAVE_AND_RESTART_ADDR) {
-          if (cmd == CMD_OK) {
-            stopSm('Save successful!');
-          } else {
-            stopSm('Failed to save settings', 'red', 'bold');
-          }
-        }
-      }
-
-      startSm(saveSm);
+      startSm(new SaveStateMachine());
     }
 
     // Resets the progress bar on the VMU Memory tab
@@ -536,644 +438,6 @@
       } else {
         return 0x00;
       }
-    }
-
-    // Starts the state machine which reads all VMU data
-    function startReadVmuSm(controllerIdx, vmuIndex) {
-      setStatus("Reading VMU...");
-      const READ_ADDR = 170;
-
-      var readVmuSm = {};
-      readVmuSm.name = "VMU read";
-      readVmuSm.retries = 0;
-      readVmuSm.controllerIdx = controllerIdx;
-      readVmuSm.vmuIndex = vmuIndex;
-      readVmuSm.vmuData = new Uint8Array(128 * 1024); // 128KB VMU storage
-      readVmuSm.dataOffset = 0;
-      readVmuSm.hostAddr = getMapleHostAddr(controllerIdx);
-      readVmuSm.destAddr = readVmuSm.hostAddr | (1 << vmuIndex);
-      readVmuSm.currentBlock = 0;
-
-      function sendCurrentBlock() {
-        send(READ_ADDR, '0'.charCodeAt(0), [0x0B, readVmuSm.destAddr, readVmuSm.hostAddr, 2, 0, 0, 0, 2, 0, 0, 0, readVmuSm.currentBlock]);
-      };
-
-      readVmuSm.done = function(reason) {
-        if (reason == SM_DONE_REASON_TIMEOUT) {
-          if (readVmuSm.retries++ < 2) {
-            // Re-read current block
-            resetSmTimeout();
-            sendCurrentBlock();
-          } else {
-            setStatus('VMU read failed - timeout', 'red', 'bold');
-            resetProgressBar();
-          }
-        } else {
-          readVmuSm.defaultDone(reason);
-          resetProgressBar();
-        }
-      };
-
-      readVmuSm.start = function() {
-        vmuProgressContainer.style.display = 'block';
-        vmuProgressContainer.style.visibility = 'visible';
-        vmuProgress.value = 0;
-        vmuProgressText.textContent = '0%';
-        readVmuSm.startTime = Date.now();
-        sendCurrentBlock();
-      };
-
-      readVmuSm.process = function(addr, cmd, payload) {
-        let fnType = Number(addr & BigInt(0xff));
-        let receivedBlock = -1;
-        if (payload.length >= 12)
-        {
-          receivedBlock = payload[11];
-        }
-        if (fnType == READ_ADDR && receivedBlock == readVmuSm.currentBlock && cmd == CMD_OK && payload.length == 524) {
-          // Copy received data to VMU buffer
-          // TODO: verify maple packet header
-          readVmuSm.vmuData.set(payload.slice(12, payload.length), readVmuSm.dataOffset);
-          readVmuSm.dataOffset += payload.length - 12;
-          readVmuSm.currentBlock++;
-          readVmuSm.retries = 0;
-
-          // Update progress
-          const progress = (readVmuSm.currentBlock / 256) * 100;
-          vmuProgress.value = progress;
-          vmuProgressText.textContent = Math.round(progress) + '%';
-
-          if (readVmuSm.currentBlock < 256) {
-            // Read next block
-            sendCurrentBlock();
-          } else {
-            // Reading complete, save file
-            const blob = new Blob([readVmuSm.vmuData], { type: 'application/octet-stream' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `vmu_save_${String.fromCharCode(65 + readVmuSm.controllerIdx)}${readVmuSm.vmuIndex + 1}.bin`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-
-            stopSm('VMU read complete');
-            resetProgressBar();
-            const readTime = Date.now() - readVmuSm.startTime;
-            console.log(`VMU read completed in ${readTime}ms`);
-          }
-        } else if (readVmuSm.retries++ < 2) {
-            // Re-read current block
-            sendCurrentBlock();
-        } else {
-          stopSm('VMU read failed', 'red', 'bold');
-          resetProgressBar();
-        }
-      };
-
-      startSm(readVmuSm);
-    }
-
-    // Starts the state machine which writes to a selected VMU
-    function startWriteVmuSm(controllerIdx, vmuIdx, fileData) {
-      setStatus("Writing VMU...");
-      const WRITE_ADDR = 171;
-      const NUM_PHASES_PER_BLOCK = 4;
-      const BLOCK_SIZE = 512;
-      const PHASE_SIZE = BLOCK_SIZE / NUM_PHASES_PER_BLOCK;
-      const TOTAL_BLOCKS = 256;
-
-      var writeVmuSm = {};
-      writeVmuSm.name = "Write VMU";
-      writeVmuSm.retries = 0;
-      writeVmuSm.errorCount = 0;
-      writeVmuSm.controllerIdx = controllerIdx;
-      writeVmuSm.vmuIndex = vmuIdx;
-      writeVmuSm.hostAddr = getMapleHostAddr(controllerIdx);
-      writeVmuSm.destAddr = writeVmuSm.hostAddr | (1 << vmuIdx);
-      writeVmuSm.currentBlock = 0;
-      writeVmuSm.currentPhase = 0; // [0,4] // commit on 4
-      writeVmuSm.writeDelayMs = 10; // delay between writes, grows on each retry
-
-      writeVmuSm.done = function(reason) {
-        if (reason == SM_DONE_REASON_TIMEOUT) {
-          if (!retry()) {
-            setStatus('VMU write failed - timeout', 'red', 'bold');
-            resetProgressBar();
-          }
-        } else if (reason == SM_DONE_CONNECT_FAILED || reason == SM_DONE_REASON_CANCELED_USER) {
-          setStatus('VMU write canceled, VMU memory may be left in a corrupted state', 'red', 'bold');
-          resetProgressBar();
-        } else {
-          writeVmuSm.defaultDone(reason);
-          resetProgressBar();
-        }
-      };
-
-      function writeCurrentPhase() {
-        const locationWord = [0, writeVmuSm.currentPhase, 0, writeVmuSm.currentBlock];
-        const dataOffset = (writeVmuSm.currentBlock * BLOCK_SIZE) + (writeVmuSm.currentPhase * PHASE_SIZE);
-        const dataChunk = fileData.slice(dataOffset, dataOffset + PHASE_SIZE);
-        send(WRITE_ADDR | (writeVmuSm.currentBlock << 8) | (writeVmuSm.currentPhase << 16), '0'.charCodeAt(0), [0x0C, writeVmuSm.destAddr, writeVmuSm.hostAddr, 34, 0, 0, 0, 2, ...locationWord, ...dataChunk]);
-      }
-
-      function writeCommit() {
-        const locationWord = [0, writeVmuSm.currentPhase, 0, writeVmuSm.currentBlock];
-        send(WRITE_ADDR | (writeVmuSm.currentBlock << 8) | (writeVmuSm.currentPhase << 16), '0'.charCodeAt(0), [0x0D, writeVmuSm.destAddr, writeVmuSm.hostAddr, 2, 0, 0, 0, 2, ...locationWord]);
-      }
-
-      function retry() {
-        ++writeVmuSm.errorCount;
-        if (++writeVmuSm.retries > 2) {
-          return false;
-        }
-
-        console.error("Write failed, retrying");
-
-        resetSmTimeout();
-        writeVmuSm.currentPhase = 0;
-        writeVmuSm.writeDelayMs += 5;
-        if (writeVmuSm.writeDelayMs > 30) {
-          writeVmuSm.writeDelayMs = 30;
-        }
-
-        setTimeout(() => {
-          writeCurrentPhase();
-        }, writeVmuSm.writeDelayMs);
-
-        return true;
-      }
-
-      writeVmuSm.start = function() {
-        vmuProgressContainer.style.display = 'block';
-        vmuProgressContainer.style.visibility = 'visible';
-        vmuProgress.value = 0;
-        vmuProgressText.textContent = '0%';
-        writeVmuSm.startTime = Date.now();
-        writeCurrentPhase();
-      };
-
-      writeVmuSm.process = function(addr, cmd, payload) {
-        let fnType = Number(addr & BigInt(0xff));
-        let forBlock = Number((addr >> BigInt(8)) & BigInt(0xff));
-        let forPhase = Number((addr >> BigInt(16)) & BigInt(0xff));
-
-        if (
-          fnType == WRITE_ADDR &&
-          cmd == CMD_OK &&
-          forBlock == writeVmuSm.currentBlock &&
-          forPhase == writeVmuSm.currentPhase &&
-          payload.length >= 1 &&
-          payload[0] == 0x07 // Acknowledge from Maple Bus
-        ) {
-          if (++writeVmuSm.currentPhase > 4)
-          {
-            writeVmuSm.currentPhase = 0;
-            if (++writeVmuSm.currentBlock >= TOTAL_BLOCKS)
-            {
-              // Done!
-              stopSm('VMU write complete');
-              resetProgressBar();
-              const readTime = Date.now() - writeVmuSm.startTime;
-              console.log(`VMU read completed in ${readTime}ms with ${writeVmuSm.errorCount} retried packets`);
-              return;
-            }
-          }
-
-          // Update progress
-          writeVmuSm.retries = 0;
-          const progress = (writeVmuSm.currentBlock / TOTAL_BLOCKS) * 100;
-          vmuProgress.value = progress;
-          vmuProgressText.textContent = Math.round(progress) + '%';
-
-          if (writeVmuSm.currentPhase > 3)
-          {
-            // Try to speed things up
-            --writeVmuSm.writeDelayMs;
-            if (writeVmuSm.writeDelayMs < 10) {
-              writeVmuSm.writeDelayMs = 10;
-            }
-
-            setTimeout(() => {
-              writeCommit();
-            }, writeVmuSm.writeDelayMs);
-          } else {
-            setTimeout(() => {
-              writeCurrentPhase();
-            }, writeVmuSm.writeDelayMs);
-          }
-        } else {
-          if (!retry()) {
-            stopSm('VMU write failed', 'red', 'bold');
-            resetProgressBar();
-          }
-        }
-      };
-
-      startSm(writeVmuSm);
-    }
-
-    // Starts the state machine which gets all device information strings
-    function startProfilingSm() {
-      setStatus("Getting device information...");
-      // 1. GetConnectedGamepads(), and then for each controller:
-      //    A. GetDcSummary()
-      //    B. Maple command: extended device info request
-      // 2. Display all data
-      const GET_CONNECTED_GAMEPADS_ADDR = 40;
-      const GET_DC_SUMMARY_BASE_ADDR = 41;
-      const GET_DEVICE_INFO_BASE_ADDR = 45;
-
-      testsStatusDisplay.innerHTML = "";
-
-      var profilerSm = {};
-      profilerSm.name = "Get device information";
-      profilerSm.currentIdx = -1;
-      profilerSm.connectionStates = [];
-      profilerSm.currentPeripheralSummary = [];
-      profilerSm.currentPeripheralIdx = -1;
-      profilerSm.sentBasicInfoReq = false;
-      profilerSm.innerHTML = ""
-      profilerSm.nextIdx = function() {
-        while (profilerSm.connectionStates.length > ++profilerSm.currentIdx) {
-          if (profilerSm.innerHTML.length > 0) {
-            profilerSm.innerHTML += "<br>";
-          }
-          let idx = profilerSm.currentIdx;
-          profilerSm.innerHTML += ("<b>" + String.fromCharCode('A'.charCodeAt(0) + idx) + ": </b>")
-          let connectionState = profilerSm.connectionStates[idx];
-          if (connectionState == 0) {
-            // Unavailable
-            profilerSm.innerHTML += "N/A";
-          } else if (connectionState == 1) {
-            profilerSm.innerHTML += "Not Connected";
-          } else {
-            // Connected
-            return idx;
-          }
-        }
-        return -1;
-      }
-      profilerSm.loadDcSummary = function(payload) {
-        profilerSm.currentPeripheralSummary = []
-        profilerSm.currentPeripheralIdx = -1;
-        let pidx = 0;
-        while (pidx < payload.length) {
-          let currentPeriph = [];
-          let arr = [];
-          let aidx = 0;
-          // Pipe means that 4-byte function data should follow (should be in pairs)
-          while (pidx < payload.length && payload[pidx] === 124) { // 124 is '|'
-            pidx++; // skip past pipe
-            if (pidx + 4 <= payload.length) {
-              // Convert 4 bytes to uint32 (big-endian)
-              const val = (payload[pidx] << 24) | (payload[pidx + 1] << 16) | (payload[pidx + 2] << 8) | payload[pidx + 3];
-              arr[aidx++] = val;
-              if (aidx >= 2) {
-                currentPeriph.push([...arr]);
-                arr = [];
-                aidx = 0;
-              }
-              pidx += 4;
-            } else {
-              // Not enough data - skip to the end
-              pidx = payload.length;
-            }
-          }
-          // Add the accumulated peripheral data
-          profilerSm.currentPeripheralSummary.push([...currentPeriph]);
-          if (pidx < payload.length) {
-            // This is assumed to be a semicolon which terminates the current peripheral
-            pidx++;
-          }
-        }
-      }
-      profilerSm.getDestAddr = function(hostAddr) {
-        let destAddr = hostAddr;
-        if (profilerSm.currentPeripheralIdx == 0) {
-          destAddr |= 0x20;
-        } else {
-          destAddr |= (1 << (profilerSm.currentPeripheralIdx - 1));
-        }
-        return destAddr;
-      }
-      profilerSm.sendNextDeviceInfo = function() {
-        while (profilerSm.currentPeripheralSummary.length > ++profilerSm.currentPeripheralIdx) {
-          if (profilerSm.currentPeripheralIdx > 0) {
-            profilerSm.innerHTML += ("<br><b>&nbsp;&nbsp;&nbsp;&nbsp;Slot " + String.fromCharCode('0'.charCodeAt(0) + profilerSm.currentPeripheralIdx) + ": </b>");
-          }
-          if (profilerSm.currentPeripheralSummary[profilerSm.currentPeripheralIdx].length <= 0) {
-            profilerSm.innerHTML += "Empty";
-          } else {
-            let hostAddr = getMapleHostAddr(profilerSm.currentIdx);
-            let destAddr = profilerSm.getDestAddr(hostAddr);
-            profilerSm.sentBasicInfoReq = false;
-            send(GET_DEVICE_INFO_BASE_ADDR + profilerSm.currentIdx, '0'.charCodeAt(0), [0x02, destAddr, hostAddr, 0]);
-            return true;
-          }
-        }
-        return false;
-      }
-      profilerSm.complete = function() {
-        testsStatusDisplay.innerHTML = profilerSm.innerHTML;
-        stopSm('Get device information complete');
-      };
-      profilerSm.start = function() {
-        // Load the currently staged settings, not the settings on flash
-        send(GET_CONNECTED_GAMEPADS_ADDR, 'X'.charCodeAt(0), ['O'.charCodeAt(0)]);
-      }
-      profilerSm.process = function(addr, cmd, payload) {
-        if (addr == GET_CONNECTED_GAMEPADS_ADDR) {
-          if (cmd == CMD_OK) {
-            if (payload.length >= 1) {
-              // Retrieved connected gamepads
-              profilerSm.connectionStates = [...payload];
-              let nextIdx = profilerSm.nextIdx();
-              if (nextIdx >= 0) {
-                send(GET_DC_SUMMARY_BASE_ADDR + nextIdx, 'X'.charCodeAt(0), ['?'.charCodeAt(0), nextIdx]);
-                return;
-              }
-            } else {
-              profilerSm.innerHTML = "No peripherals connected"
-            }
-
-            profilerSm.complete();
-            return;
-          }
-        } else if (addr >= GET_DC_SUMMARY_BASE_ADDR && addr < GET_DC_SUMMARY_BASE_ADDR + 4) {
-          if (cmd == CMD_OK) {
-            profilerSm.loadDcSummary(payload);
-            if (!profilerSm.sendNextDeviceInfo()) {
-              let nextIdx = profilerSm.nextIdx();
-              if (nextIdx >= 0) {
-                send(GET_DC_SUMMARY_BASE_ADDR + nextIdx, 'X'.charCodeAt(0), ['?'.charCodeAt(0), nextIdx]);
-              } else {
-                profilerSm.complete();
-              }
-            }
-            return;
-          }
-        } else {
-          if (payload.length < 52 && !profilerSm.sentBasicInfoReq) {
-            // Some 3rd party devices don't support the extended device info - try getting the basic info
-            profilerSm.sentBasicInfoReq = true;
-            let hostAddr = getMapleHostAddr(profilerSm.currentIdx);
-            let destAddr = profilerSm.getDestAddr(hostAddr);
-            send(GET_DEVICE_INFO_BASE_ADDR + profilerSm.currentIdx, '0'.charCodeAt(0), [0x01, destAddr, hostAddr, 0]);
-            return;
-          }
-          let description = "";
-          if (payload.length >= 52) {
-            description = String.fromCharCode(...payload.slice(22, 52)).trim();
-          }
-          // This is always the same string, so it isn't important
-          // let producer = "";
-          // if (payload.length >= 112) {
-          //   producer = String.fromCharCode(...payload.slice(52, 112)).trim();
-          // }
-          let capabilities = "";
-          if (payload.length >= 192) {
-            capabilities = "; " + String.fromCharCode(...payload.slice(116, 192)).trim();
-          }
-          let currentStr = "";
-          if (payload.length >= 116) {
-            let minCurrent = (payload[113] << 8 | payload[112]) / 10.0;
-            let maxCurrent = (payload[115] << 8 | payload[114]) / 10.0;
-            currentStr = `; ${minCurrent} to ${maxCurrent} mA`
-          }
-          let functionDefs = "";
-          let profileData = profilerSm.currentPeripheralSummary[profilerSm.currentPeripheralIdx];
-          if (profileData.length > 0) {
-            functionDefs = "; Functions:";
-            let idx = 0;
-            while (idx < profileData.length) {
-              let fn = profileData[idx][0];
-              let fnName = "";
-              if (fn == 0x00000001) {
-                fnName = "Controller";
-              } else if (fn == 0x00000002) {
-                fnName = "Storage";
-              } else if (fn == 0x00000004) {
-                fnName = "Screen";
-              } else if (fn == 0x00000008) {
-                fnName = "Timer";
-              } else if (fn == 0x00000010) {
-                fnName = "Audio Input";
-              } else if (fn == 0x00000020) {
-                fnName = "AR Gun";
-              } else if (fn == 0x00000040) {
-                fnName = "Keyboard";
-              } else if (fn == 0x00000080) {
-                fnName = "Gun";
-              } else if (fn == 0x00000100) {
-                fnName = "Vibration";
-              } else if (fn == 0x00000200) {
-                fnName = "Mouse";
-              }
-              let codeStr = "0x" + profileData[idx][1].toString(16).padStart(8, '0');
-              functionDefs += ` ${fnName}(${codeStr})`
-              ++idx;
-            }
-          }
-          profilerSm.innerHTML += description + capabilities + currentStr + functionDefs;
-          if (!profilerSm.sendNextDeviceInfo()) {
-            let nextIdx = profilerSm.nextIdx();
-            if (nextIdx >= 0) {
-              send(GET_DC_SUMMARY_BASE_ADDR + nextIdx, 'X'.charCodeAt(0), ['?'.charCodeAt(0), nextIdx]);
-            } else {
-              profilerSm.complete();
-            }
-          }
-          return;
-        }
-        stopSm('Failed to get device information', 'red', 'bold')
-      }
-
-      startSm(profilerSm);
-    }
-
-    // Starts the state machine which runs basic tests
-    function startBasicTest() {
-      // TODO
-    }
-
-    // Starts the state machine which runs stress tests
-    function startStressTest() {
-      // TODO
-    }
-
-    // Converts an int32 value to a byte stream
-    function int32ToBytes(val) {
-      const buffer = new ArrayBuffer(4);
-      const view = new DataView(buffer);
-      view.setInt32(0, Number(val), false); // false = big endian
-      return [view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3)];
-    }
-
-    // Starts the state machine which writes the current settings within the GPIO tab
-    function startWriteGpioSm() {
-      setStatus("Writing GPIO Settings...");
-
-      const SEND_CONTROLLER_A_ADDR = 20;
-      const SEND_CONTROLLER_B_ADDR = 21;
-      const SEND_CONTROLLER_C_ADDR = 22;
-      const SEND_CONTROLLER_D_ADDR = 23;
-      const SEND_LED_ADDR = 24;
-      const SEND_SIMPLE_LED_ADDR = 25;
-      const SEND_VALIDATE_SETTINGS = 26;
-      const SEND_SAVE_AND_RESTART_ADDR = 27;
-
-      const CMD_SETTINGS = 'S'.charCodeAt(0);
-
-      var writeGpioSm = {};
-      writeGpioSm.name = "Write GPIO";
-      writeGpioSm.disconnectExpected = false;
-
-      writeGpioSm.done = function(reason) {
-        if (reason == SM_DONE_REASON_DISCONNECT && writeGpioSm.disconnectExpected) {
-          // Didn't get a chance to get response before reboot occurred
-          setStatus('GPIO settings saved');
-        } else {
-          writeGpioSm.defaultDone(reason);
-        }
-      };
-
-      writeGpioSm.start = function() {
-        // I[0-3][GPIO A (4 byte)][GPIO DIR (4 byte)][DIR Output HIGH (1 byte)]
-        const gpioA = (gpioAText.value === "") ? -1 : Number(gpioAText.value);
-        const gpioDir = (gpioADirText.value === "") ? -1 : Number(gpioADirText.value);
-        const gpioDirOutHigh = gpioADirOutHighCheckbox.checked ? 1 : 0
-        send(SEND_CONTROLLER_A_ADDR, CMD_SETTINGS, ['I'.charCodeAt(0), 0, ...int32ToBytes(gpioA), ...int32ToBytes(gpioDir), gpioDirOutHigh])
-      };
-
-      writeGpioSm.process = function(addr, cmd, payload) {
-        if (addr == SEND_CONTROLLER_A_ADDR) {
-          if (cmd == CMD_OK) {
-            const gpioA = (gpioBText.value === "") ? -1 : Number(gpioBText.value);
-            const gpioDir = (gpioBDirText.value === "") ? -1 : Number(gpioBDirText.value);
-            const gpioDirOutHigh = gpioBDirOutHighCheckbox.checked ? 1 : 0
-            send(SEND_CONTROLLER_B_ADDR, CMD_SETTINGS, ['I'.charCodeAt(0), 1, ...int32ToBytes(gpioA), ...int32ToBytes(gpioDir), gpioDirOutHigh])
-          } else {
-            stopSm('Failed to set controller A GPIO - ensure they are valid', 'red', 'bold');
-          }
-        } else if (addr == SEND_CONTROLLER_B_ADDR) {
-          if (cmd == CMD_OK) {
-            const gpioA = (gpioCText.value === "") ? -1 : Number(gpioCText.value);
-            const gpioDir = (gpioCDirText.value === "") ? -1 : Number(gpioCDirText.value);
-            const gpioDirOutHigh = gpioCDirOutHighCheckbox.checked ? 1 : 0
-            send(SEND_CONTROLLER_C_ADDR, CMD_SETTINGS, ['I'.charCodeAt(0), 2, ...int32ToBytes(gpioA), ...int32ToBytes(gpioDir), gpioDirOutHigh])
-          } else {
-            stopSm('Failed to set controller B GPIO - ensure they are valid', 'red', 'bold');
-          }
-        } else if (addr == SEND_CONTROLLER_C_ADDR) {
-          if (cmd == CMD_OK) {
-            const gpioA = (gpioDText.value === "") ? -1 : Number(gpioDText.value);
-            const gpioDir = (gpioDDirText.value === "") ? -1 : Number(gpioDDirText.value);
-            const gpioDirOutHigh = gpioDDirOutHighCheckbox.checked ? 1 : 0
-            send(SEND_CONTROLLER_D_ADDR, CMD_SETTINGS, ['I'.charCodeAt(0), 3, ...int32ToBytes(gpioA), ...int32ToBytes(gpioDir), gpioDirOutHigh])
-          } else {
-            stopSm('Failed to set controller C GPIO - ensure they are valid', 'red', 'bold');
-          }
-        } else if (addr == SEND_CONTROLLER_D_ADDR) {
-          if (cmd == CMD_OK) {
-            // LED setting L[LED Pin (4 byte)]
-            const gpioLed = (gpioLedText.value === "") ? -1 : Number(gpioLedText.value);
-            send(SEND_LED_ADDR, CMD_SETTINGS, ['L'.charCodeAt(0), ...int32ToBytes(gpioLed)]);
-          } else {
-            stopSm('Failed to set controller D GPIO - ensure they are valid', 'red', 'bold');
-          }
-        } else if (addr == SEND_LED_ADDR) {
-          if (cmd == CMD_OK) {
-            // Simple LED setting l[LED Pin (4 byte)]
-            const gpioLed = (gpioSimpleLedText.value === "") ? -1 : Number(gpioSimpleLedText.value);
-            send(SEND_SIMPLE_LED_ADDR, CMD_SETTINGS, ['l'.charCodeAt(0), ...int32ToBytes(gpioLed)]);
-          } else {
-            stopSm('Failed to set LED GPIO - ensure it is valid', 'red', 'bold');
-          }
-        } else if (addr == SEND_SIMPLE_LED_ADDR) {
-          if (cmd == CMD_OK) {
-            send(SEND_VALIDATE_SETTINGS, CMD_SETTINGS, ['s'.charCodeAt(0)]);
-          } else {
-            stopSm('Failed to set simple LED GPIO - ensure it is valid', 'red', 'bold');
-          }
-        } else if (addr == SEND_VALIDATE_SETTINGS) {
-          if (cmd == CMD_ATTENTION) {
-            setSettingsFromPayload(payload)
-            stopSm('GPIO settings need adjustment to prevent overlap - please review changes', 'red', 'bold');
-          } else if (cmd == CMD_OK) {
-            send(SEND_SAVE_AND_RESTART_ADDR, CMD_SETTINGS, ['S'.charCodeAt(0)]);
-            // Reboot may occur before the next event
-            writeGpioSm.disconnectExpected = true;
-          } else {
-            stopSm('Failed to validate settings', 'red', 'bold');
-          }
-        } else if (addr == SEND_SAVE_AND_RESTART_ADDR) {
-          if (cmd == CMD_OK) {
-            if (setSettingsFromPayload(payload))
-            {
-              stopSm('GPIO settings saved with adjustments due to overlapping GPIO - please review changes', 'orange', 'bold')
-            }
-            else
-            {
-              stopSm('GPIO settings saved')
-            }
-          } else {
-            stopSm('Failed to save settings', 'red', 'bold');
-          }
-        }
-      };
-
-      startSm(writeGpioSm);
-    }
-
-    // Starts the state machine which resets the sector in flash that settings reside on the DreamPicoPort
-    function startResetSettingsSm() {
-      setStatus("Resetting Settings...");
-
-      const SEND_GET_DEFAULTS_ADDR = 30;
-      const SEND_RESET_AND_RESTART_ADDR = 31;
-
-      const CMD_SETTINGS = 'S'.charCodeAt(0);
-
-      var resetSettingsSm = {};
-      resetSettingsSm.name = "Settings reset";
-      resetSettingsSm.disconnectExpected = false;
-
-      resetSettingsSm.done = function(reason) {
-        if (reason == SM_DONE_REASON_DISCONNECT && resetSettingsSm.disconnectExpected) {
-          // Didn't get a chance to get response before reboot occurred
-          setStatus('Settings reset');
-        } else {
-          resetSettingsSm.defaultDone(reason);
-        }
-      };
-
-      resetSettingsSm.start = function() {
-        send(SEND_GET_DEFAULTS_ADDR, CMD_SETTINGS, ['x'.charCodeAt(0)]);
-      };
-
-      resetSettingsSm.process = function(addr, cmd, payload) {
-        if (addr == SEND_GET_DEFAULTS_ADDR) {
-          if (cmd == CMD_OK) {
-            setSettingsFromPayload(payload);
-            send(SEND_RESET_AND_RESTART_ADDR, CMD_SETTINGS, ['X'.charCodeAt(0)]);
-            // Reboot may occur before the next event
-            resetSettingsSm.disconnectExpected = true;
-          } else {
-            stopSm('Failed to retrieve defaults', 'red', 'bold');
-          }
-        } else if (addr == SEND_RESET_AND_RESTART_ADDR) {
-          if (cmd == CMD_OK) {
-            setSettingsFromPayload(payload);
-            stopSm('Settings reset');
-          } else {
-            stopSm('Failed to reset settings', 'red', 'bold');
-          }
-        }
-      };
-
-      startSm(resetSettingsSm);
     }
 
     // Handles incoming message from the DreamPicoPort
@@ -1390,11 +654,6 @@
       });
     });
 
-    // General Settings Save Button - click handler
-    saveButton.addEventListener('click', function() {
-      startSaveSm();
-    });
-
     // Returns the controller index and VMU index for the selected device under the VMU Memory tab
     function getSelectedVmuIndices() {
       let controllerIdx = 0;
@@ -1468,6 +727,833 @@
       document.body.appendChild(fileInput);
       fileInput.click();
       document.body.removeChild(fileInput);
+    });
+
+    // Converts an int32 value to a byte stream
+    function int32ToBytes(val) {
+      const buffer = new ArrayBuffer(4);
+      const view = new DataView(buffer);
+      view.setInt32(0, Number(val), false); // false = big endian
+      return [view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3)];
+    }
+
+    // *************************************************************************
+    // Start State Machine Definitions
+    // *************************************************************************
+
+    // Base class of state machine which may be set for receiveSm
+    class StateMachine {
+      constructor(name) {
+        this.name = name;
+      }
+
+      start() {
+        console.error(`State machine ${this.name} has no start() defined`);
+      }
+
+      process(addr, cmd, payload) {
+        console.error(`State machine ${this.name} has no process() defined`);
+      }
+
+      done(reason) {
+        if (reason == SM_DONE_REASON_CANCELED_USER || reason == SM_DONE_REASON_DISCONNECT) {
+          setStatus(`${this.name} canceled`, 'red', 'bold');
+        } else if (reason == SM_DONE_REASON_TIMEOUT) {
+          setStatus(`${this.name} failed`, 'red', 'bold');
+        }
+      }
+
+      stop(reason = null, color = 'black', fontWeight = 'normal', doneReason = SM_DONE_REASON_NONE) {
+        if (receiveSm === this) {
+          stopSm(reason, color, fontWeight, doneReason);
+        }
+      }
+    }
+
+    // State machine which loads current settings onto the form
+    class LoadStateMachine extends StateMachine {
+      static GET_SETTINGS_ADDR = 123;
+
+      constructor() {
+        super("Load");
+      }
+
+      start() {
+        // Load the currently staged settings, not the settings on flash
+        send(LoadStateMachine.GET_SETTINGS_ADDR, 'S'.charCodeAt(0), [103]);
+      }
+
+      process(addr, cmd, payload) {
+        if (addr == LoadStateMachine.GET_SETTINGS_ADDR) {
+          if (cmd == CMD_OK && setSettingsFromPayload(payload)) {
+            // Retrieved settings
+            this.stop('Settings loaded');
+            return;
+          }
+        }
+        this.stop('Failed to load settings', 'red', 'bold')
+      }
+    }
+
+    // State machine which saves the general settings
+    class SaveStateMachine extends StateMachine {
+      static SEND_MSC_ADDR = 10;
+      static SEND_WEBUSB_ANNOUNCE_ADDR = 11;
+      static SEND_CONTROLLER_A_ADDR = 12;
+      static SEND_CONTROLLER_B_ADDR = 13;
+      static SEND_CONTROLLER_C_ADDR = 14;
+      static SEND_CONTROLLER_D_ADDR = 15;
+      static SEND_VALIDATE_ADDR = 16;
+      static SEND_SAVE_AND_RESTART_ADDR = 17;
+
+      constructor() {
+        super("Save");
+        this.disconnectExpected = false;
+      }
+
+      done(reason) {
+        if (reason == SM_DONE_REASON_DISCONNECT && this.disconnectExpected) {
+          // Didn't get a chance to get response before reboot occurred
+          setStatus('Save successful!');
+        } else {
+          super.done(reason);
+        }
+      }
+
+      start() {
+        const mscValue = mscCheckbox.checked ? 1 : 0;
+        send(SaveStateMachine.SEND_MSC_ADDR, 'S'.charCodeAt(0), [77, mscValue]);
+      }
+
+      process(addr, cmd, payload) {
+        if (addr == SaveStateMachine.SEND_MSC_ADDR) {
+          if (cmd == CMD_OK) {
+            const webusbAnnounceFlag = enableWebusbAnnounceCheck.checked ? 1 : 0;
+            send(SaveStateMachine.SEND_WEBUSB_ANNOUNCE_ADDR, 'S'.charCodeAt(0), [87, webusbAnnounceFlag]);
+          } else {
+            this.stop('Failed to set WebUSB announcement flag', 'red', 'bold');
+          }
+        } else if (addr == SaveStateMachine.SEND_WEBUSB_ANNOUNCE_ADDR) {
+          if (cmd == CMD_OK) {
+            send(SaveStateMachine.SEND_CONTROLLER_A_ADDR, 'S'.charCodeAt(0), [80, 0, player1.value]);
+          } else {
+            this.stop('Failed to set Mass Storage Class setting', 'red', 'bold');
+          }
+        } else if (addr == SaveStateMachine.SEND_CONTROLLER_A_ADDR) {
+          if (cmd == CMD_OK) {
+            send(SaveStateMachine.SEND_CONTROLLER_B_ADDR, 'S'.charCodeAt(0), [80, 1, player2.value]);
+          } else {
+            this.stop('Failed to set controller A setting', 'red', 'bold');
+          }
+        } else if (addr == SaveStateMachine.SEND_CONTROLLER_B_ADDR) {
+          if (cmd == CMD_OK) {
+            send(SaveStateMachine.SEND_CONTROLLER_C_ADDR, 'S'.charCodeAt(0), [80, 2, player3.value]);
+          } else {
+            this.stop('Failed to set controller B setting', 'red', 'bold');
+          }
+        } else if (addr == SaveStateMachine.SEND_CONTROLLER_C_ADDR) {
+          if (cmd == CMD_OK) {
+            send(SaveStateMachine.SEND_CONTROLLER_D_ADDR, 'S'.charCodeAt(0), [80, 3, player4.value]);
+          } else {
+            this.stop('Failed to set controller C setting', 'red', 'bold');
+          }
+        } else if (addr == SaveStateMachine.SEND_CONTROLLER_D_ADDR) {
+          if (cmd == CMD_OK) {
+            send(SaveStateMachine.SEND_VALIDATE_ADDR, 'S'.charCodeAt(0), [115]);
+          } else {
+            this.stop('Failed to set controller D setting', 'red', 'bold');
+          }
+        } else if (addr == SaveStateMachine.SEND_VALIDATE_ADDR) {
+          if (cmd == CMD_OK || cmd == CMD_ATTENTION) {
+            setSettingsFromPayload(payload);
+            send(SaveStateMachine.SEND_SAVE_AND_RESTART_ADDR, 'S'.charCodeAt(0), [83]);
+            // Reboot may occur before the next event
+            this.disconnectExpected = true;
+          } else {
+            this.stop('Failed to validate settings', 'red', 'bold');
+          }
+        } else if (addr == SaveStateMachine.SEND_SAVE_AND_RESTART_ADDR) {
+          if (cmd == CMD_OK) {
+            this.stop('Save successful!');
+          } else {
+            this.stop('Failed to save settings', 'red', 'bold');
+          }
+        }
+      }
+    }
+
+    // State machine which reads a VMU
+    class ReadVmuStateMachine extends StateMachine {
+      static READ_ADDR = 170;
+
+      constructor(controllerIdx, vmuIndex) {
+        super("VMU read");
+        this.retries = 0;
+        this.controllerIdx = controllerIdx;
+        this.vmuIndex = vmuIndex;
+        this.vmuData = new Uint8Array(128 * 1024); // 128KB VMU storage
+        this.dataOffset = 0;
+        this.hostAddr = getMapleHostAddr(controllerIdx);
+        this.destAddr = this.hostAddr | (1 << vmuIndex);
+        this.currentBlock = 0;
+      }
+
+      sendCurrentBlock() {
+        send(ReadVmuStateMachine.READ_ADDR, '0'.charCodeAt(0), [0x0B, this.destAddr, this.hostAddr, 2, 0, 0, 0, 2, 0, 0, 0, this.currentBlock]);
+      }
+
+      done(reason) {
+        if (reason == SM_DONE_REASON_TIMEOUT) {
+          if (this.retries++ < 2) {
+            // Re-read current block
+            resetSmTimeout();
+            this.sendCurrentBlock();
+          } else {
+            setStatus('VMU read failed - timeout', 'red', 'bold');
+            resetProgressBar();
+          }
+        } else {
+          this.defaultDone(reason);
+          resetProgressBar();
+        }
+      }
+
+      start() {
+        vmuProgressContainer.style.display = 'block';
+        vmuProgressContainer.style.visibility = 'visible';
+        vmuProgress.value = 0;
+        vmuProgressText.textContent = '0%';
+        this.startTime = Date.now();
+        this.sendCurrentBlock();
+      }
+
+      process(addr, cmd, payload) {
+        let fnType = Number(addr & BigInt(0xff));
+        let receivedBlock = -1;
+        if (payload.length >= 12)
+        {
+          receivedBlock = payload[11];
+        }
+        if (fnType == ReadVmuStateMachine.READ_ADDR && receivedBlock == this.currentBlock && cmd == CMD_OK && payload.length == 524) {
+          // Copy received data to VMU buffer
+          // TODO: verify maple packet header
+          this.vmuData.set(payload.slice(12, payload.length), this.dataOffset);
+          this.dataOffset += payload.length - 12;
+          this.currentBlock++;
+          this.retries = 0;
+
+          // Update progress
+          const progress = (this.currentBlock / 256) * 100;
+          vmuProgress.value = progress;
+          vmuProgressText.textContent = Math.round(progress) + '%';
+
+          if (this.currentBlock < 256) {
+            // Read next block
+            this.sendCurrentBlock();
+          } else {
+            // Reading complete, save file
+            const blob = new Blob([this.vmuData], { type: 'application/octet-stream' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `vmu_save_${String.fromCharCode(65 + this.controllerIdx)}${this.vmuIndex + 1}.bin`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            this.stop('VMU read complete');
+            resetProgressBar();
+            const readTime = Date.now() - this.startTime;
+            console.log(`VMU read completed in ${readTime}ms`);
+          }
+        } else if (this.retries++ < 2) {
+            // Re-read current block
+            this.sendCurrentBlock();
+        } else {
+          this.stop('VMU read failed', 'red', 'bold');
+          resetProgressBar();
+        }
+      }
+    }
+
+    // State machine which writes a VMU
+    class WriteVmuStateMachine extends StateMachine {
+      static WRITE_ADDR = 171;
+      static NUM_PHASES_PER_BLOCK = 4;
+      static BLOCK_SIZE = 512;
+      static PHASE_SIZE = WriteVmuStateMachine.BLOCK_SIZE / WriteVmuStateMachine.NUM_PHASES_PER_BLOCK;
+      static TOTAL_BLOCKS = 256;
+
+      constructor(controllerIdx, vmuIdx, fileData) {
+        super("Write VMU");
+        this.retries = 0;
+        this.errorCount = 0;
+        this.controllerIdx = controllerIdx;
+        this.vmuIndex = vmuIdx;
+        this.hostAddr = getMapleHostAddr(controllerIdx);
+        this.destAddr = this.hostAddr | (1 << vmuIdx);
+        this.currentBlock = 0;
+        this.currentPhase = 0; // [0,4] // commit on 4
+        this.writeDelayMs = 10; // delay between writes, grows on each retry
+        this.fileData = fileData;
+      }
+
+      done(reason) {
+        if (reason == SM_DONE_REASON_TIMEOUT) {
+          if (!this.retry()) {
+            setStatus('VMU write failed - timeout', 'red', 'bold');
+            resetProgressBar();
+          }
+        } else if (reason == SM_DONE_CONNECT_FAILED || reason == SM_DONE_REASON_CANCELED_USER) {
+          setStatus('VMU write canceled, VMU memory may be left in a corrupted state', 'red', 'bold');
+          resetProgressBar();
+        } else {
+          super.done(reason);
+          resetProgressBar();
+        }
+      };
+
+      writeCurrentPhase() {
+        const locationWord = [0, this.currentPhase, 0, this.currentBlock];
+        const dataOffset = (this.currentBlock * WriteVmuStateMachine.BLOCK_SIZE) + (this.currentPhase * WriteVmuStateMachine.PHASE_SIZE);
+        const dataChunk = this.fileData.slice(dataOffset, dataOffset + WriteVmuStateMachine.PHASE_SIZE);
+        send(WriteVmuStateMachine.WRITE_ADDR | (this.currentBlock << 8) | (this.currentPhase << 16), '0'.charCodeAt(0), [0x0C, this.destAddr, this.hostAddr, 34, 0, 0, 0, 2, ...locationWord, ...dataChunk]);
+      }
+
+      writeCommit() {
+        const locationWord = [0, this.currentPhase, 0, this.currentBlock];
+        send(WriteVmuStateMachine.WRITE_ADDR | (this.currentBlock << 8) | (this.currentPhase << 16), '0'.charCodeAt(0), [0x0D, this.destAddr, this.hostAddr, 2, 0, 0, 0, 2, ...locationWord]);
+      }
+
+      retry() {
+        ++this.errorCount;
+        if (++this.retries > 2) {
+          return false;
+        }
+
+        console.error("Write failed, retrying");
+
+        resetSmTimeout();
+        this.currentPhase = 0;
+        this.writeDelayMs += 5;
+        if (this.writeDelayMs > 30) {
+          this.writeDelayMs = 30;
+        }
+
+        setTimeout(() => {
+          this.writeCurrentPhase();
+        }, this.writeDelayMs);
+
+        return true;
+      }
+
+      start() {
+        vmuProgressContainer.style.display = 'block';
+        vmuProgressContainer.style.visibility = 'visible';
+        vmuProgress.value = 0;
+        vmuProgressText.textContent = '0%';
+        this.startTime = Date.now();
+        this.writeCurrentPhase();
+      };
+
+      process(addr, cmd, payload) {
+        let fnType = Number(addr & BigInt(0xff));
+        let forBlock = Number((addr >> BigInt(8)) & BigInt(0xff));
+        let forPhase = Number((addr >> BigInt(16)) & BigInt(0xff));
+
+        if (
+          fnType == WriteVmuStateMachine.WRITE_ADDR &&
+          cmd == CMD_OK &&
+          forBlock == this.currentBlock &&
+          forPhase == this.currentPhase &&
+          payload.length >= 1 &&
+          payload[0] == 0x07 // Acknowledge from Maple Bus
+        ) {
+          if (++this.currentPhase > 4)
+          {
+            this.currentPhase = 0;
+            if (++this.currentBlock >= WriteVmuStateMachine.TOTAL_BLOCKS)
+            {
+              // Done!
+              this.stop('VMU write complete');
+              resetProgressBar();
+              const readTime = Date.now() - this.startTime;
+              console.log(`VMU read completed in ${readTime}ms with ${this.errorCount} retried packets`);
+              return;
+            }
+          }
+
+          // Update progress
+          this.retries = 0;
+          const progress = (this.currentBlock / WriteVmuStateMachine.TOTAL_BLOCKS) * 100;
+          vmuProgress.value = progress;
+          vmuProgressText.textContent = Math.round(progress) + '%';
+
+          if (this.currentPhase > 3)
+          {
+            // Try to speed things up
+            --this.writeDelayMs;
+            if (this.writeDelayMs < 10) {
+              this.writeDelayMs = 10;
+            }
+
+            setTimeout(() => {
+              this.writeCommit();
+            }, this.writeDelayMs);
+          } else {
+            setTimeout(() => {
+              this.writeCurrentPhase();
+            }, this.writeDelayMs);
+          }
+        } else {
+          if (!this.retry()) {
+            this.stop('VMU write failed', 'red', 'bold');
+            resetProgressBar();
+          }
+        }
+      };
+    }
+
+    // State machine which profiles all connected peripherals
+    class ProfilingStateMachine extends StateMachine {
+      // 1. GetConnectedGamepads(), and then for each controller:
+      //    A. GetDcSummary()
+      //    B. Maple command: extended device info request
+      // 2. Display all data
+
+      static GET_CONNECTED_GAMEPADS_ADDR = 40;
+      static GET_DC_SUMMARY_BASE_ADDR = 41;
+      static GET_DEVICE_INFO_BASE_ADDR = 45;
+
+      constructor() {
+        super("Get device information");
+        this.currentIdx = -1;
+        this.connectionStates = [];
+        this.currentPeripheralSummary = [];
+        this.currentPeripheralIdx = -1;
+        this.sentBasicInfoReq = false;
+        this.innerHTML = ""
+      }
+
+      nextIdx() {
+        while (this.connectionStates.length > ++this.currentIdx) {
+          if (this.innerHTML.length > 0) {
+            this.innerHTML += "<br>";
+          }
+          let idx = this.currentIdx;
+          this.innerHTML += ("<b>" + String.fromCharCode('A'.charCodeAt(0) + idx) + ": </b>")
+          let connectionState = this.connectionStates[idx];
+          if (connectionState == 0) {
+            // Unavailable
+            this.innerHTML += "N/A";
+          } else if (connectionState == 1) {
+            this.innerHTML += "Not Connected";
+          } else {
+            // Connected
+            return idx;
+          }
+        }
+        return -1;
+      }
+
+      loadDcSummary(payload) {
+        this.currentPeripheralSummary = []
+        this.currentPeripheralIdx = -1;
+        let pidx = 0;
+        while (pidx < payload.length) {
+          let currentPeriph = [];
+          let arr = [];
+          let aidx = 0;
+          // Pipe means that 4-byte function data should follow (should be in pairs)
+          while (pidx < payload.length && payload[pidx] === 124) { // 124 is '|'
+            pidx++; // skip past pipe
+            if (pidx + 4 <= payload.length) {
+              // Convert 4 bytes to uint32 (big-endian)
+              const val = (payload[pidx] << 24) | (payload[pidx + 1] << 16) | (payload[pidx + 2] << 8) | payload[pidx + 3];
+              arr[aidx++] = val;
+              if (aidx >= 2) {
+                currentPeriph.push([...arr]);
+                arr = [];
+                aidx = 0;
+              }
+              pidx += 4;
+            } else {
+              // Not enough data - skip to the end
+              pidx = payload.length;
+            }
+          }
+          // Add the accumulated peripheral data
+          this.currentPeripheralSummary.push([...currentPeriph]);
+          if (pidx < payload.length) {
+            // This is assumed to be a semicolon which terminates the current peripheral
+            pidx++;
+          }
+        }
+      }
+
+      getDestAddr(hostAddr) {
+        let destAddr = hostAddr;
+        if (this.currentPeripheralIdx == 0) {
+          destAddr |= 0x20;
+        } else {
+          destAddr |= (1 << (this.currentPeripheralIdx - 1));
+        }
+        return destAddr;
+      }
+
+      sendNextDeviceInfo() {
+        while (this.currentPeripheralSummary.length > ++this.currentPeripheralIdx) {
+          if (this.currentPeripheralIdx > 0) {
+            this.innerHTML += ("<br><b>&nbsp;&nbsp;&nbsp;&nbsp;Slot " + String.fromCharCode('0'.charCodeAt(0) + this.currentPeripheralIdx) + ": </b>");
+          }
+          if (this.currentPeripheralSummary[this.currentPeripheralIdx].length <= 0) {
+            this.innerHTML += "Empty";
+          } else {
+            let hostAddr = getMapleHostAddr(this.currentIdx);
+            let destAddr = this.getDestAddr(hostAddr);
+            this.sentBasicInfoReq = false;
+            send(ProfilingStateMachine.GET_DEVICE_INFO_BASE_ADDR + this.currentIdx, '0'.charCodeAt(0), [0x02, destAddr, hostAddr, 0]);
+            return true;
+          }
+        }
+        return false;
+      }
+
+      complete() {
+        testsStatusDisplay.innerHTML = this.innerHTML;
+        stopSm('Get device information complete');
+      };
+
+      start() {
+        // Load the currently staged settings, not the settings on flash
+        send(ProfilingStateMachine.GET_CONNECTED_GAMEPADS_ADDR, 'X'.charCodeAt(0), ['O'.charCodeAt(0)]);
+      }
+
+      process(addr, cmd, payload) {
+        if (addr == ProfilingStateMachine.GET_CONNECTED_GAMEPADS_ADDR) {
+          if (cmd == CMD_OK) {
+            if (payload.length >= 1) {
+              // Retrieved connected gamepads
+              this.connectionStates = [...payload];
+              let nextIdx = this.nextIdx();
+              if (nextIdx >= 0) {
+                send(ProfilingStateMachine.GET_DC_SUMMARY_BASE_ADDR + nextIdx, 'X'.charCodeAt(0), ['?'.charCodeAt(0), nextIdx]);
+                return;
+              }
+            } else {
+              this.innerHTML = "No peripherals connected"
+            }
+
+            this.complete();
+            return;
+          }
+        } else if (addr >= ProfilingStateMachine.GET_DC_SUMMARY_BASE_ADDR && addr < ProfilingStateMachine.GET_DC_SUMMARY_BASE_ADDR + 4) {
+          if (cmd == CMD_OK) {
+            this.loadDcSummary(payload);
+            if (!this.sendNextDeviceInfo()) {
+              let nextIdx = this.nextIdx();
+              if (nextIdx >= 0) {
+                send(ProfilingStateMachine.GET_DC_SUMMARY_BASE_ADDR + nextIdx, 'X'.charCodeAt(0), ['?'.charCodeAt(0), nextIdx]);
+              } else {
+                this.complete();
+              }
+            }
+            return;
+          }
+        } else {
+          if (payload.length < 52 && !this.sentBasicInfoReq) {
+            // Some 3rd party devices don't support the extended device info - try getting the basic info
+            this.sentBasicInfoReq = true;
+            let hostAddr = getMapleHostAddr(this.currentIdx);
+            let destAddr = this.getDestAddr(hostAddr);
+            send(ProfilingStateMachine.GET_DEVICE_INFO_BASE_ADDR + this.currentIdx, '0'.charCodeAt(0), [0x01, destAddr, hostAddr, 0]);
+            return;
+          }
+          let description = "";
+          if (payload.length >= 52) {
+            description = String.fromCharCode(...payload.slice(22, 52)).trim();
+          }
+          // This is always the same string, so it isn't important
+          // let producer = "";
+          // if (payload.length >= 112) {
+          //   producer = String.fromCharCode(...payload.slice(52, 112)).trim();
+          // }
+          let capabilities = "";
+          if (payload.length >= 192) {
+            capabilities = "; " + String.fromCharCode(...payload.slice(116, 192)).trim();
+          }
+          let currentStr = "";
+          if (payload.length >= 116) {
+            let minCurrent = (payload[113] << 8 | payload[112]) / 10.0;
+            let maxCurrent = (payload[115] << 8 | payload[114]) / 10.0;
+            currentStr = `; ${minCurrent} to ${maxCurrent} mA`
+          }
+          let functionDefs = "";
+          let profileData = this.currentPeripheralSummary[this.currentPeripheralIdx];
+          if (profileData.length > 0) {
+            functionDefs = "; Functions:";
+            let idx = 0;
+            while (idx < profileData.length) {
+              let fn = profileData[idx][0];
+              let fnName = "";
+              if (fn == 0x00000001) {
+                fnName = "Controller";
+              } else if (fn == 0x00000002) {
+                fnName = "Storage";
+              } else if (fn == 0x00000004) {
+                fnName = "Screen";
+              } else if (fn == 0x00000008) {
+                fnName = "Timer";
+              } else if (fn == 0x00000010) {
+                fnName = "Audio Input";
+              } else if (fn == 0x00000020) {
+                fnName = "AR Gun";
+              } else if (fn == 0x00000040) {
+                fnName = "Keyboard";
+              } else if (fn == 0x00000080) {
+                fnName = "Gun";
+              } else if (fn == 0x00000100) {
+                fnName = "Vibration";
+              } else if (fn == 0x00000200) {
+                fnName = "Mouse";
+              }
+              let codeStr = "0x" + profileData[idx][1].toString(16).padStart(8, '0');
+              functionDefs += ` ${fnName}(${codeStr})`
+              ++idx;
+            }
+          }
+          this.innerHTML += description + capabilities + currentStr + functionDefs;
+          if (!this.sendNextDeviceInfo()) {
+            let nextIdx = this.nextIdx();
+            if (nextIdx >= 0) {
+              send(ProfilingStateMachine.GET_DC_SUMMARY_BASE_ADDR + nextIdx, 'X'.charCodeAt(0), ['?'.charCodeAt(0), nextIdx]);
+            } else {
+              this.complete();
+            }
+          }
+          return;
+        }
+        this.stop('Failed to get device information', 'red', 'bold')
+      }
+    }
+
+    // State machine which writes GPIO settings
+    class WriteGpioStateMachine extends StateMachine {
+      static SEND_CONTROLLER_A_ADDR = 20;
+      static SEND_CONTROLLER_B_ADDR = 21;
+      static SEND_CONTROLLER_C_ADDR = 22;
+      static SEND_CONTROLLER_D_ADDR = 23;
+      static SEND_LED_ADDR = 24;
+      static SEND_SIMPLE_LED_ADDR = 25;
+      static SEND_VALIDATE_SETTINGS = 26;
+      static SEND_SAVE_AND_RESTART_ADDR = 27;
+
+      static CMD_SETTINGS = 'S'.charCodeAt(0);
+
+      constructor() {
+        super("Write GPIO");
+        this.disconnectExpected = false;
+      }
+
+      done(reason) {
+        if (reason == SM_DONE_REASON_DISCONNECT && this.disconnectExpected) {
+          // Didn't get a chance to get response before reboot occurred
+          setStatus('GPIO settings saved');
+        } else {
+          super.done(reason);
+        }
+      };
+
+      start() {
+        // I[0-3][GPIO A (4 byte)][GPIO DIR (4 byte)][DIR Output HIGH (1 byte)]
+        const gpioA = (gpioAText.value === "") ? -1 : Number(gpioAText.value);
+        const gpioDir = (gpioADirText.value === "") ? -1 : Number(gpioADirText.value);
+        const gpioDirOutHigh = gpioADirOutHighCheckbox.checked ? 1 : 0
+        send(WriteGpioStateMachine.SEND_CONTROLLER_A_ADDR, WriteGpioStateMachine.CMD_SETTINGS, ['I'.charCodeAt(0), 0, ...int32ToBytes(gpioA), ...int32ToBytes(gpioDir), gpioDirOutHigh])
+      };
+
+      process(addr, cmd, payload) {
+        if (addr == WriteGpioStateMachine.SEND_CONTROLLER_A_ADDR) {
+          if (cmd == CMD_OK) {
+            const gpioA = (gpioBText.value === "") ? -1 : Number(gpioBText.value);
+            const gpioDir = (gpioBDirText.value === "") ? -1 : Number(gpioBDirText.value);
+            const gpioDirOutHigh = gpioBDirOutHighCheckbox.checked ? 1 : 0
+            send(WriteGpioStateMachine.SEND_CONTROLLER_B_ADDR, WriteGpioStateMachine.CMD_SETTINGS, ['I'.charCodeAt(0), 1, ...int32ToBytes(gpioA), ...int32ToBytes(gpioDir), gpioDirOutHigh])
+          } else {
+            this.stop('Failed to set controller A GPIO - ensure they are valid', 'red', 'bold');
+          }
+        } else if (addr == WriteGpioStateMachine.SEND_CONTROLLER_B_ADDR) {
+          if (cmd == CMD_OK) {
+            const gpioA = (gpioCText.value === "") ? -1 : Number(gpioCText.value);
+            const gpioDir = (gpioCDirText.value === "") ? -1 : Number(gpioCDirText.value);
+            const gpioDirOutHigh = gpioCDirOutHighCheckbox.checked ? 1 : 0
+            send(WriteGpioStateMachine.SEND_CONTROLLER_C_ADDR, WriteGpioStateMachine.CMD_SETTINGS, ['I'.charCodeAt(0), 2, ...int32ToBytes(gpioA), ...int32ToBytes(gpioDir), gpioDirOutHigh])
+          } else {
+            this.stop('Failed to set controller B GPIO - ensure they are valid', 'red', 'bold');
+          }
+        } else if (addr == WriteGpioStateMachine.SEND_CONTROLLER_C_ADDR) {
+          if (cmd == CMD_OK) {
+            const gpioA = (gpioDText.value === "") ? -1 : Number(gpioDText.value);
+            const gpioDir = (gpioDDirText.value === "") ? -1 : Number(gpioDDirText.value);
+            const gpioDirOutHigh = gpioDDirOutHighCheckbox.checked ? 1 : 0
+            send(WriteGpioStateMachine.SEND_CONTROLLER_D_ADDR, WriteGpioStateMachine.CMD_SETTINGS, ['I'.charCodeAt(0), 3, ...int32ToBytes(gpioA), ...int32ToBytes(gpioDir), gpioDirOutHigh])
+          } else {
+            this.stop('Failed to set controller C GPIO - ensure they are valid', 'red', 'bold');
+          }
+        } else if (addr == WriteGpioStateMachine.SEND_CONTROLLER_D_ADDR) {
+          if (cmd == CMD_OK) {
+            // LED setting L[LED Pin (4 byte)]
+            const gpioLed = (gpioLedText.value === "") ? -1 : Number(gpioLedText.value);
+            send(WriteGpioStateMachine.SEND_LED_ADDR, WriteGpioStateMachine.CMD_SETTINGS, ['L'.charCodeAt(0), ...int32ToBytes(gpioLed)]);
+          } else {
+            this.stop('Failed to set controller D GPIO - ensure they are valid', 'red', 'bold');
+          }
+        } else if (addr == WriteGpioStateMachine.SEND_LED_ADDR) {
+          if (cmd == CMD_OK) {
+            // Simple LED setting l[LED Pin (4 byte)]
+            const gpioLed = (gpioSimpleLedText.value === "") ? -1 : Number(gpioSimpleLedText.value);
+            send(WriteGpioStateMachine.SEND_SIMPLE_LED_ADDR, WriteGpioStateMachine.CMD_SETTINGS, ['l'.charCodeAt(0), ...int32ToBytes(gpioLed)]);
+          } else {
+            this.stop('Failed to set LED GPIO - ensure it is valid', 'red', 'bold');
+          }
+        } else if (addr == WriteGpioStateMachine.SEND_SIMPLE_LED_ADDR) {
+          if (cmd == CMD_OK) {
+            send(WriteGpioStateMachine.SEND_VALIDATE_SETTINGS, WriteGpioStateMachine.CMD_SETTINGS, ['s'.charCodeAt(0)]);
+          } else {
+            this.stop('Failed to set simple LED GPIO - ensure it is valid', 'red', 'bold');
+          }
+        } else if (addr == WriteGpioStateMachine.SEND_VALIDATE_SETTINGS) {
+          if (cmd == CMD_ATTENTION) {
+            setSettingsFromPayload(payload)
+            this.stop('GPIO settings need adjustment to prevent overlap - please review changes', 'red', 'bold');
+          } else if (cmd == CMD_OK) {
+            send(WriteGpioStateMachine.SEND_SAVE_AND_RESTART_ADDR, WriteGpioStateMachine.CMD_SETTINGS, ['S'.charCodeAt(0)]);
+            // Reboot may occur before the next event
+            this.disconnectExpected = true;
+          } else {
+            this.stop('Failed to validate settings', 'red', 'bold');
+          }
+        } else if (addr == WriteGpioStateMachine.SEND_SAVE_AND_RESTART_ADDR) {
+          if (cmd == CMD_OK) {
+            if (setSettingsFromPayload(payload))
+            {
+              this.stop('GPIO settings saved with adjustments due to overlapping GPIO - please review changes', 'orange', 'bold')
+            }
+            else
+            {
+              this.stop('GPIO settings saved')
+            }
+          } else {
+            this.stop('Failed to save settings', 'red', 'bold');
+          }
+        }
+      };
+    }
+
+    // State machine which resets all settings
+    class ResetSettingsStateMachine extends StateMachine {
+      static SEND_GET_DEFAULTS_ADDR = 30;
+      static SEND_RESET_AND_RESTART_ADDR = 31;
+
+      static CMD_SETTINGS = 'S'.charCodeAt(0);
+
+      constructor() {
+        super("Settings reset");
+        this.disconnectExpected = false;
+      }
+
+      resetSuccessful() {
+        // It's easier to just disable control and force user to select the device again - settings may automatically
+        // change on next boot if a controller is connected. This helps ensure loaded settings will match reality.
+        setStatus('Settings reset - please select device again to continue');
+        disableAllControls();
+      }
+
+      done(reason) {
+        if (reason == SM_DONE_REASON_DISCONNECT && this.disconnectExpected) {
+          // Didn't get a chance to get response before reboot occurred
+          this.resetSuccessful();
+        } else {
+          super.done(reason);
+        }
+      };
+
+      start() {
+        send(ResetSettingsStateMachine.SEND_GET_DEFAULTS_ADDR, ResetSettingsStateMachine.CMD_SETTINGS, ['x'.charCodeAt(0)]);
+      };
+
+      process(addr, cmd, payload) {
+        if (addr == ResetSettingsStateMachine.SEND_GET_DEFAULTS_ADDR) {
+          if (cmd == CMD_OK) {
+            setSettingsFromPayload(payload);
+            send(ResetSettingsStateMachine.SEND_RESET_AND_RESTART_ADDR, ResetSettingsStateMachine.CMD_SETTINGS, ['X'.charCodeAt(0)]);
+            // Reboot may occur before the next event
+            this.disconnectExpected = true;
+          } else {
+            this.stop('Failed to retrieve defaults', 'red', 'bold');
+          }
+        } else if (addr == ResetSettingsStateMachine.SEND_RESET_AND_RESTART_ADDR) {
+          if (cmd == CMD_OK) {
+            setSettingsFromPayload(payload);
+            this.resetSuccessful();
+            this.stop();
+          } else {
+            this.stop('Failed to reset settings', 'red', 'bold');
+          }
+        }
+      };
+    }
+
+    // *************************************************************************
+    // End State Machine Definitions
+    // *************************************************************************
+
+
+    // Starts the state machine which reads all VMU data
+    function startReadVmuSm(controllerIdx, vmuIndex) {
+      setStatus("Reading VMU...");
+      startSm(new ReadVmuStateMachine(controllerIdx, vmuIndex));
+    }
+
+    // Starts the state machine which writes to a selected VMU
+    function startWriteVmuSm(controllerIdx, vmuIdx, fileData) {
+      setStatus("Writing VMU...");
+      startSm(new WriteVmuStateMachine(controllerIdx, vmuIdx, fileData));
+    }
+
+    // Starts the state machine which gets all device information strings
+    function startProfilingSm() {
+      setStatus("Getting device information...");
+      testsStatusDisplay.innerHTML = "";
+      startSm(new ProfilingStateMachine());
+    }
+
+    // Starts the state machine which runs basic tests
+    function startBasicTest() {
+      // TODO
+    }
+
+    // Starts the state machine which runs stress tests
+    function startStressTest() {
+      // TODO
+    }
+
+    // Starts the state machine which writes the current settings within the GPIO tab
+    function startWriteGpioSm() {
+      setStatus("Writing GPIO Settings...");
+      startSm(new WriteGpioStateMachine());
+    }
+
+    // Starts the state machine which resets the sector in flash that settings reside on the DreamPicoPort
+    function startResetSettingsSm() {
+      setStatus("Resetting Settings...");
+      startSm(new ResetSettingsStateMachine());
+    }
+
+    // General Settings Save Button - click handler
+    saveButton.addEventListener('click', function() {
+      startSaveSm();
     });
 
     // VMU Memory Cancel Button - click handler
