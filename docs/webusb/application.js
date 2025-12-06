@@ -11,7 +11,7 @@
       warning.style.margin = '1em 0';
       warning.style.border = '1px solid #a00';
       warning.style.fontWeight = 'bold';
-      warning.textContent = 'This page is not supported by your browser. Use a Chromium-based browser such as Chrome, Edge, or Opera.';
+      warning.textContent = 'This page is not supported by your browser. Use a Chromium-based browser such as Chrome, Edge, Opera, or Brave.';
       document.body.insertBefore(warning, document.body.firstChild);
     });
     return;
@@ -30,7 +30,7 @@
     let player4 = document.querySelector('#player4-select');
     let port;
     let selectedSerial = null;
-    let receiveSm = null; // must define cancel(), start(), process(), and timeout() in the object
+    let receiveSm = null; // must define name, start(), and process() in the object; optionally define done()
     let receiveSmTimeoutId = -1;
     let offlineHint = document.querySelector('#offline-hint');
     let vmu1ARadio = document.querySelector('#vmu1-a-radio');
@@ -80,8 +80,11 @@
     const CMD_INVALID = 0xFE; // Command was missing data
     const CMD_BAD = 0xFF; // Command had to target
 
-    const CANCEL_REASON_USER = 0;
-    const CANCEL_REASON_DISCONNECT = 1;
+    const SM_DONE_REASON_NONE = 0;
+    const SM_DONE_CONNECT_FAILED = 1;
+    const SM_DONE_REASON_CANCELED_USER = 2;
+    const SM_DONE_REASON_DISCONNECT = 3;
+    const SM_DONE_REASON_TIMEOUT = 4;
 
     if (window.location.protocol !== "file:") {
       offlineHint.innerHTML = "<strong>Hint:</strong> Press ctrl+s or cmd+s to save this page locally for offline usage.";
@@ -160,11 +163,26 @@
       }
     }
 
+    // State machine function: Called when state machine operation is complete
+    function smDone(reason) {
+      if (receiveSm) {
+        if (typeof receiveSm.done === 'function') {
+          receiveSm.done(reason);
+        } else {
+          receiveSm.defaultDone(reason);
+        }
+      }
+      receiveSm = null;
+    }
+
     // State machine function: Called when the state machine experienced a timeout
     function smTimeout() {
+      receiveSmTimeoutId = -1;
       if (receiveSm) {
-        receiveSm.timeout();
-        receiveSm = null;
+        smDone(SM_DONE_REASON_TIMEOUT);
+        if (receiveSmTimeoutId == -1) {
+          disconnect();
+        }
       }
     }
 
@@ -196,7 +214,7 @@
     function connectionFailed(reason = 'Operation failed: failed to connect to device', disableControl = false) {
       stopSmTimeout();
       if (receiveSm) {
-        receiveSm = null;
+        smDone(SM_DONE_CONNECT_FAILED);
         disconnect(reason, 'red', 'bold');
       }
       if (disableControl) {
@@ -214,6 +232,13 @@
         stopSmTimeout();
       }
       receiveSm = sm;
+      receiveSm.defaultDone = function(reason) {
+        if (reason == SM_DONE_REASON_CANCELED_USER || reason == SM_DONE_REASON_DISCONNECT) {
+          setStatus(`${receiveSm.name} canceled`, 'red', 'bold');
+        } else if (reason == SM_DONE_REASON_TIMEOUT) {
+          disconnect(`${receiveSm.name} failed`, 'red', 'bold');
+        }
+      };
       if (!selectedSerial && !selectedPort) {
         setStatus('Please select a device first');
       }
@@ -224,8 +249,8 @@
       if (startConnect(portOrSerialNumber)) {
         resetSmTimeout();
       } else {
+        smDone(SM_DONE_CONNECT_FAILED);
         disconnect('Failed to connect to device', 'red', 'bold');
-        receiveSm = null;
       }
     }
 
@@ -233,19 +258,16 @@
     // reason: The reason string to display on disconnection
     // color: The color to set the reason string
     // fontWeight: The font weight to set the reason string
-    function stopSm(reason, color = 'black', fontWeight = 'normal') {
+    function stopSm(reason, color = 'black', fontWeight = 'normal', doneReason = SM_DONE_REASON_NONE) {
+      smDone(doneReason);
       disconnect(reason, color, fontWeight);
-      receiveSm = null;
       stopSmTimeout();
     }
 
     // State machine function: Cancels a state machine due to external event
-    // reason: One of {CANCEL_REASON_USER, CANCEL_REASON_DISCONNECT}
+    // reason: One of {SM_DONE_REASON_CANCELED_USER, SM_DONE_REASON_DISCONNECT}
     function cancelSm(reason) {
-      if (receiveSm) {
-        receiveSm.cancel(reason);
-      }
-      receiveSm = null;
+      smDone(reason);
       stopSmTimeout();
       disconnect();
     }
@@ -391,12 +413,7 @@
       setStatus("Loading settings...");
       const GET_SETTINGS_ADDR = 123;
       var loadSm = {};
-      loadSm.cancel = function(reason) {
-        setStatus('Load canceled', 'red', 'bold');
-      };
-      loadSm.timeout = function() {
-        disconnect('Load failed', 'red', 'bold');
-      };
+      loadSm.name = "Load";
       loadSm.start = function() {
         // Load the currently staged settings, not the settings on flash
         send(GET_SETTINGS_ADDR, 'S'.charCodeAt(0), [103]);
@@ -428,17 +445,15 @@
       const SEND_SAVE_AND_RESTART_ADDR = 17;
 
       var saveSm = {};
+      saveSm.name = "Save";
       saveSm.disconnectExpected = false;
-      saveSm.cancel = function(reason) {
-        if (reason == CANCEL_REASON_DISCONNECT && saveSm.disconnectExpected) {
+      saveSm.done = function(reason) {
+        if (reason == SM_DONE_REASON_DISCONNECT && saveSm.disconnectExpected) {
           // Didn't get a chance to get response before reboot occurred
           setStatus('Save successful!');
         } else {
-          setStatus('Save canceled', 'red', 'bold');
+          saveSm.defaultDone(reason);
         }
-      };
-      saveSm.timeout = function() {
-        disconnect('Save failed', 'red', 'bold');
       };
       saveSm.start = function() {
         const mscValue = mscCheckbox.checked ? 1 : 0;
@@ -526,9 +541,10 @@
     // Starts the state machine which reads all VMU data
     function startReadVmuSm(controllerIdx, vmuIndex) {
       setStatus("Reading VMU...");
-      const READ_ADDR = 0xAA;
+      const READ_ADDR = 170;
 
       var readVmuSm = {};
+      readVmuSm.name = "VMU read";
       readVmuSm.retries = 0;
       readVmuSm.controllerIdx = controllerIdx;
       readVmuSm.vmuIndex = vmuIndex;
@@ -538,21 +554,22 @@
       readVmuSm.destAddr = readVmuSm.hostAddr | (1 << vmuIndex);
       readVmuSm.currentBlock = 0;
 
-      readVmuSm.cancel = function(reason) {
-        setStatus('VMU read canceled', 'red', 'bold');
-        resetProgressBar();
-      };
-
       function sendCurrentBlock() {
         send(READ_ADDR, '0'.charCodeAt(0), [0x0B, readVmuSm.destAddr, readVmuSm.hostAddr, 2, 0, 0, 0, 2, 0, 0, 0, readVmuSm.currentBlock]);
       };
 
-      readVmuSm.timeout = function() {
-        if (readVmuSm.retries++ < 2) {
+      readVmuSm.done = function(reason) {
+        if (reason == SM_DONE_REASON_TIMEOUT) {
+          if (readVmuSm.retries++ < 2) {
             // Re-read current block
+            resetSmTimeout();
             sendCurrentBlock();
+          } else {
+            setStatus('VMU read failed - timeout', 'red', 'bold');
+            resetProgressBar();
+          }
         } else {
-          disconnect('VMU read failed - timeout', 'red', 'bold');
+          readVmuSm.defaultDone(reason);
           resetProgressBar();
         }
       };
@@ -621,13 +638,14 @@
     // Starts the state machine which writes to a selected VMU
     function startWriteVmuSm(controllerIdx, vmuIdx, fileData) {
       setStatus("Writing VMU...");
-      const WRITE_ADDR = 0x55;
+      const WRITE_ADDR = 171;
       const NUM_PHASES_PER_BLOCK = 4;
       const BLOCK_SIZE = 512;
       const PHASE_SIZE = BLOCK_SIZE / NUM_PHASES_PER_BLOCK;
       const TOTAL_BLOCKS = 256;
 
       var writeVmuSm = {};
+      writeVmuSm.name = "Write VMU";
       writeVmuSm.retries = 0;
       writeVmuSm.errorCount = 0;
       writeVmuSm.controllerIdx = controllerIdx;
@@ -638,9 +656,19 @@
       writeVmuSm.currentPhase = 0; // [0,4] // commit on 4
       writeVmuSm.writeDelayMs = 10; // delay between writes, grows on each retry
 
-      writeVmuSm.cancel = function(reason) {
-        setStatus('VMU write canceled, VMU memory may be left in a corrupted state', 'red', 'bold');
-        resetProgressBar();
+      writeVmuSm.done = function(reason) {
+        if (reason == SM_DONE_REASON_TIMEOUT) {
+          if (!retry()) {
+            setStatus('VMU write failed - timeout', 'red', 'bold');
+            resetProgressBar();
+          }
+        } else if (reason == SM_DONE_CONNECT_FAILED || reason == SM_DONE_REASON_CANCELED_USER) {
+          setStatus('VMU write canceled, VMU memory may be left in a corrupted state', 'red', 'bold');
+          resetProgressBar();
+        } else {
+          writeVmuSm.defaultDone(reason);
+          resetProgressBar();
+        }
       };
 
       function writeCurrentPhase() {
@@ -658,9 +686,10 @@
       function retry() {
         ++writeVmuSm.errorCount;
         if (++writeVmuSm.retries > 2) {
-          console.error("Write failed, retrying");
           return false;
         }
+
+        console.error("Write failed, retrying");
 
         resetSmTimeout();
         writeVmuSm.currentPhase = 0;
@@ -675,13 +704,6 @@
 
         return true;
       }
-
-      writeVmuSm.timeout = function() {
-        if (!retry()) {
-          disconnect('VMU write failed - timeout', 'red', 'bold');
-          resetProgressBar();
-        }
-      };
 
       writeVmuSm.start = function() {
         vmuProgressContainer.style.display = 'block';
@@ -752,7 +774,7 @@
       startSm(writeVmuSm);
     }
 
-    // Starts the state machine which loads the settings from the device
+    // Starts the state machine which gets all device information strings
     function startProfilingSm() {
       setStatus("Getting device information...");
       // 1. GetConnectedGamepads(), and then for each controller:
@@ -766,6 +788,7 @@
       testsStatusDisplay.innerHTML = "";
 
       var profilerSm = {};
+      profilerSm.name = "Get device information";
       profilerSm.currentIdx = -1;
       profilerSm.connectionStates = [];
       profilerSm.currentPeripheralSummary = [];
@@ -855,12 +878,6 @@
       profilerSm.complete = function() {
         testsStatusDisplay.innerHTML = profilerSm.innerHTML;
         stopSm('Get device information complete');
-      };
-      profilerSm.cancel = function(reason) {
-        setStatus('Get device information canceled', 'red', 'bold');
-      };
-      profilerSm.timeout = function() {
-        disconnect('Get device information failed', 'red', 'bold');
       };
       profilerSm.start = function() {
         // Load the currently staged settings, not the settings on flash
@@ -976,6 +993,16 @@
       startSm(profilerSm);
     }
 
+    // Starts the state machine which runs basic tests
+    function startBasicTest() {
+      // TODO
+    }
+
+    // Starts the state machine which runs stress tests
+    function startStressTest() {
+      // TODO
+    }
+
     // Converts an int32 value to a byte stream
     function int32ToBytes(val) {
       const buffer = new ArrayBuffer(4);
@@ -1000,19 +1027,16 @@
       const CMD_SETTINGS = 'S'.charCodeAt(0);
 
       var writeGpioSm = {};
+      writeGpioSm.name = "Write GPIO";
       writeGpioSm.disconnectExpected = false;
 
-      writeGpioSm.cancel = function(reason) {
-        if (reason == CANCEL_REASON_DISCONNECT && writeGpioSm.disconnectExpected) {
+      writeGpioSm.done = function(reason) {
+        if (reason == SM_DONE_REASON_DISCONNECT && writeGpioSm.disconnectExpected) {
           // Didn't get a chance to get response before reboot occurred
           setStatus('GPIO settings saved');
         } else {
-          setStatus('Write GPIO canceled', 'red', 'bold');
+          writeGpioSm.defaultDone(reason);
         }
-      };
-
-      writeGpioSm.timeout = function() {
-        setStatus('Write GPIO failed', 'red', 'bold');
       };
 
       writeGpioSm.start = function() {
@@ -1113,19 +1137,16 @@
       const CMD_SETTINGS = 'S'.charCodeAt(0);
 
       var resetSettingsSm = {};
+      resetSettingsSm.name = "Settings reset";
       resetSettingsSm.disconnectExpected = false;
 
-      resetSettingsSm.cancel = function(reason) {
-        if (reason == CANCEL_REASON_DISCONNECT && resetSettingsSm.disconnectExpected) {
+      resetSettingsSm.done = function(reason) {
+        if (reason == SM_DONE_REASON_DISCONNECT && resetSettingsSm.disconnectExpected) {
           // Didn't get a chance to get response before reboot occurred
           setStatus('Settings reset');
         } else {
-          setStatus('Settings reset canceled', 'red', 'bold');
+          resetSettingsSm.defaultDone(reason);
         }
-      };
-
-      resetSettingsSm.timeout = function() {
-        setStatus('Settings reset failed', 'red', 'bold');
       };
 
       resetSettingsSm.start = function() {
@@ -1339,7 +1360,7 @@
 
         port.onReceiveError = error => {
           if (receiveSm) {
-            cancelSm(CANCEL_REASON_DISCONNECT);
+            cancelSm(SM_DONE_REASON_DISCONNECT);
           } else if (port) {
             console.error(error);
             disconnect('Lost connection with device', 'red', 'bold');
@@ -1451,12 +1472,22 @@
 
     // VMU Memory Cancel Button - click handler
     vmuMemoryCancelButton.addEventListener('click', function () {
-      cancelSm(CANCEL_REASON_USER);
+      cancelSm(SM_DONE_REASON_CANCELED_USER);
     });
 
     // Test: Profiling
     testsProfileButton.addEventListener('click', function() {
       startProfilingSm();
+    });
+
+    // Test: Basic
+    testsBasicButton.addEventListener('click', function() {
+      startBasicTest();
+    });
+
+    // Test: Stress
+    testsStressButton.addEventListener('click', function() {
+      startStressTest();
     });
 
     // Save GPIO Settings Button - click handler
