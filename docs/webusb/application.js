@@ -1268,7 +1268,7 @@
         send(ProfilingStateMachine.GET_CONNECTED_GAMEPADS_ADDR, 'X'.charCodeAt(0), ['O'.charCodeAt(0)]);
       }
 
-      sendNext() {
+      sendNextReq() {
         if (this.currentIdx >= 0) {
           while (this.currentPeripheralSummary.length > ++this.currentPeripheralIdx) {
             if (this.currentPeripheralSummary[this.currentPeripheralIdx].length > 0) {
@@ -1301,7 +1301,7 @@
             if (payload.length >= 1) {
               // Retrieved connected gamepads
               this.connectionStates = [...payload];
-              if (this.sendNext()) {
+              if (this.sendNextReq()) {
                 return;
               }
             }
@@ -1313,7 +1313,7 @@
           if (cmd == CMD_OK) {
             this.allData[this.currentIdx] = {};
             this.loadDcSummary(payload);
-            if (!this.sendNext()) {
+            if (!this.sendNextReq()) {
               this.complete();
             }
             return;
@@ -1383,7 +1383,7 @@
             dataDict["functions"] = fnsData;
           }
           this.allData[this.currentIdx][this.currentPeripheralIdx] = dataDict;
-          if (!this.sendNext()) {
+          if (!this.sendNextReq()) {
             this.complete();
           }
           return;
