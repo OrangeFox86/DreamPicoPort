@@ -29,6 +29,7 @@
       <div class="tab">
         <button class="tablinks" onclick="openTab(event, 'general')">General Settings</button>
         <button class="tablinks" onclick="openTab(event, 'memory')">VMU Memory</button>
+        <button class="tablinks" onclick="openTab(event, 'tests')">Tests</button>
         <button class="tablinks" onclick="openTab(event, 'advanced')">GPIO Settings</button>
         <button class="tablinks" onclick="openTab(event, 'reset')">Reset Settings</button>
       </div>
@@ -39,11 +40,11 @@
           <table>
             <tr>
               <td>
-                <input type="checkbox" id="enable-msc-check" name="enableMsc" value="0">
-                <label for="enable-msc-check">Enable Mass Storage Class*</label>
+                <input type="checkbox" id="enable-msc-check" name="enableMsc" value="0" title="When checked, a simulated FAT drive will show up on connection. This is a problematic feature that is no longer supported. Controls under the VMU Memory tab replaces this feature.">
+                <label for="enable-msc-check">Enable Mass Storage Class</label>
                 <br>
-                <input type="checkbox" id="enable-webusb-announce-check" name="enableWebusbAnnounce" value="0" checked>
-                <label for="enable-webusb-announce-check">WebUSB Announcement**</label>
+                <input type="checkbox" id="enable-webusb-announce-check" name="enableWebusbAnnounce" value="0" title="When checked, browser notification will pop up when the device is attached. This notification may be annoying in some browsers." checked>
+                <label for="enable-webusb-announce-check">WebUSB Announcement</label>
               </td>
               <td>
                 <label for="player1-select">Controller A:</label>
@@ -145,13 +146,6 @@
         </table>
         Take note that the entire USB interface needs to be refreshed in order to change the number of controllers
         available to the host system over USB. You will experience interruptions in communication during these operations.
-        <br>
-        <br>
-        * Mass Storage Class is what causes a drive to pop up. This is a problematic feature that is no longer supported.
-        Controls under the VMU Memory tab replaces this feature.
-        <br><br>
-        ** WebUSB Announcement controls the browser notification when the device is attached. This notification may be
-        annoying in some browsers.
       </div>
 
       <!-- VMU Memory content -->
@@ -222,6 +216,19 @@
               <button id="vmu-memory-cancel" class="button black">Cancel</button>
             </div>
         </div>
+      </div>
+
+      <!-- Tests -->
+      <div id="tests" class="tabcontent">
+        <div style="text-align: center;">
+          <button id="tests-profile" class="button black" title="Click to get the device info of all connected peripherals">Get Device Information</button>
+          &nbsp;&nbsp;&nbsp;&nbsp;
+          <button id="tests-basic" class="button black" title="Click to run basic testing for VMU and Puru Puru Packs">Basic Tests</button>
+          &nbsp;&nbsp;&nbsp;&nbsp;
+          <button id="tests-stress" class="button black" title="Click to run stress testing for VMU and Puru Puru Packs which will attempt to flood the DreamPicoPort with commands and use as much power the Puru Puru packs will draw">Stress Tests</button>
+        </div>
+        <br>
+        <div id="tests-status"></div>
       </div>
 
       <!-- Advanced Settings content -->
