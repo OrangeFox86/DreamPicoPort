@@ -31,6 +31,7 @@
     let port;
     let selectedSerial = null;
     let receiveSm = null; // must define name, start(), and process() in the object; optionally define done()
+    let receiveSmTimeout = 150;
     let receiveSmTimeoutId = -1;
     let offlineHint = document.querySelector('#offline-hint');
     let vmu1ARadio = document.querySelector('#vmu1-a-radio');
@@ -173,6 +174,7 @@
         }
       }
       receiveSm = null;
+      receiveSmTimeout = 150;
     }
 
     // State machine function: Called when the state machine experienced a timeout
@@ -195,10 +197,15 @@
     }
 
     // State machine function: Stops then restarts the state machine timeout to 150 ms
-    function resetSmTimeout() {
+    function resetSmTimeout(timeout = null) {
+      if (timeout == null) {
+        timeout = receiveSmTimeout;
+      } else {
+        receiveSmTimeout = timeout;
+      }
       stopSmTimeout();
       if (receiveSm) {
-        receiveSmTimeoutId = setTimeout(smTimeout, 150);
+        receiveSmTimeoutId = setTimeout(smTimeout, timeout);
       }
     }
 
@@ -1126,30 +1133,28 @@
       static GET_DC_SUMMARY_BASE_ADDR = 41;
       static GET_DEVICE_INFO_BASE_ADDR = 45;
 
-      constructor() {
-        super("Get device information");
+      constructor(name = null) {
+        if (name == null) {
+          super("Get device information");
+          this.stopOnComplete = true;
+        } else {
+          // Extension class
+          super(name);
+          this.stopOnComplete = false;
+        }
         this.currentIdx = -1;
         this.connectionStates = [];
         this.currentPeripheralSummary = [];
+        this.allData = {};
         this.currentPeripheralIdx = -1;
         this.sentBasicInfoReq = false;
-        this.innerHTML = ""
       }
 
       nextIdx() {
         while (this.connectionStates.length > ++this.currentIdx) {
-          if (this.innerHTML.length > 0) {
-            this.innerHTML += "<br>";
-          }
           let idx = this.currentIdx;
-          this.innerHTML += ("<b>" + String.fromCharCode('A'.charCodeAt(0) + idx) + ": </b>")
           let connectionState = this.connectionStates[idx];
-          if (connectionState == 0) {
-            // Unavailable
-            this.innerHTML += "N/A";
-          } else if (connectionState == 1) {
-            this.innerHTML += "Not Connected";
-          } else {
+          if (connectionState == 2) {
             // Connected
             return idx;
           }
@@ -1158,7 +1163,7 @@
       }
 
       loadDcSummary(payload) {
-        this.currentPeripheralSummary = []
+        this.currentPeripheralSummary = [];
         this.currentPeripheralIdx = -1;
         let pidx = 0;
         while (pidx < payload.length) {
@@ -1204,12 +1209,7 @@
 
       sendNextDeviceInfo() {
         while (this.currentPeripheralSummary.length > ++this.currentPeripheralIdx) {
-          if (this.currentPeripheralIdx > 0) {
-            this.innerHTML += ("<br><b>&nbsp;&nbsp;&nbsp;&nbsp;Slot " + String.fromCharCode('0'.charCodeAt(0) + this.currentPeripheralIdx) + ": </b>");
-          }
-          if (this.currentPeripheralSummary[this.currentPeripheralIdx].length <= 0) {
-            this.innerHTML += "Empty";
-          } else {
+          if (this.currentPeripheralSummary[this.currentPeripheralIdx].length > 0) {
             let hostAddr = getMapleHostAddr(this.currentIdx);
             let destAddr = this.getDestAddr(hostAddr);
             this.sentBasicInfoReq = false;
@@ -1221,8 +1221,57 @@
       }
 
       complete() {
-        testsStatusDisplay.innerHTML = this.innerHTML;
-        stopSm('Get device information complete');
+        if (this.allData.size) {
+          testsStatusDisplay.innerHTML = "No peripherals detected";
+        } else {
+          let innerHTML = "<table>";
+          for (const busIdxStr of Object.keys(this.allData)) {
+            let busIdx = Number(busIdxStr);
+            let busPeripherals = this.allData[busIdx];
+            innerHTML += "<tr><td><br><b>=== Port " + String.fromCharCode("A".charCodeAt(0) + busIdx) + " ===</b></td><table>";
+            for (const peripheralIdx of Object.keys(busPeripherals)) {
+              let peripheralData = busPeripherals[peripheralIdx];
+              let peripheralDesc = "";
+              if (peripheralIdx == 0) {
+                peripheralDesc = "Device";
+              } else {
+                peripheralDesc = `Slot ${peripheralIdx}`;
+              }
+              innerHTML += "<tr><td><b>" + peripheralDesc + "</b></td><table>";
+
+              for (const key of Object.keys(peripheralData)) {
+                let value = peripheralData[key];
+                innerHTML += `<tr><td style="text-align: right;width: 1%;white-space: nowrap;"><b>&nbsp;&nbsp;&nbsp;&nbsp;${key}:&nbsp;</b></td>`;
+                if (key == "functions") {
+                  let fns = "";
+                  for (let i = 0; i < value.length; i++) {
+                    if (fns.length > 0) {
+                      fns += "; ";
+                    }
+                    let d = value[i];
+                    let name = d["name"];
+                    let codeStr = "0x" + d["code"].toString(16).padStart(8, '0');
+                    fns += `${name}(${codeStr})`;
+                  }
+                  innerHTML += `<td>${fns}</td>`;
+                } else if (key == "minCurrent" || key == "maxCurrent") {
+                  innerHTML += `<td>${value} mA</td>`;
+                } else {
+                  innerHTML += `<td>${value}</td>`;
+                }
+                innerHTML += "</tr>";
+              }
+
+              innerHTML += "</table></tr>";
+            }
+            innerHTML += "</table></tr>";
+          }
+          innerHTML += "</table>";
+          testsStatusDisplay.innerHTML = innerHTML;
+        }
+        if (this.stopOnComplete) {
+          this.stop('Get device information complete');
+        }
       };
 
       start() {
@@ -1241,8 +1290,6 @@
                 send(ProfilingStateMachine.GET_DC_SUMMARY_BASE_ADDR + nextIdx, 'X'.charCodeAt(0), ['?'.charCodeAt(0), nextIdx]);
                 return;
               }
-            } else {
-              this.innerHTML = "No peripherals connected"
             }
 
             this.complete();
@@ -1250,6 +1297,7 @@
           }
         } else if (addr >= ProfilingStateMachine.GET_DC_SUMMARY_BASE_ADDR && addr < ProfilingStateMachine.GET_DC_SUMMARY_BASE_ADDR + 4) {
           if (cmd == CMD_OK) {
+            this.allData[this.currentIdx] = {};
             this.loadDcSummary(payload);
             if (!this.sendNextDeviceInfo()) {
               let nextIdx = this.nextIdx();
@@ -1270,29 +1318,33 @@
             send(ProfilingStateMachine.GET_DEVICE_INFO_BASE_ADDR + this.currentIdx, '0'.charCodeAt(0), [0x01, destAddr, hostAddr, 0]);
             return;
           }
+          let dataDict = {};
           let description = "";
           if (payload.length >= 52) {
             description = String.fromCharCode(...payload.slice(22, 52)).trim();
+            dataDict["description"] = description;
           }
-          // This is always the same string, so it isn't important
-          // let producer = "";
-          // if (payload.length >= 112) {
-          //   producer = String.fromCharCode(...payload.slice(52, 112)).trim();
-          // }
+          let producer = "";
+          if (payload.length >= 112) {
+            producer = String.fromCharCode(...payload.slice(52, 112)).trim();
+            dataDict["producer"] = producer;
+          }
           let capabilities = "";
           if (payload.length >= 192) {
-            capabilities = "; " + String.fromCharCode(...payload.slice(116, 192)).trim();
+            capabilities = String.fromCharCode(...payload.slice(116, 192)).trim();
+            dataDict["capabilities"] = capabilities;
           }
           let currentStr = "";
           if (payload.length >= 116) {
             let minCurrent = (payload[113] << 8 | payload[112]) / 10.0;
             let maxCurrent = (payload[115] << 8 | payload[114]) / 10.0;
-            currentStr = `; ${minCurrent} to ${maxCurrent} mA`
+            dataDict["minCurrent"] = minCurrent;
+            dataDict["maxCurrent"] = maxCurrent;
+            currentStr = `${minCurrent} to ${maxCurrent} mA`
           }
-          let functionDefs = "";
           let profileData = this.currentPeripheralSummary[this.currentPeripheralIdx];
           if (profileData.length > 0) {
-            functionDefs = "; Functions:";
+            let fnsData = [];
             let idx = 0;
             while (idx < profileData.length) {
               let fn = profileData[idx][0];
@@ -1318,12 +1370,13 @@
               } else if (fn == 0x00000200) {
                 fnName = "Mouse";
               }
-              let codeStr = "0x" + profileData[idx][1].toString(16).padStart(8, '0');
-              functionDefs += ` ${fnName}(${codeStr})`
+              let code = profileData[idx][1];
+              fnsData.push({"name": fnName, "id": fn, "code": code});
               ++idx;
             }
+            dataDict["functions"] = fnsData;
           }
-          this.innerHTML += description + capabilities + currentStr + functionDefs;
+          this.allData[this.currentIdx][this.currentPeripheralIdx] = dataDict;
           if (!this.sendNextDeviceInfo()) {
             let nextIdx = this.nextIdx();
             if (nextIdx >= 0) {
@@ -1335,6 +1388,222 @@
           return;
         }
         this.stop('Failed to get device information', 'red', 'bold')
+      }
+    }
+
+    class BasicTestStateMachine extends ProfilingStateMachine {
+      static START_ADDR = 50;
+      static SET_SCREEN_ADDR = BasicTestStateMachine.START_ADDR;
+      static VIBRATE_ADDR = 51;
+
+      constructor() {
+        super("Basic Test");
+        this.timeoutId = -1;
+      }
+
+      done(reason) {
+        if (this.timeoutId >= 0) {
+          clearTimeout(this.timeoutId);
+          this.timeoutId = -1;
+        }
+        super.done(reason);
+      }
+
+      sendNext() {
+        if (this.currentIdx < 0) {
+          while (!(++this.currentIdx in this.allData) && this.currentIdx < 4) {}
+          if (this.currentIdx >= 4) {
+            this.stop("No peripherals to test");
+            return;
+          }
+        }
+
+        let dataDict = this.allData[this.currentIdx];
+
+        while (true) {
+          while ((!((++this.currentPeripheralIdx) in dataDict) && this.currentPeripheralIdx < 6) || this.currentPeripheralIdx <= 0) {}
+          if (this.currentPeripheralIdx >= 6) {
+            while (!(++this.currentIdx in this.allData) && this.currentIdx < 4) {}
+            if (this.currentIdx >= 4) {
+              this.stop("Basic test complete");
+              return;
+            }
+            dataDict = this.allData[this.currentIdx];
+            this.currentPeripheralIdx = -1;
+          } else {
+            // Valid next peripheral
+            let periphData = dataDict[this.currentPeripheralIdx];
+            if ("functions" in periphData) {
+              let fns = periphData["functions"];
+              for (let i = 0; i < fns.length; i++) {
+                let fnId = fns[i]["id"];
+                let hostAddr = getMapleHostAddr(this.currentIdx);
+                let destAddr = hostAddr | (1 << (this.currentPeripheralIdx - 1));
+                if (fnId == 0x00000004) {
+                  // Send screen update
+                  send(BasicTestStateMachine.SET_SCREEN_ADDR, '0'.charCodeAt(0), [
+                    0x0C, destAddr, hostAddr, 0x32, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00,  0x00, 0x38, 0x00, 0x00,  0x00, 0x00, 0x00, 0x1C,  0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x0F, 0xC0, 0x00,  0x00, 0x18, 0x00, 0x07,  0xF0, 0x00, 0x00, 0x18,  0x00, 0x00, 0x7C, 0x00,
+                    0x00, 0x18, 0x00, 0x00,  0x1E, 0x00, 0x00, 0x18,  0x00, 0x00, 0x07, 0x00,  0x00, 0x18, 0x00, 0x00,
+                    0x03, 0x80, 0x00, 0x18,  0x07, 0xE0, 0x01, 0xE0,  0x00, 0x18, 0x1F, 0xC0,  0x00, 0x70, 0x00, 0x18,
+                    0x3C, 0x00, 0x00, 0x3C,  0x00, 0x18, 0x18, 0x00,  0x00, 0x18, 0x00, 0x18,  0x1C, 0x00, 0x00, 0x00,
+                    0x07, 0xFF, 0x8F, 0x9F,  0xC0, 0x00, 0x03, 0xFF,  0x03, 0x8F, 0xE0, 0x00,  0x00, 0x00, 0x01, 0x80,
+                    0x79, 0x80, 0x00, 0x00,  0x07, 0x80, 0x39, 0x80,  0x00, 0x00, 0x3F, 0x07,  0xD9, 0x80, 0x00, 0x00,
+                    0x1C, 0x07, 0xB9, 0x80,  0x00, 0x00, 0x00, 0x06,  0x71, 0x80, 0x00, 0x00,  0x00, 0x07, 0xE1, 0x80,
+                    0x00, 0x00, 0x00, 0x03,  0xC1, 0x80, 0x00, 0x00,  0x00, 0x00, 0x1F, 0xFC,  0x00, 0x00, 0x00, 0x00,
+                    0x0F, 0xF8, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00
+                  ]);
+                  this.timeoutId = setTimeout(this.sendNext.bind(this), 100);
+                  resetSmTimeout(200);
+                  return;
+                } else if (fnId == 0x00000100) {
+                  // Send vibration update
+                  const VIBE_POWER = 4; // 1 to 7
+                  const VIBE_TIME_MS = 250;
+                  send(BasicTestStateMachine.VIBRATE_ADDR, '0'.charCodeAt(0), [0x0E, destAddr, hostAddr, 2, 0x00, 0x00, 0x01, 0x00, 0x11, (VIBE_POWER << 4), 59, 0x00]);
+                  this.timeoutId = setTimeout(this.vibrationDone.bind(this), VIBE_TIME_MS);
+                  resetSmTimeout(VIBE_TIME_MS + 150);
+                  return;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      vibrationDone() {
+        let hostAddr = getMapleHostAddr(this.currentIdx);
+        let destAddr = hostAddr | (1 << (this.currentPeripheralIdx - 1));
+        send(BasicTestStateMachine.VIBRATE_ADDR, '0'.charCodeAt(0), [0x0E, destAddr, hostAddr, 2, 0x00, 0x00, 0x01, 0x00, 0x10, 0x00, 59, 0x00]);
+        this.sendNext();
+      }
+
+      complete() {
+        super.complete();
+        this.currentIdx = -1;
+        this.currentPeripheralIdx = -1;
+        this.sendNext();
+      }
+
+      process(addr, cmd, payload) {
+        if (addr < BasicTestStateMachine.START_ADDR) {
+          super.process(addr, cmd, payload);
+        } else if (cmd != CMD_OK){
+          this.stop('Basic test failed: maple command failure', 'red', 'bold')
+        }
+      }
+    }
+
+    class StressTestStateMachine extends ProfilingStateMachine {
+      static START_ADDR = 60;
+      static SET_SCREEN_ADDR = BasicTestStateMachine.START_ADDR;
+      static VIBRATE_ADDR = 61;
+
+      constructor() {
+        super("Basic Test");
+        this.timeoutId = -1;
+        this.vibrationAddrs = [];
+      }
+
+      done(reason) {
+        if (this.timeoutId >= 0) {
+          clearTimeout(this.timeoutId);
+          this.timeoutId = -1;
+        }
+        super.done(reason);
+      }
+
+      sendNext() {
+        if (this.currentIdx < 0) {
+          while (!(++this.currentIdx in this.allData) && this.currentIdx < 4) {}
+          if (this.currentIdx >= 4) {
+            this.stop("No peripherals to test");
+            return;
+          }
+        }
+
+        let dataDict = this.allData[this.currentIdx];
+
+        while (true) {
+          while ((!((++this.currentPeripheralIdx) in dataDict) && this.currentPeripheralIdx < 6) || this.currentPeripheralIdx <= 0) {}
+          if (this.currentPeripheralIdx >= 6) {
+            while (!(++this.currentIdx in this.allData) && this.currentIdx < 4) {}
+            if (this.currentIdx >= 4) {
+              if (this.vibrationAddrs.length == 0) {
+                this.stop("Basic test complete");
+              } else {
+                const VIBE_TIME_MS = 5000;
+                this.timeoutId = setTimeout(this.vibrationDone.bind(this), VIBE_TIME_MS);
+                resetSmTimeout(VIBE_TIME_MS + 150);
+              }
+              return;
+            }
+            dataDict = this.allData[this.currentIdx];
+            this.currentPeripheralIdx = -1;
+          } else {
+            // Valid next peripheral
+            let periphData = dataDict[this.currentPeripheralIdx];
+            if ("functions" in periphData) {
+              let fns = periphData["functions"];
+              for (let i = 0; i < fns.length; i++) {
+                let fnId = fns[i]["id"];
+                let hostAddr = getMapleHostAddr(this.currentIdx);
+                let destAddr = hostAddr | (1 << (this.currentPeripheralIdx - 1));
+                if (fnId == 0x00000004) {
+                  // Send screen update
+                  send(BasicTestStateMachine.SET_SCREEN_ADDR, '0'.charCodeAt(0), [
+                    0x0C, destAddr, hostAddr, 0x32, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00,  0x00, 0x38, 0x00, 0x00,  0x00, 0x00, 0x00, 0x1C,  0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x0F, 0xC0, 0x00,  0x00, 0x18, 0x00, 0x07,  0xF0, 0x00, 0x00, 0x18,  0x00, 0x00, 0x7C, 0x00,
+                    0x00, 0x18, 0x00, 0x00,  0x1E, 0x00, 0x00, 0x18,  0x00, 0x00, 0x07, 0x00,  0x00, 0x18, 0x00, 0x00,
+                    0x03, 0x80, 0x00, 0x18,  0x07, 0xE0, 0x01, 0xE0,  0x00, 0x18, 0x1F, 0xC0,  0x00, 0x70, 0x00, 0x18,
+                    0x3C, 0x00, 0x00, 0x3C,  0x00, 0x18, 0x18, 0x00,  0x00, 0x18, 0x00, 0x18,  0x1C, 0x00, 0x00, 0x00,
+                    0x07, 0xFF, 0x8F, 0x9F,  0xC0, 0x00, 0x03, 0xFF,  0x03, 0x8F, 0xE0, 0x00,  0x00, 0x00, 0x01, 0x80,
+                    0x79, 0x80, 0x00, 0x00,  0x07, 0x80, 0x39, 0x80,  0x00, 0x00, 0x3F, 0x07,  0xD9, 0x80, 0x00, 0x00,
+                    0x1C, 0x07, 0xB9, 0x80,  0x00, 0x00, 0x00, 0x06,  0x71, 0x80, 0x00, 0x00,  0x00, 0x07, 0xE1, 0x80,
+                    0x00, 0x00, 0x00, 0x03,  0xC1, 0x80, 0x00, 0x00,  0x00, 0x00, 0x1F, 0xFC,  0x00, 0x00, 0x00, 0x00,
+                    0x0F, 0xF8, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00
+                  ]);
+                } else if (fnId == 0x00000100) {
+                  // Send vibration update
+                  const VIBE_POWER = 7; // 1 to 7
+                  send(BasicTestStateMachine.VIBRATE_ADDR, '0'.charCodeAt(0), [0x0E, destAddr, hostAddr, 2, 0x00, 0x00, 0x01, 0x00, 0x11, (VIBE_POWER << 4), 59, 0x00]);
+                  this.vibrationAddrs.push([destAddr, hostAddr])
+                }
+              }
+            }
+          }
+        }
+      }
+
+      vibrationDone() {
+        for (let i = 0; i < this.vibrationAddrs.length; ++i) {
+          let addrs = this.vibrationAddrs[i];
+          let hostAddr = addrs[1];
+          let destAddr = addrs[0];
+          send(BasicTestStateMachine.VIBRATE_ADDR, '0'.charCodeAt(0), [0x0E, destAddr, hostAddr, 2, 0x00, 0x00, 0x01, 0x00, 0x10, 0x00, 59, 0x00]);
+        }
+        this.stop("Basic test complete");
+      }
+
+      complete() {
+        super.complete();
+        this.currentIdx = -1;
+        this.currentPeripheralIdx = -1;
+        this.sendNext();
+      }
+
+      process(addr, cmd, payload) {
+        if (addr < BasicTestStateMachine.START_ADDR) {
+          super.process(addr, cmd, payload);
+        } else if (cmd != CMD_OK){
+          this.stop('Basic test failed: maple command failure', 'red', 'bold')
+        }
       }
     }
 
@@ -1531,12 +1800,14 @@
 
     // Starts the state machine which runs basic tests
     function startBasicTest() {
-      // TODO
+      setStatus("Running basic test...");
+      startSm(new BasicTestStateMachine());
     }
 
     // Starts the state machine which runs stress tests
     function startStressTest() {
-      // TODO
+      setStatus("Running stress test...");
+      startSm(new StressTestStateMachine());
     }
 
     // Starts the state machine which writes the current settings within the GPIO tab
