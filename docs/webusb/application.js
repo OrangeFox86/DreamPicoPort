@@ -21,6 +21,7 @@
     let selectButton = document.querySelector("#select");
     let selectedDevice = document.querySelector('#selected-device')
     let statusDisplay = document.querySelector('#status');
+    let versionUpdateDisplay = document.querySelector('#versionUpdate');
     let saveButton = document.querySelector('#save');
     let mscCheckbox = document.querySelector('#enable-msc-check');
     let enableWebusbAnnounceCheck = document.querySelector('#enable-webusb-announce-check');
@@ -415,6 +416,14 @@
       if (!selectedPort.name.includes(deviceVersion)) {
         selectedDeviceText += `, ${deviceVersion}`;
       }
+
+      // TODO: make this automatic
+      if (selectedPort.major < 1 || selectedPort.minor < 2 || selectedPort.patch < 1) {
+        versionUpdateDisplay.innerHTML = "<a href='https://github.com/OrangeFox86/DreamPicoPort/releases/tag/v1.2.1'>New version of firmware available</a>";
+      } else {
+        versionUpdateDisplay.innerHTML = "";
+      }
+
       selectedDevice.textContent = selectedDeviceText;
       enableAllControls();
       setStatus("Loading settings...");
