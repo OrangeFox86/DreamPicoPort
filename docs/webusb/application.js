@@ -1503,7 +1503,7 @@
       static VIBRATE_ADDR = 61;
 
       constructor() {
-        super("Basic Test");
+        super("Stress Test");
         this.timeoutId = -1;
         this.vibrationAddrs = [];
       }
@@ -1533,7 +1533,7 @@
             while (!(++this.currentIdx in this.allData) && this.currentIdx < 4) {}
             if (this.currentIdx >= 4) {
               if (this.vibrationAddrs.length == 0) {
-                this.stop("Basic test complete");
+                this.stop("Stress test complete");
               } else {
                 const VIBE_TIME_MS = 5000;
                 this.timeoutId = setTimeout(this.vibrationDone.bind(this), VIBE_TIME_MS);
@@ -1588,7 +1588,7 @@
           let destAddr = addrs[0];
           send(BasicTestStateMachine.VIBRATE_ADDR, '0'.charCodeAt(0), [0x0E, destAddr, hostAddr, 2, 0x00, 0x00, 0x01, 0x00, 0x10, 0x00, 59, 0x00]);
         }
-        this.stop("Basic test complete");
+        this.stop("Stress test complete");
       }
 
       complete() {
@@ -1602,7 +1602,7 @@
         if (addr < BasicTestStateMachine.START_ADDR) {
           super.process(addr, cmd, payload);
         } else if (cmd != CMD_OK){
-          this.stop('Basic test failed: maple command failure', 'red', 'bold')
+          this.stop('Stress test failed: maple command failure', 'red', 'bold')
         }
       }
     }
