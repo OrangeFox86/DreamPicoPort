@@ -1207,28 +1207,16 @@
         return destAddr;
       }
 
-      sendNextDeviceInfo() {
-        while (this.currentPeripheralSummary.length > ++this.currentPeripheralIdx) {
-          if (this.currentPeripheralSummary[this.currentPeripheralIdx].length > 0) {
-            let hostAddr = getMapleHostAddr(this.currentIdx);
-            let destAddr = this.getDestAddr(hostAddr);
-            this.sentBasicInfoReq = false;
-            send(ProfilingStateMachine.GET_DEVICE_INFO_BASE_ADDR + this.currentIdx, '0'.charCodeAt(0), [0x02, destAddr, hostAddr, 0]);
-            return true;
-          }
-        }
-        return false;
-      }
-
       complete() {
         if (this.allData.size) {
           testsStatusDisplay.innerHTML = "No peripherals detected";
         } else {
-          let innerHTML = "<table>";
+          let innerHTML = "<table style='border: 1px solid black; border-collapse: collapse;'>";
           for (const busIdxStr of Object.keys(this.allData)) {
             let busIdx = Number(busIdxStr);
             let busPeripherals = this.allData[busIdx];
-            innerHTML += "<tr><td><br><b>=== Port " + String.fromCharCode("A".charCodeAt(0) + busIdx) + " ===</b></td><table>";
+            innerHTML += "<tr><td style='border: 1px solid black;text-align: center;'><br><b>Port " + String.fromCharCode("A".charCodeAt(0) + busIdx);
+            innerHTML += "</b></td><td style='border: 1px solid black;'><table style='border-collapse: collapse;'>";
             for (const peripheralIdx of Object.keys(busPeripherals)) {
               let peripheralData = busPeripherals[peripheralIdx];
               let peripheralDesc = "";
@@ -1237,11 +1225,12 @@
               } else {
                 peripheralDesc = `Slot ${peripheralIdx}`;
               }
-              innerHTML += "<tr><td><b>" + peripheralDesc + "</b></td><table>";
+              innerHTML += "<tr><td style='border: 1px dotted black;text-align: center;'><b>" + peripheralDesc;
+              innerHTML += "</b></td><td style='border: 1px dotted black;padding: 10px;'><table style='border-collapse: collapse;'>";
 
               for (const key of Object.keys(peripheralData)) {
                 let value = peripheralData[key];
-                innerHTML += `<tr><td style="text-align: right;width: 1%;white-space: nowrap;"><b>&nbsp;&nbsp;&nbsp;&nbsp;${key}:&nbsp;</b></td>`;
+                innerHTML += `<tr><td style="text-align: right;width: 1%;white-space: nowrap;"><b>${key}:&nbsp;</b></td>`;
                 if (key == "functions") {
                   let fns = "";
                   for (let i = 0; i < value.length; i++) {
@@ -1262,9 +1251,9 @@
                 innerHTML += "</tr>";
               }
 
-              innerHTML += "</table></tr>";
+              innerHTML += "</table></td></tr>";
             }
-            innerHTML += "</table></tr>";
+            innerHTML += "</table></td></tr>";
           }
           innerHTML += "</table>";
           testsStatusDisplay.innerHTML = innerHTML;
@@ -1279,15 +1268,40 @@
         send(ProfilingStateMachine.GET_CONNECTED_GAMEPADS_ADDR, 'X'.charCodeAt(0), ['O'.charCodeAt(0)]);
       }
 
+      sendNextReq() {
+        if (this.currentIdx >= 0) {
+          while (this.currentPeripheralSummary.length > ++this.currentPeripheralIdx) {
+            if (this.currentPeripheralSummary[this.currentPeripheralIdx].length > 0) {
+              let hostAddr = getMapleHostAddr(this.currentIdx);
+              let destAddr = this.getDestAddr(hostAddr);
+              this.sentBasicInfoReq = false;
+              send(ProfilingStateMachine.GET_DEVICE_INFO_BASE_ADDR + this.currentIdx, '0'.charCodeAt(0), [0x02, destAddr, hostAddr, 0]);
+              return true;
+            }
+          }
+        }
+        let nextIdx = this.nextIdx();
+        if (nextIdx >= 0) {
+          send(ProfilingStateMachine.GET_DC_SUMMARY_BASE_ADDR + nextIdx, 'X'.charCodeAt(0), ['?'.charCodeAt(0), nextIdx]);
+          return true;
+        }
+        return false;
+      }
+
+      sendBasicInfoReq() {
+        this.sentBasicInfoReq = true;
+        let hostAddr = getMapleHostAddr(this.currentIdx);
+        let destAddr = this.getDestAddr(hostAddr);
+        send(ProfilingStateMachine.GET_DEVICE_INFO_BASE_ADDR + this.currentIdx, '0'.charCodeAt(0), [0x01, destAddr, hostAddr, 0]);
+      }
+
       process(addr, cmd, payload) {
         if (addr == ProfilingStateMachine.GET_CONNECTED_GAMEPADS_ADDR) {
           if (cmd == CMD_OK) {
             if (payload.length >= 1) {
               // Retrieved connected gamepads
               this.connectionStates = [...payload];
-              let nextIdx = this.nextIdx();
-              if (nextIdx >= 0) {
-                send(ProfilingStateMachine.GET_DC_SUMMARY_BASE_ADDR + nextIdx, 'X'.charCodeAt(0), ['?'.charCodeAt(0), nextIdx]);
+              if (this.sendNextReq()) {
                 return;
               }
             }
@@ -1299,23 +1313,15 @@
           if (cmd == CMD_OK) {
             this.allData[this.currentIdx] = {};
             this.loadDcSummary(payload);
-            if (!this.sendNextDeviceInfo()) {
-              let nextIdx = this.nextIdx();
-              if (nextIdx >= 0) {
-                send(ProfilingStateMachine.GET_DC_SUMMARY_BASE_ADDR + nextIdx, 'X'.charCodeAt(0), ['?'.charCodeAt(0), nextIdx]);
-              } else {
-                this.complete();
-              }
+            if (!this.sendNextReq()) {
+              this.complete();
             }
             return;
           }
         } else {
           if (payload.length < 52 && !this.sentBasicInfoReq) {
             // Some 3rd party devices don't support the extended device info - try getting the basic info
-            this.sentBasicInfoReq = true;
-            let hostAddr = getMapleHostAddr(this.currentIdx);
-            let destAddr = this.getDestAddr(hostAddr);
-            send(ProfilingStateMachine.GET_DEVICE_INFO_BASE_ADDR + this.currentIdx, '0'.charCodeAt(0), [0x01, destAddr, hostAddr, 0]);
+            this.sendBasicInfoReq();
             return;
           }
           let dataDict = {};
@@ -1377,13 +1383,8 @@
             dataDict["functions"] = fnsData;
           }
           this.allData[this.currentIdx][this.currentPeripheralIdx] = dataDict;
-          if (!this.sendNextDeviceInfo()) {
-            let nextIdx = this.nextIdx();
-            if (nextIdx >= 0) {
-              send(ProfilingStateMachine.GET_DC_SUMMARY_BASE_ADDR + nextIdx, 'X'.charCodeAt(0), ['?'.charCodeAt(0), nextIdx]);
-            } else {
-              this.complete();
-            }
+          if (!this.sendNextReq()) {
+            this.complete();
           }
           return;
         }
