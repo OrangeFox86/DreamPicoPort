@@ -301,11 +301,14 @@
 
     // Set the settings on the form from a payload which is known to contain settings
     // payload: bytestream retrieved from the device
-    // Returns true iff the payload contained enough data to parse
+    // Returns -1 if payload length is not at least 51 bytes in length
+    // Returns number of missing settings otherwise (0 or more)
     function setSettingsFromPayload(payload) {
       if (payload.length < 51) {
-        return false;
+        return -1;
       }
+
+      let numMissing = 0;
 
       // Retrieved settings
       mscCheckbox.checked = (payload[1] !== 0);
@@ -410,9 +413,10 @@
       } else {
         dpadOutputTypeDropdown.value = 0;
         dpadOutputTypeDropdown.disabled = true;
+        ++numMissing;
       }
 
-      return true;
+      return numMissing;
     }
 
     // Starts the state machine which loads the settings from the device
@@ -853,10 +857,17 @@
 
       process(addr, cmd, payload) {
         if (addr == LoadStateMachine.GET_SETTINGS_ADDR) {
-          if (cmd == CMD_OK && setSettingsFromPayload(payload)) {
-            // Retrieved settings
-            this.stop('Settings loaded');
-            return;
+          if (cmd == CMD_OK) {
+            const numMissing = setSettingsFromPayload(payload);
+            if (numMissing == 0) {
+              // Retrieved settings
+              this.stop('Settings loaded');
+              return;
+            } else {
+              // Retrieved settings, but some settings are missing
+              this.stop('Settings loaded - some settings not available (firmware update required)');
+              return;
+            }
           }
         }
         this.stop('Failed to load settings', 'red', 'bold')
@@ -1839,7 +1850,7 @@
           }
         } else if (addr == WriteGpioStateMachine.SEND_SAVE_AND_RESTART_ADDR) {
           if (cmd == CMD_OK) {
-            if (setSettingsFromPayload(payload))
+            if (setSettingsFromPayload(payload) >= 0)
             {
               this.stop('GPIO settings saved with adjustments due to overlapping GPIO - please review changes', 'orange', 'bold')
             }
