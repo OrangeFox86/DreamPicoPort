@@ -427,12 +427,28 @@
         selectedDeviceText += `, ${deviceVersion}`;
       }
 
-      // TODO: make this automatic
-      if (selectedPort.major < 1 || selectedPort.minor < 2 || selectedPort.patch < 1) {
-        versionUpdateDisplay.innerHTML = "<a href='https://github.com/OrangeFox86/DreamPicoPort/releases/tag/v1.2.1'>New version of firmware available</a>";
-      } else {
-        versionUpdateDisplay.innerHTML = "";
-      }
+      // Check for latest version
+      getLatestReleaseTag().then(tagName => {
+        if (tagName == null) {
+          console.error("Failed to retrieve latest release tag name from github");
+        } else {
+          console.log(`tag name: ${tagName}`);
+          const versionStr = tagName.startsWith('v') ? tagName.slice(1) : tagName;
+          const parts = versionStr.split('.');
+          if (parts.length !== 3) {
+            console.error(`Invalid version format: ${tagName}`);
+          } else {
+            const major = parseInt(parts[0], 10);
+            const minor = parseInt(parts[1], 10);
+            const patch = parseInt(parts[2], 10);
+            if (major > selectedPort.major || (major === selectedPort.major && minor > selectedPort.minor) || (major === selectedPort.major && minor === selectedPort.minor && patch > selectedPort.patch)) {
+              versionUpdateDisplay.innerHTML = `<a href='https://github.com/OrangeFox86/DreamPicoPort/releases/tag/${tagName}'>New version of firmware ${versionStr} available</a>`;
+            } else {
+              versionUpdateDisplay.innerHTML = "";
+            }
+          }
+        }
+      });
 
       selectedDevice.textContent = selectedDeviceText;
       enableAllControls();
@@ -761,6 +777,32 @@
       const view = new DataView(buffer);
       view.setInt32(0, Number(val), false); // false = big endian
       return [view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3)];
+    }
+
+    // Retrieve the latest release tag from github
+    async function getLatestReleaseTag() {
+      const url = "https://api.github.com/repos/OrangeFox86/DreamPicoPort/releases/latest"
+
+      try {
+        const response = await fetch(url, {
+          headers: {
+            // A specific API version can be specified, though often not required for basic requests
+            'Accept': 'application/vnd.github+json',
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`GitHub API responded with status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        // The 'tag_name' field contains the release tag (e.g., "v1.0.0")
+        return data.tag_name;
+
+      } catch (error) {
+        console.error("Error fetching the latest release tag:", error);
+        return null;
+      }
     }
 
     // *************************************************************************
