@@ -40,7 +40,7 @@ static std::string packSettings(const DppSettings& settings)
 {
     std::string settingsData;
 
-    settingsData.reserve(51);
+    settingsData.reserve(52);
     settingsData.push_back(static_cast<std::uint8_t>(settings.cdcEn ? 1 : 0));
     settingsData.push_back(static_cast<std::uint8_t>(settings.mscEn ? 1 : 0));
     settingsData.push_back(static_cast<std::uint8_t>(settings.webUsbAnnounceEn ? 1 : 0));
@@ -72,6 +72,8 @@ static std::string packSettings(const DppSettings& settings)
 
     v = flip_word_bytes(settings.simpleUsbLedGpio);
     settingsData.append(reinterpret_cast<const char*>(&v), sizeof(v));
+
+    settingsData.push_back(static_cast<std::uint8_t>(settings.dpadType));
 
     return settingsData;
 }

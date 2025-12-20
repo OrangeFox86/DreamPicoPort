@@ -25,6 +25,7 @@
     let saveButton = document.querySelector('#save');
     let mscCheckbox = document.querySelector('#enable-msc-check');
     let enableWebusbAnnounceCheck = document.querySelector('#enable-webusb-announce-check');
+    let dpadOutputTypeDropdown = document.querySelector('#dpad-output');
     let player1 = document.querySelector('#player1-select');
     let player2 = document.querySelector('#player2-select');
     let player3 = document.querySelector('#player3-select');
@@ -302,7 +303,7 @@
     // payload: bytestream retrieved from the device
     // Returns true iff the payload contained enough data to parse
     function setSettingsFromPayload(payload) {
-      if (payload.length < 38) {
+      if (payload.length < 51) {
         return false;
       }
 
@@ -400,6 +401,15 @@
         gpioSimpleLedText.value = gpioSimpleLed;
       } else {
         gpioSimpleLedText.value = "";
+      }
+
+      if (payload.length >= 52) {
+        const dpadType = payload[51];
+        dpadOutputTypeDropdown.value = dpadType;
+        dpadOutputTypeDropdown.disabled = false;
+      } else {
+        dpadOutputTypeDropdown.value = 0;
+        dpadOutputTypeDropdown.disabled = true;
       }
 
       return true;
@@ -819,8 +829,9 @@
       static SEND_CONTROLLER_B_ADDR = 13;
       static SEND_CONTROLLER_C_ADDR = 14;
       static SEND_CONTROLLER_D_ADDR = 15;
-      static SEND_VALIDATE_ADDR = 16;
-      static SEND_SAVE_AND_RESTART_ADDR = 17;
+      static SEND_DPAD_TYPE_ADDR = 16;
+      static SEND_VALIDATE_ADDR = 17;
+      static SEND_SAVE_AND_RESTART_ADDR = 18;
 
       constructor() {
         super("Save");
@@ -874,6 +885,17 @@
             this.stop('Failed to set controller C setting', 'red', 'bold');
           }
         } else if (addr == SaveStateMachine.SEND_CONTROLLER_D_ADDR) {
+          if (cmd == CMD_OK) {
+            if (!dpadOutputTypeDropdown.disabled) {
+              send(SaveStateMachine.SEND_DPAD_TYPE_ADDR, 'S'.charCodeAt(0), [100, dpadOutputTypeDropdown.value]);
+            } else {
+              // D-PAD cannot be set, skip to validation
+              send(SaveStateMachine.SEND_VALIDATE_ADDR, 'S'.charCodeAt(0), [115]);
+            }
+          } else {
+            this.stop('Failed to set controller D setting', 'red', 'bold');
+          }
+        } else if (addr == SaveStateMachine.SEND_DPAD_TYPE_ADDR) {
           if (cmd == CMD_OK) {
             send(SaveStateMachine.SEND_VALIDATE_ADDR, 'S'.charCodeAt(0), [115]);
           } else {
