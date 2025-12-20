@@ -49,7 +49,7 @@ cd DreamPicoPort
 ```bash
 git submodule update --recursive --init
 ```
-Hint: if you have issues building, the easiest way to correct any submodule synchronization issue is to delete the `ext/pico-sdk` directory (ex: `rm -rf ext/pico-sdk`), and then re-run the above submodule update command.
+Hint: if you have issues building, the easiest way to correct any submodule synchronization issue is to delete the `ext/pico-sdk` directory (ex: `rm -rf ext/pico-sdk`), restore the directory `git restore ext/pico-sdk`, and then re-run the above submodule update command.
 
 5. (optional) Build and run tests - this runs core lib unit tests locally
 ```bash
