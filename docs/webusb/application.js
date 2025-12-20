@@ -1404,8 +1404,10 @@
     class BasicTestStateMachine extends ProfilingStateMachine {
       static START_ADDR = 50;
       static SET_SCREEN_ADDR = BasicTestStateMachine.START_ADDR;
-      static VIBRATE_START_ADDR = 51;
-      static VIBRATE_END_ADDR = 52;
+      static SET_BEEP_START_ADDR = 51;
+      static SET_BEEP_END_ADDR = 52;
+      static VIBRATE_START_ADDR = 53;
+      static VIBRATE_END_ADDR = 54;
 
       constructor() {
         super("Basic Test");
@@ -1440,6 +1442,24 @@
           0x00, 0x18, 0x00, 0x00,  0x01, 0x80, 0x00, 0x18,  0x00, 0x00, 0x01, 0x80,  0x00, 0x1C, 0x00, 0x00,
           0x7F, 0xFC, 0x00, 0x0E,  0x00, 0x00, 0x3F, 0xF8,  0x00, 0x07, 0xF0, 0x00,  0x00, 0x00, 0x00, 0x01,
           0xE0, 0x00, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00
+        ]);
+      }
+
+      sendBeepStart() {
+        this.resendFn = this.sendBeepStart.bind(this);
+        let hostAddr = getMapleHostAddr(this.currentIdx);
+        let destAddr = hostAddr | (1 << (this.currentPeripheralIdx - 1));
+        send(BasicTestStateMachine.SET_BEEP_START_ADDR, '0'.charCodeAt(0), [
+          0x0E, destAddr, hostAddr, 0x02, 0x00, 0x00, 0x00, 0x08, 0xC0, 0x80, 0x00, 0x00
+        ]);
+      }
+
+      sendBeepEnd() {
+        this.resendFn = this.sendBeepEnd.bind(this);
+        let hostAddr = getMapleHostAddr(this.currentIdx);
+        let destAddr = hostAddr | (1 << (this.currentPeripheralIdx - 1));
+        send(BasicTestStateMachine.SET_BEEP_END_ADDR, '0'.charCodeAt(0), [
+          0x0E, destAddr, hostAddr, 0x02, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00
         ]);
       }
 
@@ -1515,15 +1535,24 @@
             return;
           }
           this.stop('Basic test failed: maple command failure', 'red', 'bold')
+          return;
         } else {
           this.retries = 0;
-          if (addr == BasicTestStateMachine.SET_SCREEN_ADDR || addr == BasicTestStateMachine.VIBRATE_END_ADDR) {
-            resetSmTimeout(150);
-            this.sendNext();
-          } else if (addr = BasicTestStateMachine.VIBRATE_START_ADDR) {
+          if (addr == BasicTestStateMachine.SET_SCREEN_ADDR) {
+            const DELAY_TIME_MS = 50;
+            this.timeoutId = setTimeout(this.sendBeepStart.bind(this), DELAY_TIME_MS);
+            resetSmTimeout(DELAY_TIME_MS + 150);
+          } else if (addr == BasicTestStateMachine.SET_BEEP_START_ADDR) {
+            const BEEP_TIME_MS = 250;
+            this.timeoutId = setTimeout(this.sendBeepEnd.bind(this), BEEP_TIME_MS);
+            resetSmTimeout(BEEP_TIME_MS + 150);
+          } else if (addr == BasicTestStateMachine.VIBRATE_START_ADDR) {
             const VIBE_TIME_MS = 250;
             this.timeoutId = setTimeout(this.sendVibeEnd.bind(this), VIBE_TIME_MS);
             resetSmTimeout(VIBE_TIME_MS + 150);
+          } else if (addr == BasicTestStateMachine.SET_BEEP_END_ADDR || addr == BasicTestStateMachine.VIBRATE_END_ADDR) {
+            resetSmTimeout(150);
+            this.sendNext();
           }
         }
       }
