@@ -49,6 +49,15 @@
                 <br>
                 <input type="checkbox" id="enable-webusb-announce-check" name="enableWebusbAnnounce" value="0" title="When checked, browser notification will pop up when the device is attached. This notification may be annoying in some browsers." checked>
                 <label for="enable-webusb-announce-check">WebUSB Announcement</label>
+                <br>
+                <br>
+                <label for="dpad-output">D-PAD output: </label>
+                <br>
+                <select id="dpad-output" name="dpad-output" title="Set the output for the D-PAD (must have firmware version 1.2.2 or later)&#10;This is provided because the hat switch enumeration may be problematic on some OSes or applications.">
+                  <option value="0">Hat switch (default)</option>
+                  <option value="1">Button outputs 25-28</option>
+                  <option value="2">Hat switch & buttons</option>
+                </select>
               </td>
               <td>
                 <label for="player1-select">Controller A:</label>
@@ -229,7 +238,7 @@
           &nbsp;&nbsp;&nbsp;&nbsp;
           <button id="tests-basic" class="button black" title="Click to run basic testing for VMU and Puru Puru Packs">Basic Tests</button>
           &nbsp;&nbsp;&nbsp;&nbsp;
-          <button id="tests-stress" class="button black" title="Click to run stress testing for VMU and Puru Puru Packs which will attempt to flood the DreamPicoPort with commands and use as much power the Puru Puru packs will draw">Stress Tests</button>
+          <button id="tests-stress" class="button black" title="Click to run stress testing for VMU and Puru Puru Packs which will attempt to flood the DreamPicoPort with commands and use as much power the Puru Puru packs will draw">Vibration Stress Test</button>
         </div>
         <br>
         <div id="tests-status"></div>

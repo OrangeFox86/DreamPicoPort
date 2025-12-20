@@ -34,6 +34,9 @@ class DreamcastControllerObserver
         typedef controller_condition_t ControllerCondition;
         typedef vmu_timer_condition_t SecondaryControllerCondition;
 
+        //! Enumerates the type of output for D-Pad
+        enum class DpadType { HAT, BUTTONS, BOTH };
+
         //! Sets the current Dreamcast controller condition
         //! @param[in] controllerCondition  The current condition of the Dreamcast controller
         virtual void setControllerCondition(const ControllerCondition& controllerCondition) = 0;
@@ -60,6 +63,10 @@ class DreamcastControllerObserver
 
         //! Force send of data over the HID interface
         virtual void forceSend() = 0;
+
+        //! Sets the type of output for the D-Pad
+        //! @param[in] dpadType the D-Pad output type
+        virtual void setDpadOutput(DpadType dpadType) = 0;
 };
 
 #endif // __DREAMCAST_CONTROLLER_OBSERVER_H__

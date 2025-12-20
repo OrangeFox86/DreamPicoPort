@@ -61,10 +61,13 @@ struct SettingsMemory
     uint8_t gpioDirOutputHigh[4];
     int32_t usbLedGpio;
     int32_t simpleUsbLedGpio;
+    uint8_t dpadType;
+    uint8_t unusedPad[3]; // unused for now, but can be used in the future
 };
 
 static const uint16_t kSettingsMemorySizeBytes = (sizeof(SettingsMemory) - offsetof(SettingsMemory, crc));
 static const uint16_t kSettingsMemorySizeWords = (kSettingsMemorySizeBytes / 4);
+static const uint16_t kMinimumSettingsMemorySizeWords = 14;
 
 static_assert(sizeof(SettingsMemory) < FLASH_PAGE_SIZE, "Incorrect size");
 static_assert(kSettingsMemorySizeBytes % 4 == 0, "Incorrect size");
@@ -101,7 +104,7 @@ std::optional<DppSettings> DppSettings::readSettingsAtAddr(uint32_t flashAddrOff
     if (
         settingsMemory->magic != kMagic ||
         ((settingsMemory->size ^ settingsMemory->invSize) != 0xFFFF) ||
-        (settingsMemory->size < kSettingsMemorySizeWords) ||
+        (settingsMemory->size < kMinimumSettingsMemorySizeWords) ||
         (calc_crc32(&settingsMemory->crc, settingsMemory->size) != 0)
     ){
         // Data in flash is invalid
@@ -121,6 +124,12 @@ std::optional<DppSettings> DppSettings::readSettingsAtAddr(uint32_t flashAddrOff
         settings.gpioA[i] = settingsMemory->gpioA[i];
         settings.gpioDir[i] = settingsMemory->gpioDir[i];
         settings.gpioDirOutputHigh[i] = settingsMemory->gpioDirOutputHigh[i];
+    }
+
+    if (settingsMemory->size >= 15)
+    {
+        // Added in version 1.2.2
+        settings.dpadType = static_cast<DppSettings::DpadType>(settingsMemory->dpadType);
     }
 
     return settings;
@@ -282,6 +291,7 @@ void DppSettings::save(uint32_t delayMs) const
         mem.gpioDir[i] = gpioDir[i];
         mem.gpioDirOutputHigh[i] = gpioDirOutputHigh[i];
     }
+    mem.dpadType = static_cast<uint8_t>(dpadType);
     mem.crc = calc_crc32(&mem.crc + 1, mem.size - 1);
     save_settings_memory(sSettingsOffsetAddr, mem, delayMs);
 }

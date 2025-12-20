@@ -25,6 +25,7 @@
     let saveButton = document.querySelector('#save');
     let mscCheckbox = document.querySelector('#enable-msc-check');
     let enableWebusbAnnounceCheck = document.querySelector('#enable-webusb-announce-check');
+    let dpadOutputTypeDropdown = document.querySelector('#dpad-output');
     let player1 = document.querySelector('#player1-select');
     let player2 = document.querySelector('#player2-select');
     let player3 = document.querySelector('#player3-select');
@@ -300,11 +301,14 @@
 
     // Set the settings on the form from a payload which is known to contain settings
     // payload: bytestream retrieved from the device
-    // Returns true iff the payload contained enough data to parse
+    // Returns -1 if payload length is not at least 51 bytes in length
+    // Returns number of missing settings otherwise (0 or more)
     function setSettingsFromPayload(payload) {
-      if (payload.length < 38) {
-        return false;
+      if (payload.length < 51) {
+        return -1;
       }
+
+      let numMissing = 0;
 
       // Retrieved settings
       mscCheckbox.checked = (payload[1] !== 0);
@@ -402,7 +406,17 @@
         gpioSimpleLedText.value = "";
       }
 
-      return true;
+      if (payload.length >= 52) {
+        const dpadType = payload[51];
+        dpadOutputTypeDropdown.value = dpadType;
+        dpadOutputTypeDropdown.disabled = false;
+      } else {
+        dpadOutputTypeDropdown.value = 0;
+        dpadOutputTypeDropdown.disabled = true;
+        ++numMissing;
+      }
+
+      return numMissing;
     }
 
     // Starts the state machine which loads the settings from the device
@@ -417,12 +431,28 @@
         selectedDeviceText += `, ${deviceVersion}`;
       }
 
-      // TODO: make this automatic
-      if (selectedPort.major < 1 || selectedPort.minor < 2 || selectedPort.patch < 1) {
-        versionUpdateDisplay.innerHTML = "<a href='https://github.com/OrangeFox86/DreamPicoPort/releases/tag/v1.2.1'>New version of firmware available</a>";
-      } else {
-        versionUpdateDisplay.innerHTML = "";
-      }
+      // Check for latest version
+      getLatestReleaseTag().then(tagName => {
+        if (tagName == null) {
+          console.error("Failed to retrieve latest release tag name from github");
+        } else {
+          console.log(`tag name: ${tagName}`);
+          const versionStr = tagName.startsWith('v') ? tagName.slice(1) : tagName;
+          const parts = versionStr.split('.');
+          if (parts.length !== 3) {
+            console.error(`Invalid version format: ${tagName}`);
+          } else {
+            const major = parseInt(parts[0], 10);
+            const minor = parseInt(parts[1], 10);
+            const patch = parseInt(parts[2], 10);
+            if (major > selectedPort.major || (major === selectedPort.major && minor > selectedPort.minor) || (major === selectedPort.major && minor === selectedPort.minor && patch > selectedPort.patch)) {
+              versionUpdateDisplay.innerHTML = `<a href='https://github.com/OrangeFox86/DreamPicoPort/releases/tag/${tagName}'>New version of firmware ${versionStr} available</a>`;
+            } else {
+              versionUpdateDisplay.innerHTML = "";
+            }
+          }
+        }
+      });
 
       selectedDevice.textContent = selectedDeviceText;
       enableAllControls();
@@ -753,6 +783,32 @@
       return [view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3)];
     }
 
+    // Retrieve the latest release tag from github
+    async function getLatestReleaseTag() {
+      const url = "https://api.github.com/repos/OrangeFox86/DreamPicoPort/releases/latest"
+
+      try {
+        const response = await fetch(url, {
+          headers: {
+            // A specific API version can be specified, though often not required for basic requests
+            'Accept': 'application/vnd.github+json',
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`GitHub API responded with status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        // The 'tag_name' field contains the release tag (e.g., "v1.0.0")
+        return data.tag_name;
+
+      } catch (error) {
+        console.error("Error fetching the latest release tag:", error);
+        return null;
+      }
+    }
+
     // *************************************************************************
     // Start State Machine Definitions
     // *************************************************************************
@@ -801,10 +857,17 @@
 
       process(addr, cmd, payload) {
         if (addr == LoadStateMachine.GET_SETTINGS_ADDR) {
-          if (cmd == CMD_OK && setSettingsFromPayload(payload)) {
-            // Retrieved settings
-            this.stop('Settings loaded');
-            return;
+          if (cmd == CMD_OK) {
+            const numMissing = setSettingsFromPayload(payload);
+            if (numMissing == 0) {
+              // Retrieved settings
+              this.stop('Settings loaded');
+              return;
+            } else {
+              // Retrieved settings, but some settings are missing
+              this.stop('Settings loaded - some settings not available (firmware update required)');
+              return;
+            }
           }
         }
         this.stop('Failed to load settings', 'red', 'bold')
@@ -819,8 +882,9 @@
       static SEND_CONTROLLER_B_ADDR = 13;
       static SEND_CONTROLLER_C_ADDR = 14;
       static SEND_CONTROLLER_D_ADDR = 15;
-      static SEND_VALIDATE_ADDR = 16;
-      static SEND_SAVE_AND_RESTART_ADDR = 17;
+      static SEND_DPAD_TYPE_ADDR = 16;
+      static SEND_VALIDATE_ADDR = 17;
+      static SEND_SAVE_AND_RESTART_ADDR = 18;
 
       constructor() {
         super("Save");
@@ -874,6 +938,17 @@
             this.stop('Failed to set controller C setting', 'red', 'bold');
           }
         } else if (addr == SaveStateMachine.SEND_CONTROLLER_D_ADDR) {
+          if (cmd == CMD_OK) {
+            if (!dpadOutputTypeDropdown.disabled) {
+              send(SaveStateMachine.SEND_DPAD_TYPE_ADDR, 'S'.charCodeAt(0), [100, dpadOutputTypeDropdown.value]);
+            } else {
+              // D-PAD cannot be set, skip to validation
+              send(SaveStateMachine.SEND_VALIDATE_ADDR, 'S'.charCodeAt(0), [115]);
+            }
+          } else {
+            this.stop('Failed to set controller D setting', 'red', 'bold');
+          }
+        } else if (addr == SaveStateMachine.SEND_DPAD_TYPE_ADDR) {
           if (cmd == CMD_OK) {
             send(SaveStateMachine.SEND_VALIDATE_ADDR, 'S'.charCodeAt(0), [115]);
           } else {
@@ -1404,8 +1479,10 @@
     class BasicTestStateMachine extends ProfilingStateMachine {
       static START_ADDR = 50;
       static SET_SCREEN_ADDR = BasicTestStateMachine.START_ADDR;
-      static VIBRATE_START_ADDR = 51;
-      static VIBRATE_END_ADDR = 52;
+      static SET_BEEP_START_ADDR = 51;
+      static SET_BEEP_END_ADDR = 52;
+      static VIBRATE_START_ADDR = 53;
+      static VIBRATE_END_ADDR = 54;
 
       constructor() {
         super("Basic Test");
@@ -1440,6 +1517,24 @@
           0x00, 0x18, 0x00, 0x00,  0x01, 0x80, 0x00, 0x18,  0x00, 0x00, 0x01, 0x80,  0x00, 0x1C, 0x00, 0x00,
           0x7F, 0xFC, 0x00, 0x0E,  0x00, 0x00, 0x3F, 0xF8,  0x00, 0x07, 0xF0, 0x00,  0x00, 0x00, 0x00, 0x01,
           0xE0, 0x00, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00
+        ]);
+      }
+
+      sendBeepStart() {
+        this.resendFn = this.sendBeepStart.bind(this);
+        let hostAddr = getMapleHostAddr(this.currentIdx);
+        let destAddr = hostAddr | (1 << (this.currentPeripheralIdx - 1));
+        send(BasicTestStateMachine.SET_BEEP_START_ADDR, '0'.charCodeAt(0), [
+          0x0E, destAddr, hostAddr, 0x02, 0x00, 0x00, 0x00, 0x08, 0xC0, 0x80, 0x00, 0x00
+        ]);
+      }
+
+      sendBeepEnd() {
+        this.resendFn = this.sendBeepEnd.bind(this);
+        let hostAddr = getMapleHostAddr(this.currentIdx);
+        let destAddr = hostAddr | (1 << (this.currentPeripheralIdx - 1));
+        send(BasicTestStateMachine.SET_BEEP_END_ADDR, '0'.charCodeAt(0), [
+          0x0E, destAddr, hostAddr, 0x02, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00
         ]);
       }
 
@@ -1515,15 +1610,24 @@
             return;
           }
           this.stop('Basic test failed: maple command failure', 'red', 'bold')
+          return;
         } else {
           this.retries = 0;
-          if (addr == BasicTestStateMachine.SET_SCREEN_ADDR || addr == BasicTestStateMachine.VIBRATE_END_ADDR) {
-            resetSmTimeout(150);
-            this.sendNext();
-          } else if (addr = BasicTestStateMachine.VIBRATE_START_ADDR) {
+          if (addr == BasicTestStateMachine.SET_SCREEN_ADDR) {
+            const DELAY_TIME_MS = 50;
+            this.timeoutId = setTimeout(this.sendBeepStart.bind(this), DELAY_TIME_MS);
+            resetSmTimeout(DELAY_TIME_MS + 150);
+          } else if (addr == BasicTestStateMachine.SET_BEEP_START_ADDR) {
+            const BEEP_TIME_MS = 250;
+            this.timeoutId = setTimeout(this.sendBeepEnd.bind(this), BEEP_TIME_MS);
+            resetSmTimeout(BEEP_TIME_MS + 150);
+          } else if (addr == BasicTestStateMachine.VIBRATE_START_ADDR) {
             const VIBE_TIME_MS = 250;
             this.timeoutId = setTimeout(this.sendVibeEnd.bind(this), VIBE_TIME_MS);
             resetSmTimeout(VIBE_TIME_MS + 150);
+          } else if (addr == BasicTestStateMachine.SET_BEEP_END_ADDR || addr == BasicTestStateMachine.VIBRATE_END_ADDR) {
+            resetSmTimeout(150);
+            this.sendNext();
           }
         }
       }
@@ -1746,7 +1850,7 @@
           }
         } else if (addr == WriteGpioStateMachine.SEND_SAVE_AND_RESTART_ADDR) {
           if (cmd == CMD_OK) {
-            if (setSettingsFromPayload(payload))
+            if (setSettingsFromPayload(payload) >= 0)
             {
               this.stop('GPIO settings saved with adjustments due to overlapping GPIO - please review changes', 'orange', 'bold')
             }

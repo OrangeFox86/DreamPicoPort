@@ -162,6 +162,26 @@ int main()
         }
     }
 
+    // Convert DppSettings DpadType to DreamcastControllerObserver DpadType
+    DreamcastControllerObserver::DpadType dpadType = DreamcastControllerObserver::DpadType::HAT;
+    switch(currentDppSettings.dpadType)
+    {
+        case DppSettings::DpadType::kButtons:
+            dpadType = DreamcastControllerObserver::DpadType::BUTTONS;
+            break;
+
+        case DppSettings::DpadType::kBoth:
+            dpadType = DreamcastControllerObserver::DpadType::BOTH;
+            break;
+
+        case DppSettings::DpadType::kHat:
+        default:
+            dpadType = DreamcastControllerObserver::DpadType::HAT;
+            break;
+    }
+
+    set_controller_dpad_type(dpadType);
+
     dcNodes = setup_dreamcast_nodes(playerDefs);
 
     maple_detect_init(dcNodes);

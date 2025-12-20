@@ -54,6 +54,15 @@ struct DppSettings
         kNumPlayerDetectionModes
     };
 
+    //! Enumerates D-Pad output types
+    enum class DpadType : std::uint8_t {
+        kHat = 0,  //!< Output to hat switch
+        kButtons,  //!< Output to discrete buttons
+        kBoth,     //!< Output to both hat switch and discrete buttons
+
+        kNumDpadTypes //!< A count of number of DpadTypes
+    };
+
     //! USB CDC enabled flag (default: true)
     bool cdcEn = true;
     //! USB MSC enabled flag (default: false)
@@ -99,6 +108,8 @@ struct DppSettings
     //! LED GPIO number for simple USB activity or -1 to disable
     //! ON when USB connected; OFF when disconnected
     int32_t simpleUsbLedGpio = SIMPLE_USB_LED_PIN;
+    //! The D-Pad output type
+    DpadType dpadType = DpadType::kHat;
 
     //! Initializes and loads settings
     //! @pre must be called before interrupts or core 1 is started

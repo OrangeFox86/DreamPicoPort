@@ -38,32 +38,38 @@ class UsbGamepadDreamcastControllerObserver : public DreamcastControllerObserver
 
         //! Sets the current Dreamcast controller condition
         //! @param[in] controllerCondition  The current condition of the Dreamcast controller
-        virtual void setControllerCondition(const ControllerCondition& controllerCondition) final;
+        void setControllerCondition(const ControllerCondition& controllerCondition) override final;
 
         //! Sets the current Dreamcast secondary controller condition
-        //! @param[in] secondaryControllerCondition  The current secondary condition of the
-        //!                                          Dreamcast controller
-        virtual void setSecondaryControllerCondition(
-            const SecondaryControllerCondition& secondaryControllerCondition) final;
+        //! @param[in] secondaryControllerCondition  The current secondary condition of the Dreamcast controller
+        void setSecondaryControllerCondition(
+            const SecondaryControllerCondition& secondaryControllerCondition
+        ) override final;
 
-        virtual void setChangeCondition(bool changeSignal) override final;
+        void setChangeCondition(bool changeSignal) override final;
 
         //! Called when controller connected
-        virtual void controllerConnected() final;
+        void controllerConnected() final;
 
         //! Called when controller disconnected
-        virtual void controllerDisconnected() final;
+        void controllerDisconnected() final;
 
         //! Set the instance ID for sending report
         //! @param[in] instance The instance ID
-        virtual void setInstanceId(uint8_t instance) override final;
+        void setInstanceId(uint8_t instance) override final;
 
         //! Force send of data over the HID interface
-        virtual void forceSend() override final;
+        void forceSend() override final;
+
+        //! Sets the type of output for the D-Pad
+        //! @param[in] dpadType the D-Pad output type
+        void setDpadOutput(DpadType dpadType) override final;
 
     private:
         //! The USB controller I update
         UsbGamepad& mUsbController;
+        //! The type of output for the D-Pad
+        DpadType mDpadType;
 };
 
 #endif // __USB_CONTROLLER_DREAMCAST_CONTROLLER_OBSERVER_H__
