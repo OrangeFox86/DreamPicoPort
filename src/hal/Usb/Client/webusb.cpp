@@ -23,6 +23,7 @@
 
 #include "webusb.hpp"
 #include "tusb.h"
+#include "tusb_config.h"
 #include "usb_descriptors.h"
 #include "hal/System/LockGuard.hpp"
 
@@ -66,9 +67,12 @@ public:
 
     WebUsbInterface(uint8_t itf) : mItf(itf) {}
 
-    void signalReset()
+    void syncReset()
     {
-        mResetSignaled = true;
+        LockGuard lock(*webusb_mutex);
+        reset();
+        mIncomingBuffer.clear();
+        mIncomingBuffer.shrink_to_fit();
     }
 
     void reset()
@@ -110,14 +114,6 @@ public:
 
         {
             LockGuard lock(*webusb_mutex);
-
-            if (mResetSignaled.exchange(false))
-            {
-                reset();
-                mIncomingBuffer.clear();
-                mIncomingBuffer.shrink_to_fit();
-                return;
-            }
 
             if (!mIncomingBuffer.empty())
             {
@@ -436,9 +432,6 @@ private:
     //! The USB vendor interface number
     const uint8_t mItf;
 
-    //! Set when reset is signaled by connection event, to be processed later
-    std::atomic<bool> mResetSignaled = false;
-
     //! Current receive index
     std::int32_t mRcvIdx = -kSizeMagic;
 
@@ -476,7 +469,9 @@ void webusb_connection_event(uint16_t interfaceNumber, uint16_t value)
     if (index < webusb_interfaces.size() && value < 2)
     {
         // Connected or disconnected. In either case, reset state.
-        webusb_interfaces[index].signalReset();
+        webusb_interfaces[index].syncReset();
+        // Also clear out the write buffer of anything waiting to be sent
+        tud_vendor_n_write_clear(index);
     }
 }
 
