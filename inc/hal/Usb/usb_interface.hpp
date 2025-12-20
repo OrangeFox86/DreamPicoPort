@@ -34,6 +34,9 @@ static const uint32_t WATCHDOG_SETTINGS_USB_REBOOT = 0x4660DFDA;
 
 //! @returns array of the USB controller observers
 DreamcastControllerObserver** get_usb_controller_observers();
+//! Sets the D-Pad output type for the controller
+//! @param[in] dpadType the D-Pad type to set
+void set_controller_dpad_type(DreamcastControllerObserver::DpadType dpadType);
 //! USB initialization
 void usb_init(
   MutexInterface* mscMutex,

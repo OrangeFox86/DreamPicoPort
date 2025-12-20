@@ -93,7 +93,9 @@ void SettingsWebUsbCommandHandler::process(
         return;
     }
 
-    switch(*iter)
+    const char cmd = *iter++;
+    const std::size_t numPayload = (eol - iter);
+    switch(cmd)
     {
         // Get all loaded settings
         case 'G':
@@ -114,8 +116,7 @@ void SettingsWebUsbCommandHandler::process(
         // Set USB CDC enabled flag
         case 'C':
         {
-            ++iter;
-            if (iter >= eol)
+            if (numPayload < 1)
             {
                 std::uint8_t payload = 0;
                 responseFn(kResponseFailure, {{&payload, 1}});
@@ -130,8 +131,7 @@ void SettingsWebUsbCommandHandler::process(
         // Set USB MSC enabled flag
         case 'M':
         {
-            ++iter;
-            if (iter >= eol)
+            if (numPayload < 1)
             {
                 std::uint8_t payload = 0;
                 responseFn(kResponseFailure, {{&payload, 1}});
@@ -146,8 +146,7 @@ void SettingsWebUsbCommandHandler::process(
         // Set WebUSB announcement flag
         case 'W':
         {
-            ++iter;
-            if (iter >= eol)
+            if (numPayload < 1)
             {
                 std::uint8_t payload = 0;
                 responseFn(kResponseFailure, {{&payload, 1}});
@@ -162,8 +161,7 @@ void SettingsWebUsbCommandHandler::process(
         // Player detection mode: P[0-3][PlayerDetectionMode (1 byte)]
         case 'P':
         {
-            ++iter;
-            if (eol - iter < 2)
+            if (numPayload < 2)
             {
                 std::uint8_t payload = 0;
                 responseFn(kResponseFailure, {{&payload, 1}});
@@ -198,8 +196,7 @@ void SettingsWebUsbCommandHandler::process(
         // Player I/O settings: I[0-3][GPIO A (4 byte)][GPIO DIR (4 byte)][DIR Output HIGH (1 byte)]
         case 'I':
         {
-            ++iter;
-            if (eol - iter < 10)
+            if (numPayload < 10)
             {
                 std::uint8_t payload = 0;
                 responseFn(kResponseFailure, {{&payload, 1}});
@@ -246,8 +243,7 @@ void SettingsWebUsbCommandHandler::process(
         // LED setting L[LED Pin (4 byte)]
         case 'L':
         {
-            ++iter;
-            if (eol - iter < 4)
+            if (numPayload < 4)
             {
                 std::uint8_t payload = 0;
                 responseFn(kResponseFailure, {{&payload, 1}});
@@ -272,8 +268,7 @@ void SettingsWebUsbCommandHandler::process(
         // Simple LED setting l[LED Pin (4 byte)]
         case 'l':
         {
-            ++iter;
-            if (eol - iter < 4)
+            if (numPayload < 4)
             {
                 std::uint8_t payload = 0;
                 responseFn(kResponseFailure, {{&payload, 1}});
@@ -291,6 +286,27 @@ void SettingsWebUsbCommandHandler::process(
             }
 
             mSettings.simpleUsbLedGpio = simpleUsbLedGpio;
+            responseFn(kResponseSuccess, {});
+        }
+        return;
+
+        // Set DPad output d[setting (1 byte)]
+        case 'd':
+        {
+            if (numPayload < 1)
+            {
+                std::uint8_t payload = 0;
+                responseFn(kResponseFailure, {{&payload, 1}});
+                return;
+            }
+            else if (*iter >= static_cast<std::uint8_t>(DppSettings::DpadType::kNumDpadTypes))
+            {
+                std::uint8_t payload = 1;
+                responseFn(kResponseFailure, {{&payload, 1}});
+                return;
+            }
+
+            mSettings.dpadType = static_cast<DppSettings::DpadType>(*iter);
             responseFn(kResponseSuccess, {});
         }
         return;

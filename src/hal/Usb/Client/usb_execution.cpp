@@ -79,6 +79,14 @@ DreamcastControllerObserver** get_usb_controller_observers()
   return observers;
 }
 
+void set_controller_dpad_type(DreamcastControllerObserver::DpadType dpadType)
+{
+  for (int i = 0; i < MAX_NUMBER_OF_USB_GAMEPADS; ++i)
+  {
+    usbGamepadDreamcastControllerObservers[i].setDpadOutput(dpadType);
+  }
+}
+
 std::vector<uint8_t> get_controller_state(uint8_t idx)
 {
   std::vector<uint8_t> report;

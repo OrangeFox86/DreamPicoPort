@@ -24,7 +24,8 @@
 #include "UsbGamepadDreamcastControllerObserver.hpp"
 
 UsbGamepadDreamcastControllerObserver::UsbGamepadDreamcastControllerObserver(UsbGamepad& usbController) :
-    mUsbController(usbController)
+    mUsbController(usbController),
+    mDpadType(DpadType::HAT)
 {}
 
 void UsbGamepadDreamcastControllerObserver::setControllerCondition(const ControllerCondition& controllerCondition)
@@ -44,10 +45,51 @@ void UsbGamepadDreamcastControllerObserver::setControllerCondition(const Control
     mUsbController.setButton(UsbGamepad::GAMEPAD_BUTTON_TR2, 0 == controllerCondition.upb);
     mUsbController.setButton(UsbGamepad::GAMEPAD_BUTTON_SELECT, 0 == controllerCondition.d);
 
-    mUsbController.setDigitalPad(UsbGamepad::DPAD_UP, 0 == controllerCondition.up);
-    mUsbController.setDigitalPad(UsbGamepad::DPAD_DOWN, 0 == controllerCondition.down);
-    mUsbController.setDigitalPad(UsbGamepad::DPAD_LEFT, 0 == controllerCondition.left);
-    mUsbController.setDigitalPad(UsbGamepad::DPAD_RIGHT, 0 == controllerCondition.right);
+    switch (mDpadType)
+    {
+        case DpadType::BUTTONS:
+        {
+            mUsbController.setDigitalPad(UsbGamepad::DPAD_UP, false);
+            mUsbController.setDigitalPad(UsbGamepad::DPAD_DOWN, false);
+            mUsbController.setDigitalPad(UsbGamepad::DPAD_LEFT, false);
+            mUsbController.setDigitalPad(UsbGamepad::DPAD_RIGHT, false);
+
+            mUsbController.setButton(UsbGamepad::BUTTON24, 0 == controllerCondition.up);
+            mUsbController.setButton(UsbGamepad::BUTTON25, 0 == controllerCondition.down);
+            mUsbController.setButton(UsbGamepad::BUTTON26, 0 == controllerCondition.left);
+            mUsbController.setButton(UsbGamepad::BUTTON27, 0 == controllerCondition.right);
+        }
+        break;
+
+        case DpadType::BOTH:
+        {
+            mUsbController.setDigitalPad(UsbGamepad::DPAD_UP, 0 == controllerCondition.up);
+            mUsbController.setDigitalPad(UsbGamepad::DPAD_DOWN, 0 == controllerCondition.down);
+            mUsbController.setDigitalPad(UsbGamepad::DPAD_LEFT, 0 == controllerCondition.left);
+            mUsbController.setDigitalPad(UsbGamepad::DPAD_RIGHT, 0 == controllerCondition.right);
+
+            mUsbController.setButton(UsbGamepad::BUTTON24, 0 == controllerCondition.up);
+            mUsbController.setButton(UsbGamepad::BUTTON25, 0 == controllerCondition.down);
+            mUsbController.setButton(UsbGamepad::BUTTON26, 0 == controllerCondition.left);
+            mUsbController.setButton(UsbGamepad::BUTTON27, 0 == controllerCondition.right);
+        }
+        break;
+
+        case DpadType::HAT: // Fall through
+        default:
+        {
+            mUsbController.setDigitalPad(UsbGamepad::DPAD_UP, 0 == controllerCondition.up);
+            mUsbController.setDigitalPad(UsbGamepad::DPAD_DOWN, 0 == controllerCondition.down);
+            mUsbController.setDigitalPad(UsbGamepad::DPAD_LEFT, 0 == controllerCondition.left);
+            mUsbController.setDigitalPad(UsbGamepad::DPAD_RIGHT, 0 == controllerCondition.right);
+
+            mUsbController.setButton(UsbGamepad::BUTTON24, false);
+            mUsbController.setButton(UsbGamepad::BUTTON25, false);
+            mUsbController.setButton(UsbGamepad::BUTTON26, false);
+            mUsbController.setButton(UsbGamepad::BUTTON27, false);
+        }
+        break;
+    }
 
     mUsbController.setAnalogTrigger(true, static_cast<int32_t>(controllerCondition.l) - 128);
     mUsbController.setAnalogTrigger(false, static_cast<int32_t>(controllerCondition.r) - 128);
@@ -100,4 +142,9 @@ void UsbGamepadDreamcastControllerObserver::setInstanceId(uint8_t instance)
 void UsbGamepadDreamcastControllerObserver::forceSend()
 {
     mUsbController.send(true);
+}
+
+void UsbGamepadDreamcastControllerObserver::setDpadOutput(DpadType dpadType)
+{
+    mDpadType = dpadType;
 }
