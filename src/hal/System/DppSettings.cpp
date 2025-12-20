@@ -111,7 +111,7 @@ std::optional<DppSettings> DppSettings::readSettingsAtAddr(uint32_t flashAddrOff
         return std::nullopt;
     }
 
-    DppSettings settings{};
+    DppSettings settings;
     settings.cdcEn = ((settingsMemory->usbEn & kUsbEnableCdcMask) > 0);
     settings.mscEn = ((settingsMemory->usbEn & kUsbEnableMscMask) > 0);
     settings.webUsbAnnounceEn = ((settingsMemory->usbEn & kUsbEnableWebusbAnnounceMask) > 0);
