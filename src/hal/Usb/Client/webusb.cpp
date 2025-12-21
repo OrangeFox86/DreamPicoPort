@@ -23,8 +23,10 @@
 
 #include "webusb.hpp"
 #include "tusb.h"
+#include "tusb_config.h"
 #include "usb_descriptors.h"
 #include "hal/System/LockGuard.hpp"
+#include "utils.h"
 
 #include <string>
 #include <cstdint>
@@ -33,6 +35,7 @@
 #include <array>
 #include <vector>
 #include <atomic>
+#include <algorithm>
 
 // Packet format (big endian order):
 // Magic Bytes [4] | Size [2] | Inverse Size [2] | Return Address [1-9] | Command [1] | Payload [0-N] | CRC [2]
@@ -66,9 +69,48 @@ public:
 
     WebUsbInterface(uint8_t itf) : mItf(itf) {}
 
-    void signalReset()
+    void externalReset(bool sendZeros = false, bool sendNullPkt = false)
     {
-        mResetSignaled = true;
+        LockGuard lock(*webusb_mutex);
+        reset();
+        mIncomingBuffer.clear();
+        mIncomingBuffer.shrink_to_fit();
+
+        if (sendZeros && mLastSendSize >= 0)
+        {
+            // Write a bunch of zeros to ensure the last command gets pushed through if it got stuck
+            std::uint32_t writeSize = std::max(static_cast<uint32_t>(mLastSendSize), static_cast<uint32_t>(256U));
+            mLastSendSize = -1;
+            uint8_t buff[512] = {};
+            while (writeSize > 0)
+            {
+                std::uint32_t s = std::min(static_cast<std::uint32_t>(sizeof(buff)), writeSize);
+                vendorWrite(mItf, buff, s, false);
+                writeSize -= s;
+            }
+            // to ensure crc gets processed too
+            vendorWrite(mItf, buff, 16, true);
+        }
+
+        if (sendNullPkt)
+        {
+            // Send command 0 with max address
+            // This helps synchronize the beginning of the stream
+            std::string maxAddr(9, static_cast<char>(0xFF));
+            sendPkt(maxAddr, 0, {});
+        }
+    }
+
+    void connect(bool sendZeros, bool sendNullPkt)
+    {
+        externalReset(sendZeros, sendNullPkt);
+    }
+
+    void disconnect()
+    {
+        externalReset();
+        // Proper disconnection means last send size no longer needs to be tracked
+        mLastSendSize = -1;
     }
 
     void reset()
@@ -110,14 +152,6 @@ public:
 
         {
             LockGuard lock(*webusb_mutex);
-
-            if (mResetSignaled.exchange(false))
-            {
-                reset();
-                mIncomingBuffer.clear();
-                mIncomingBuffer.shrink_to_fit();
-                return;
-            }
 
             if (!mIncomingBuffer.empty())
             {
@@ -251,21 +285,20 @@ private:
         std::unordered_map<std::uint8_t, std::shared_ptr<WebUsbCommandHandler>>::iterator iter = mParsers.find(cmd);
         if (iter != mParsers.end() && iter->second)
         {
-            const uint8_t itf = mItf;
             iter->second->process(
                 payload,
                 payloadLen,
-                [itf = itf, address = address]
+                [this, address = address]
                 (std::uint8_t responseCmd, const std::list<std::pair<const void*, std::uint16_t>>& payloadList) -> void
                 {
-                    sendPkt(itf, address, responseCmd, payloadList);
+                    sendPkt(address, responseCmd, payloadList);
                 }
             );
         }
         else
         {
             // Unsupported command
-            sendPkt(mItf, address, kCmdBadCmd, {{&cmd, sizeof(cmd)}});
+            sendPkt(address, kCmdBadCmd, {{&cmd, sizeof(cmd)}});
         }
     }
 
@@ -307,8 +340,7 @@ private:
         return totalWritten;
     }
 
-    static void sendPkt(
-        const uint8_t itfIdx,
+    void sendPkt(
         const std::string& address,
         const uint8_t cmd,
         const std::list<std::pair<const void*, std::uint16_t>>& payloadList
@@ -342,7 +374,9 @@ private:
         {
             LockGuard lock(*webusb_mutex);
 
-            if (vendorWrite(itfIdx, header, headerSize) != headerSize)
+            mLastSendSize = pktSize;
+
+            if (vendorWrite(mItf, header, headerSize) != headerSize)
             {
                 // Failed to write
                 return;
@@ -350,14 +384,14 @@ private:
 
             for (const auto& it : payloadList)
             {
-                if (vendorWrite(itfIdx, it.first, it.second) != it.second)
+                if (vendorWrite(mItf, it.first, it.second) != it.second)
                 {
                     // Failed to write
                     return;
                 }
             }
 
-            if (vendorWrite(itfIdx, crcBuffer, sizeof(crcBuffer), true) != sizeof(crcBuffer))
+            if (vendorWrite(mItf, crcBuffer, sizeof(crcBuffer), true) != sizeof(crcBuffer))
             {
                 // Failed to write
                 return;
@@ -436,9 +470,6 @@ private:
     //! The USB vendor interface number
     const uint8_t mItf;
 
-    //! Set when reset is signaled by connection event, to be processed later
-    std::atomic<bool> mResetSignaled = false;
-
     //! Current receive index
     std::int32_t mRcvIdx = -kSizeMagic;
 
@@ -453,6 +484,9 @@ private:
 
     //! Current receive buffer
     std::vector<std::uint8_t> mBuffer = std::vector<std::uint8_t>();
+
+    //! Last send packet size or -1 if none
+    std::int32_t mLastSendSize = -1;
 };
 
 // definition of mParsers
@@ -473,10 +507,25 @@ void webusb_connection_event(uint16_t interfaceNumber, uint16_t value)
 {
     // Called from USB core (core 0)
     uint8_t index = ITF_TO_WEBUSB_IDX(interfaceNumber);
-    if (index < webusb_interfaces.size() && value < 2)
+    if (index < webusb_interfaces.size() && value < 4)
     {
-        // Connected or disconnected. In either case, reset state.
-        webusb_interfaces[index].signalReset();
+        // value
+        // 0: Disconnect
+        // 1: Connect and send zeros to shift out last command
+        // 2: Connect and send null command
+        // 3: Connect only
+
+        // Connected or disconnected. In either case, clear write buffer.
+        tud_vendor_n_write_clear(index);
+
+        if (value != 0)
+        {
+            webusb_interfaces[index].connect(value == 1, value == 2);
+        }
+        else
+        {
+            webusb_interfaces[index].disconnect();
+        }
     }
 }
 

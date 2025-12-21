@@ -35,6 +35,7 @@ var serial = {};
       // 2048 is about twice as much as actually required
       this.device_.transferIn(this.endpointIn, 2048).then(result => {
         if (result.data && result.data.byteLength > 0) {
+          // console.info(`[${Array.from(new Uint8Array(result.data.buffer)).map(b => '0x' + b.toString(16).padStart(2, '0')).join(', ')}]`);
           this.onReceive(result.data);
         }
         readLoop();

@@ -34,6 +34,7 @@
 #include "MapleWebUsbCommandHandler.hpp"
 #include "FlycastWebUsbCommandHandler.hpp"
 #include "SettingsWebUsbCommandHandler.hpp"
+#include "SystemWebUsbCommandHandler.hpp"
 
 #include "PicoIdentification.hpp"
 #include "CriticalSectionMutex.hpp"
@@ -114,6 +115,9 @@ std::unique_ptr<SerialStreamParser> make_parsers(
             dcNodes
         );
     webusb_add_parser(flycastWebUsbCommandParser);
+    std::shared_ptr<SystemWebUsbCommandHandler> systemWebUsbCommandHandler =
+        std::make_shared<SystemWebUsbCommandHandler>(picoIdentification);
+    webusb_add_parser(systemWebUsbCommandHandler);
     std::shared_ptr<SettingsWebUsbCommandHandler> settingsWebUsbCommandHandler = std::make_shared<SettingsWebUsbCommandHandler>();
     webusb_add_parser(settingsWebUsbCommandHandler);
 

@@ -20,6 +20,7 @@ pico_add_extra_outputs(host)
 target_link_libraries(host
   PRIVATE
     pico_multicore
+    hardware_exception
     hal-MapleBus
     hal-System
     hal-Usb-Client
@@ -50,6 +51,7 @@ if ("${PICO_BOARD}" STREQUAL "pico")
   target_link_libraries(zero_host
     PRIVATE
       pico_multicore
+      hardware_exception
       hal-MapleBus
       hal-System
       hal-Usb-Client

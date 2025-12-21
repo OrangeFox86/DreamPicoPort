@@ -220,14 +220,6 @@
         <div style="text-align: center;">
             <button id="read-vmu" class="button black">Read Selected VMU</button>&nbsp;&nbsp;&nbsp;
             <button id="write-vmu" class="button black">Write Selected VMU</button>
-            <br>
-            <div id="vmu-progress-container" style="width: 60%; margin: 20px auto; display: none;">
-              <progress id="vmu-progress" value="0" max="100" style="width: 100%; height: 24px;"></progress>
-              <span id="vmu-progress-label" style="margin-left: 12px;">0%</span>
-              <br>
-              <br>
-              <button id="vmu-memory-cancel" class="button black">Cancel</button>
-            </div>
         </div>
       </div>
 
@@ -405,6 +397,14 @@
         </div>
       </div>
 
+      <br>
+      <div id="progress-container" style="text-align: center; width: 60%; margin: 20px auto; display: none;">
+        <progress id="progress" value="0" max="100" style="width: 100%; height: 24px;"></progress>
+        <span id="progress-label" style="margin-left: 12px;">0%</span>
+        <br>
+        <br>
+        <button id="cancel-button" class="button black">Cancel</button>
+      </div>
       <br>
       <div id="offline-hint"></div>
     </div>

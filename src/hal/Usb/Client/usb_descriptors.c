@@ -32,6 +32,7 @@
 #include "configuration.h"
 #include "dpp_version.h"
 #include <string.h>
+#include <stdio.h>
 
 #include <hal/Usb/client_usb_interface.h>
 
