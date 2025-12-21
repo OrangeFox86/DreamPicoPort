@@ -507,8 +507,14 @@ void webusb_connection_event(uint16_t interfaceNumber, uint16_t value)
 {
     // Called from USB core (core 0)
     uint8_t index = ITF_TO_WEBUSB_IDX(interfaceNumber);
-    if (index < webusb_interfaces.size() && value < 3)
+    if (index < webusb_interfaces.size() && value < 4)
     {
+        // value
+        // 0: Disconnect
+        // 1: Connect and send zeros to shift out last command
+        // 2: Connect and send null command
+        // 3: Connect only
+
         // Connected or disconnected. In either case, clear write buffer.
         tud_vendor_n_write_clear(index);
 
