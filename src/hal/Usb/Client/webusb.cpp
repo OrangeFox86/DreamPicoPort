@@ -69,15 +69,14 @@ public:
 
     WebUsbInterface(uint8_t itf) : mItf(itf) {}
 
-    std::uint32_t init(bool connect)
+    void externalReset(bool sendZeros = false, bool sendNullPkt = false)
     {
         LockGuard lock(*webusb_mutex);
-        std::uint32_t s = (mRcvIdx > 0 ? mRcvIdx : 0) + mBuffer.size();
         reset();
         mIncomingBuffer.clear();
         mIncomingBuffer.shrink_to_fit();
 
-        if (connect && mLastSendSize >= 0)
+        if (sendZeros && mLastSendSize >= 0)
         {
             // Write a bunch of zeros to ensure the last command gets pushed through if it got stuck
             std::uint32_t writeSize = std::min(static_cast<uint32_t>(mLastSendSize), static_cast<uint32_t>(256U));
@@ -93,7 +92,25 @@ public:
             vendorWrite(mItf, buff, 16, true);
         }
 
-        return s;
+        if (sendNullPkt)
+        {
+            // Send command 0 with max address
+            // This helps synchronize the beginning of the stream
+            std::string maxAddr(9, static_cast<char>(0xFF));
+            sendPkt(maxAddr, 0, {});
+        }
+    }
+
+    void connect(bool sendZeros, bool sendNullPkt)
+    {
+        externalReset(sendZeros, sendNullPkt);
+    }
+
+    void disconnect()
+    {
+        externalReset();
+        // Proper disconnection means last send size no longer needs to be tracked
+        mLastSendSize = -1;
     }
 
     void reset()
@@ -262,65 +279,6 @@ public:
         }
     }
 
-    void sendPkt(
-        const std::string& address,
-        const uint8_t cmd,
-        const std::list<std::pair<const void*, std::uint16_t>>& payloadList
-    )
-    {
-        std::uint16_t payloadLen = 0;
-        for (const auto& it : payloadList)
-        {
-            payloadLen += it.second;
-        }
-
-        const std::uint16_t pktSize = address.size() + kSizeCommand + payloadLen + kSizeCrc;
-        const std::uint16_t invPktSize = pktSize ^ 0xFFFF;
-        std::uint8_t headerSize = static_cast<std::uint8_t>(kSizeMagic + kSizeSize + address.size() + kSizeCommand);
-        std::uint8_t header[headerSize];
-        memcpy(&header[0], k_webusb_magic_value, kSizeMagic);
-        uint16ToBytes(&header[kSizeMagic], pktSize);
-        uint16ToBytes(&header[kSizeMagic + sizeof(pktSize)], invPktSize);
-        memcpy(&header[kSizeMagic + kSizeSize], address.data(), address.size());
-        header[kSizeMagic + kSizeSize + address.size()] = cmd;
-
-        // Calculate CRC over message address, command, and payload (excluding CRC itself)
-        uint16_t crc = computeCrc16(&header[kSizeMagic + kSizeSize], headerSize - (kSizeMagic + kSizeSize));
-        for (const auto& it : payloadList)
-        {
-            crc = computeCrc16(crc, it.first, it.second);
-        }
-        std::uint8_t crcBuffer[kSizeCrc];
-        uint16ToBytes(crcBuffer, crc);
-
-        {
-            LockGuard lock(*webusb_mutex);
-
-            mLastSendSize = pktSize;
-
-            if (vendorWrite(mItf, header, headerSize) != headerSize)
-            {
-                // Failed to write
-                return;
-            }
-
-            for (const auto& it : payloadList)
-            {
-                if (vendorWrite(mItf, it.first, it.second) != it.second)
-                {
-                    // Failed to write
-                    return;
-                }
-            }
-
-            if (vendorWrite(mItf, crcBuffer, sizeof(crcBuffer), true) != sizeof(crcBuffer))
-            {
-                // Failed to write
-                return;
-            }
-        }
-    }
-
 private:
     void processPkt(const std::string& address, const uint8_t cmd, const uint8_t* payload, uint16_t payloadLen)
     {
@@ -380,6 +338,65 @@ private:
         }
 
         return totalWritten;
+    }
+
+    void sendPkt(
+        const std::string& address,
+        const uint8_t cmd,
+        const std::list<std::pair<const void*, std::uint16_t>>& payloadList
+    )
+    {
+        std::uint16_t payloadLen = 0;
+        for (const auto& it : payloadList)
+        {
+            payloadLen += it.second;
+        }
+
+        const std::uint16_t pktSize = address.size() + kSizeCommand + payloadLen + kSizeCrc;
+        const std::uint16_t invPktSize = pktSize ^ 0xFFFF;
+        std::uint8_t headerSize = static_cast<std::uint8_t>(kSizeMagic + kSizeSize + address.size() + kSizeCommand);
+        std::uint8_t header[headerSize];
+        memcpy(&header[0], k_webusb_magic_value, kSizeMagic);
+        uint16ToBytes(&header[kSizeMagic], pktSize);
+        uint16ToBytes(&header[kSizeMagic + sizeof(pktSize)], invPktSize);
+        memcpy(&header[kSizeMagic + kSizeSize], address.data(), address.size());
+        header[kSizeMagic + kSizeSize + address.size()] = cmd;
+
+        // Calculate CRC over message address, command, and payload (excluding CRC itself)
+        uint16_t crc = computeCrc16(&header[kSizeMagic + kSizeSize], headerSize - (kSizeMagic + kSizeSize));
+        for (const auto& it : payloadList)
+        {
+            crc = computeCrc16(crc, it.first, it.second);
+        }
+        std::uint8_t crcBuffer[kSizeCrc];
+        uint16ToBytes(crcBuffer, crc);
+
+        {
+            LockGuard lock(*webusb_mutex);
+
+            mLastSendSize = pktSize;
+
+            if (vendorWrite(mItf, header, headerSize) != headerSize)
+            {
+                // Failed to write
+                return;
+            }
+
+            for (const auto& it : payloadList)
+            {
+                if (vendorWrite(mItf, it.first, it.second) != it.second)
+                {
+                    // Failed to write
+                    return;
+                }
+            }
+
+            if (vendorWrite(mItf, crcBuffer, sizeof(crcBuffer), true) != sizeof(crcBuffer))
+            {
+                // Failed to write
+                return;
+            }
+        }
     }
 
     static std::uint16_t bytesToUint16(const void* payload)
@@ -492,16 +509,16 @@ void webusb_connection_event(uint16_t interfaceNumber, uint16_t value)
     uint8_t index = ITF_TO_WEBUSB_IDX(interfaceNumber);
     if (index < webusb_interfaces.size() && value < 3)
     {
-        // Connected or disconnected. In either case, clear write buffer and reset state.
+        // Connected or disconnected. In either case, clear write buffer.
         tud_vendor_n_write_clear(index);
-        webusb_interfaces[index].init(value != 0);
 
-        if (value == 2)
+        if (value != 0)
         {
-            // Send command 0 with max address
-            // This helps synchronize the beginning of the stream
-            std::string maxAddr(9, static_cast<char>(0xFF));
-            webusb_interfaces[index].sendPkt(maxAddr, 0, {});
+            webusb_interfaces[index].connect(value == 1, value == 2);
+        }
+        else
+        {
+            webusb_interfaces[index].disconnect();
         }
     }
 }
