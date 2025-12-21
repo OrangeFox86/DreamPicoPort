@@ -28,6 +28,7 @@ var serial = {};
     this.major = device.deviceVersionMajor;
     this.minor = device.deviceVersionMinor;
     this.patch = device.deviceVersionSubminor;
+    this.isReady = false;
   };
 
   serial.Port.prototype.connect = function() {
@@ -36,12 +37,23 @@ var serial = {};
       this.device_.transferIn(this.endpointIn, 2048).then(result => {
         if (result.data && result.data.byteLength > 0) {
           // console.info(`[${Array.from(new Uint8Array(result.data.buffer)).map(b => '0x' + b.toString(16).padStart(2, '0')).join(', ')}]`);
-          this.onReceive(result.data);
+
+          // Ignore data until ready
+          if (!this.isReady) {
+            console.warn(`Ignoring ${result.data.byteLength} bytes of data`);
+          } else {
+            this.onReceive(result.data);
+          }
         }
         readLoop();
       }, error => {
         this.onReceiveError(error);
       });
+    };
+
+    let callReady = () => {
+      this.isReady = true;
+      this.ready();
     };
 
     return this.device_.open()
@@ -80,7 +92,7 @@ var serial = {};
             'request': 0x22,
             'value': 0x01,
             'index': this.interfaceNumber}))
-        .then(() => this.ready())
+        .then(() => setTimeout(callReady, 25)) // delay ready call for 25 ms to purge USB input
         .then(() => {
           readLoop();
         });
