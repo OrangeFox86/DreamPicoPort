@@ -26,6 +26,7 @@
 #include "tusb_config.h"
 #include "usb_descriptors.h"
 #include "hal/System/LockGuard.hpp"
+#include "utils.h"
 
 #include <string>
 #include <cstdint>
@@ -67,12 +68,14 @@ public:
 
     WebUsbInterface(uint8_t itf) : mItf(itf) {}
 
-    void syncReset()
+    uint32_t syncReset()
     {
         LockGuard lock(*webusb_mutex);
+        uint32_t s = (mRcvIdx > 0 ? mRcvIdx : 0) + mBuffer.size();
         reset();
         mIncomingBuffer.clear();
         mIncomingBuffer.shrink_to_fit();
+        return s;
     }
 
     void reset()
@@ -241,6 +244,64 @@ public:
         }
     }
 
+    static void sendPkt(
+        const uint8_t itfIdx,
+        const std::string& address,
+        const uint8_t cmd,
+        const std::list<std::pair<const void*, std::uint16_t>>& payloadList
+    )
+    {
+        std::uint16_t payloadLen = 0;
+        for (const auto& it : payloadList)
+        {
+            payloadLen += it.second;
+        }
+
+        const std::uint16_t pktSize = address.size() + kSizeCommand + payloadLen + kSizeCrc;
+        const std::uint16_t invPktSize = pktSize ^ 0xFFFF;
+        std::uint8_t headerSize = static_cast<std::uint8_t>(kSizeMagic + kSizeSize + address.size() + kSizeCommand);
+        std::uint8_t header[headerSize];
+        memcpy(&header[0], k_webusb_magic_value, kSizeMagic);
+        uint16ToBytes(&header[kSizeMagic], pktSize);
+        uint16ToBytes(&header[kSizeMagic + sizeof(pktSize)], invPktSize);
+        memcpy(&header[kSizeMagic + kSizeSize], address.data(), address.size());
+        header[kSizeMagic + kSizeSize + address.size()] = cmd;
+
+        // Calculate CRC over message address, command, and payload (excluding CRC itself)
+        uint16_t crc = computeCrc16(&header[kSizeMagic + kSizeSize], headerSize - (kSizeMagic + kSizeSize));
+        for (const auto& it : payloadList)
+        {
+            crc = computeCrc16(crc, it.first, it.second);
+        }
+        std::uint8_t crcBuffer[kSizeCrc];
+        uint16ToBytes(crcBuffer, crc);
+
+        {
+            LockGuard lock(*webusb_mutex);
+
+            if (vendorWrite(itfIdx, header, headerSize) != headerSize)
+            {
+                // Failed to write
+                return;
+            }
+
+            for (const auto& it : payloadList)
+            {
+                if (vendorWrite(itfIdx, it.first, it.second) != it.second)
+                {
+                    // Failed to write
+                    return;
+                }
+            }
+
+            if (vendorWrite(itfIdx, crcBuffer, sizeof(crcBuffer), true) != sizeof(crcBuffer))
+            {
+                // Failed to write
+                return;
+            }
+        }
+    }
+
 private:
     void processPkt(const std::string& address, const uint8_t cmd, const uint8_t* payload, uint16_t payloadLen)
     {
@@ -301,64 +362,6 @@ private:
         }
 
         return totalWritten;
-    }
-
-    static void sendPkt(
-        const uint8_t itfIdx,
-        const std::string& address,
-        const uint8_t cmd,
-        const std::list<std::pair<const void*, std::uint16_t>>& payloadList
-    )
-    {
-        std::uint16_t payloadLen = 0;
-        for (const auto& it : payloadList)
-        {
-            payloadLen += it.second;
-        }
-
-        const std::uint16_t pktSize = address.size() + kSizeCommand + payloadLen + kSizeCrc;
-        const std::uint16_t invPktSize = pktSize ^ 0xFFFF;
-        std::uint8_t headerSize = static_cast<std::uint8_t>(kSizeMagic + kSizeSize + address.size() + kSizeCommand);
-        std::uint8_t header[headerSize];
-        memcpy(&header[0], k_webusb_magic_value, kSizeMagic);
-        uint16ToBytes(&header[kSizeMagic], pktSize);
-        uint16ToBytes(&header[kSizeMagic + sizeof(pktSize)], invPktSize);
-        memcpy(&header[kSizeMagic + kSizeSize], address.data(), address.size());
-        header[kSizeMagic + kSizeSize + address.size()] = cmd;
-
-        // Calculate CRC over message address, command, and payload (excluding CRC itself)
-        uint16_t crc = computeCrc16(&header[kSizeMagic + kSizeSize], headerSize - (kSizeMagic + kSizeSize));
-        for (const auto& it : payloadList)
-        {
-            crc = computeCrc16(crc, it.first, it.second);
-        }
-        std::uint8_t crcBuffer[kSizeCrc];
-        uint16ToBytes(crcBuffer, crc);
-
-        {
-            LockGuard lock(*webusb_mutex);
-
-            if (vendorWrite(itfIdx, header, headerSize) != headerSize)
-            {
-                // Failed to write
-                return;
-            }
-
-            for (const auto& it : payloadList)
-            {
-                if (vendorWrite(itfIdx, it.first, it.second) != it.second)
-                {
-                    // Failed to write
-                    return;
-                }
-            }
-
-            if (vendorWrite(itfIdx, crcBuffer, sizeof(crcBuffer), true) != sizeof(crcBuffer))
-            {
-                // Failed to write
-                return;
-            }
-        }
     }
 
     static std::uint16_t bytesToUint16(const void* payload)
@@ -466,12 +469,20 @@ void webusb_connection_event(uint16_t interfaceNumber, uint16_t value)
 {
     // Called from USB core (core 0)
     uint8_t index = ITF_TO_WEBUSB_IDX(interfaceNumber);
-    if (index < webusb_interfaces.size() && value < 2)
+    if (index < webusb_interfaces.size() && value < 3)
     {
         // Connected or disconnected. In either case, reset state.
         webusb_interfaces[index].syncReset();
         // Also clear out the write buffer of anything waiting to be sent
         tud_vendor_n_write_clear(index);
+
+        if (value == 2)
+        {
+            // Send command 0 with max address
+            // This helps synchronize the beginning of the stream
+            std::string maxAddr(9, static_cast<char>(0xFF));
+            WebUsbInterface::sendPkt(index, maxAddr, 0, {});
+        }
     }
 }
 
