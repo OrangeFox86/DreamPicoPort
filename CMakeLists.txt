@@ -8,6 +8,9 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   add_definitions(-D_DEBUG)
 endif()
 
+# Longer pico boot delay
+add_compile_definitions(PICO_XOSC_STARTUP_DELAY_MULTIPLIER=8)
+
 if(NOT ENABLE_UNIT_TEST)
   # Have pico_sdk_import.cmake use the local SDK if it was pulled down; otherwise, use path at
   # PICO_SDK_PATH environment variable as specified within pico_sdk_import.cmake
