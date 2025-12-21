@@ -77,6 +77,8 @@
     let testsStressButton = document.querySelector('#tests-stress');
     let testsStatusDisplay = document.querySelector('#tests-status');
 
+    let lastReceivedReleaseTag = null;
+
     const CMD_OK = 0x0A; // Command success
     const CMD_ATTENTION = 0x0B; // Command success, but attention is needed
     const CMD_FAIL = 0x0F; // Command failed - data was parsed but execution failed
@@ -432,11 +434,12 @@
       }
 
       // Check for latest version
+      versionUpdateDisplay.innerHTML = "";
       getLatestReleaseTag().then(tagName => {
         if (tagName == null) {
           console.error("Failed to retrieve latest release tag name from github");
         } else {
-          console.log(`tag name: ${tagName}`);
+          console.log(`last release tag name: ${tagName}`);
           const versionStr = tagName.startsWith('v') ? tagName.slice(1) : tagName;
           const parts = versionStr.split('.');
           if (parts.length !== 3) {
@@ -787,6 +790,10 @@
     async function getLatestReleaseTag() {
       const url = "https://api.github.com/repos/OrangeFox86/DreamPicoPort/releases/latest"
 
+      if (lastReceivedReleaseTag != null) {
+        return lastReceivedReleaseTag;
+      }
+
       try {
         const response = await fetch(url, {
           headers: {
@@ -801,6 +808,7 @@
 
         const data = await response.json();
         // The 'tag_name' field contains the release tag (e.g., "v1.0.0")
+        lastReceivedReleaseTag = data.tag_name;
         return data.tag_name;
 
       } catch (error) {
