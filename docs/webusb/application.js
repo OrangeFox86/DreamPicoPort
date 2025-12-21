@@ -46,10 +46,10 @@
     let vmu2DRadio = document.querySelector('#vmu2-d-radio');
     let readVmuButton = document.querySelector('#read-vmu');
     let writeVmuButton = document.querySelector('#write-vmu');
-    let vmuProgressContainer = document.querySelector('#vmu-progress-container');
-    let vmuProgress = document.querySelector('#vmu-progress')
-    let vmuProgressText = document.querySelector('#vmu-progress-label')
-    let vmuMemoryCancelButton = document.querySelector('#vmu-memory-cancel')
+    let progressContainer = document.querySelector('#progress-container');
+    let progressBar = document.querySelector('#progress')
+    let progressText = document.querySelector('#progress-label')
+    let cancelButton = document.querySelector('#cancel-button')
     let gpioAText = document.querySelector('#gpio-a');
     let gpioBText = document.querySelector('#gpio-b');
     let gpioCText = document.querySelector('#gpio-c');
@@ -173,6 +173,7 @@
       if (receiveSm) {
         if (typeof receiveSm.done === 'function') {
           receiveSm.done(reason);
+          enableAllControls();
         } else {
           receiveSm.defaultDone(reason);
         }
@@ -216,6 +217,7 @@
     // State machine function: Called when connection phase has been successfully completed
     function connectionComplete() {
       if (receiveSm) {
+        disableAllControls(true);
         receiveSm.start();
         resetSmTimeout();
       }
@@ -290,14 +292,18 @@
         tabcontent[i].style.pointerEvents = 'auto';
         tabcontent[i].style.opacity = 1.0;
       }
+      selectButton.disabled = false;
     }
 
     // Disable all controls in within the form besides the Select Device button
-    function disableAllControls() {
+    function disableAllControls(disableSelectButton = false) {
       let tabcontent = document.getElementsByClassName("tabcontent");
       for (let i = 0; i < tabcontent.length; i++) {
         tabcontent[i].style.pointerEvents = 'none';
         tabcontent[i].style.opacity = 0.7;
+      }
+      if (disableSelectButton) {
+        selectButton.disabled = true;
       }
     }
 
@@ -471,9 +477,9 @@
 
     // Resets the progress bar on the VMU Memory tab
     function resetProgressBar() {
-      vmuProgress.value = 0;
-      vmuProgressContainer.style.display = 'none';
-      vmuProgressText.textContent = '0%';
+      progressBar.value = 0;
+      progressContainer.style.display = 'none';
+      progressText.textContent = '0%';
     }
 
     // Converts a controller index [0,3] to the Maple Bus host address
@@ -1018,10 +1024,10 @@
       }
 
       start() {
-        vmuProgressContainer.style.display = 'block';
-        vmuProgressContainer.style.visibility = 'visible';
-        vmuProgress.value = 0;
-        vmuProgressText.textContent = '0%';
+        progressContainer.style.display = 'block';
+        progressContainer.style.visibility = 'visible';
+        progressBar.value = 0;
+        progressText.textContent = '0%';
         this.startTime = Date.now();
         this.sendCurrentBlock();
       }
@@ -1043,8 +1049,8 @@
 
           // Update progress
           const progress = (this.currentBlock / 256) * 100;
-          vmuProgress.value = progress;
-          vmuProgressText.textContent = Math.round(progress) + '%';
+          progressBar.value = progress;
+          progressText.textContent = Math.round(progress) + '%';
 
           if (this.currentBlock < 256) {
             // Read next block
@@ -1148,10 +1154,10 @@
       }
 
       start() {
-        vmuProgressContainer.style.display = 'block';
-        vmuProgressContainer.style.visibility = 'visible';
-        vmuProgress.value = 0;
-        vmuProgressText.textContent = '0%';
+        progressContainer.style.display = 'block';
+        progressContainer.style.visibility = 'visible';
+        progressBar.value = 0;
+        progressText.textContent = '0%';
         this.startTime = Date.now();
         this.writeCurrentPhase();
       };
@@ -1186,8 +1192,8 @@
           // Update progress
           this.retries = 0;
           const progress = (this.currentBlock / WriteVmuStateMachine.TOTAL_BLOCKS) * 100;
-          vmuProgress.value = progress;
-          vmuProgressText.textContent = Math.round(progress) + '%';
+          progressBar.value = progress;
+          progressText.textContent = Math.round(progress) + '%';
 
           if (this.currentPhase > 3)
           {
@@ -1981,7 +1987,7 @@
     });
 
     // VMU Memory Cancel Button - click handler
-    vmuMemoryCancelButton.addEventListener('click', function () {
+    cancelButton.addEventListener('click', function () {
       cancelSm(SM_DONE_REASON_CANCELED_USER);
     });
 
