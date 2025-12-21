@@ -79,7 +79,7 @@ public:
         if (sendZeros && mLastSendSize >= 0)
         {
             // Write a bunch of zeros to ensure the last command gets pushed through if it got stuck
-            std::uint32_t writeSize = std::min(static_cast<uint32_t>(mLastSendSize), static_cast<uint32_t>(256U));
+            std::uint32_t writeSize = std::max(static_cast<uint32_t>(mLastSendSize), static_cast<uint32_t>(256U));
             mLastSendSize = -1;
             uint8_t buff[512] = {};
             while (writeSize > 0)
