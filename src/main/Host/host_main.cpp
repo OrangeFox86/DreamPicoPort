@@ -48,32 +48,6 @@ const uint32_t MAPLE_DIR_PINS[MAX_DEVICES] = {P1_DIR_PIN, P2_DIR_PIN, P3_DIR_PIN
 
 static std::map<uint8_t, DreamcastNodeData> dcNodes;
 
-// Shared watchdog heartbeat counter. Each core updates its bit to indicate liveness.
-static std::atomic<uint32_t> g_watchdog_heartbeat{0};
-
-// Watchdog configuration: timeout in milliseconds
-static constexpr uint32_t kSharedWatchdogTimeoutMs = 2000; // 2 seconds
-
-// Core heartbeat bit masks
-static constexpr uint32_t kMainCoreBit = 0x1u;
-static constexpr uint32_t kCore1Bit = 0x2u;
-static constexpr uint32_t kAllCoreBits = (kMainCoreBit | kCore1Bit);
-
-// Kick interval for hardware watchdog (microseconds)
-static constexpr uint32_t kWatchdogKickIntervalUs = 250000; // 250 ms
-
-// Helpers to set heartbeat bits from each core
-static inline void heartbeat_set_bit(uint32_t bit_mask)
-{
-    g_watchdog_heartbeat.fetch_or(bit_mask, std::memory_order_relaxed);
-}
-
-// Function both cores call to signal liveness
-static inline void shared_feed_watchdog(uint32_t core_bit)
-{
-    heartbeat_set_bit(core_bit);
-}
-
 // Exception handler for RP2040
 void __not_in_flash_func(exception_handler)()
 {
@@ -91,7 +65,6 @@ void core1()
 
     // Initialize TTY and WebUsb parsers
     std::unique_ptr<SerialStreamParser> ttyParser = make_parsers(dcNodes);
-    uint64_t lastWatchdogKick = time_us_64();
 
     while(true)
     {
@@ -107,23 +80,6 @@ void core1()
 
         // Process any waiting commands in the WebUSB parser
         webusb_process();
-
-        // Signal liveness to the shared watchdog (core1 uses kCore1Bit)
-        shared_feed_watchdog(kCore1Bit);
-
-        // Periodically kick the hardware watchdog if either core reported in interval
-        if ((time_us_64() - lastWatchdogKick) >= kWatchdogKickIntervalUs)
-        {
-            uint32_t hb = g_watchdog_heartbeat.load(std::memory_order_relaxed);
-            if ((hb & kAllCoreBits) != 0)
-            {
-                // Clear heartbeat for next interval and update watchdog
-                g_watchdog_heartbeat.store(0, std::memory_order_relaxed);
-                watchdog_update();
-            }
-
-            lastWatchdogKick = time_us_64();
-        }
     }
 }
 
@@ -262,13 +218,6 @@ int main()
         currentDppSettings.simpleUsbLedGpio
     );
 
-    // Initialize and enable the hardware watchdog for shared use between cores.
-    // core1() will kick the hardware watchdog periodically if either core reports liveness.
-    watchdog_enable(kSharedWatchdogTimeoutMs, true);
-
-    // Clear any prior heartbeat state
-    g_watchdog_heartbeat.store(0, std::memory_order_relaxed);
-
     multicore_launch_core1(core1);
 
     if (allMapleAutoDetect && !rebootDetected && !dcNodes.empty())
@@ -309,9 +258,6 @@ int main()
 
             lastMapleDetectTime = time_us_32();
         }
-
-        // Signal main core liveness to shared watchdog
-        shared_feed_watchdog(kMainCoreBit);
 
         DppSettings::processSaveRequests(hwStopFn);
     }
