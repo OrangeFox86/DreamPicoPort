@@ -189,7 +189,7 @@ public:
                 mRcvSize = bytesToUint16(&mSizeBytes[0]);
                 std::uint16_t invRcvSize = bytesToUint16(&mSizeBytes[2]);
 
-                if ((mRcvSize ^ invRcvSize) != 0xFFFF)
+                if ((mRcvSize ^ invRcvSize) != 0xFFFF || mRcvSize < (kMinSizeAddress + kSizeCommand + kSizeCrc))
                 {
                     // Size bytes invalid - reset counter, parse size bytes for another magic, and continue
                     reset();
