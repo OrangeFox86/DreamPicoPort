@@ -36,6 +36,7 @@
 #include <vector>
 #include <atomic>
 #include <algorithm>
+#include <memory>
 
 // Packet format (big endian order):
 // Magic Bytes [4] | Size [2] | Inverse Size [2] | Return Address [1-9] | Command [1] | Payload [0-N] | CRC [2]
@@ -97,7 +98,7 @@ public:
             // Send command 0 with max address
             // This helps synchronize the beginning of the stream
             std::string maxAddr(9, static_cast<char>(0xFF));
-            sendPkt(maxAddr, 0, {});
+            sendPkt(maxAddr, 0, {}, false);
         }
     }
 
@@ -343,7 +344,8 @@ private:
     void sendPkt(
         const std::string& address,
         const uint8_t cmd,
-        const std::list<std::pair<const void*, std::uint16_t>>& payloadList
+        const std::list<std::pair<const void*, std::uint16_t>>& payloadList,
+        bool acquireLock = true
     )
     {
         std::uint16_t payloadLen = 0;
@@ -372,7 +374,12 @@ private:
         uint16ToBytes(crcBuffer, crc);
 
         {
-            LockGuard lock(*webusb_mutex);
+            std::unique_ptr<LockGuard> lock;
+
+            if (acquireLock)
+            {
+                lock = std::make_unique<LockGuard>(*webusb_mutex);
+            }
 
             mLastSendSize = pktSize;
 
