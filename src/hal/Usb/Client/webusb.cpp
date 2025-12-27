@@ -147,19 +147,18 @@ public:
         }
     }
 
+    // TODO: this process() function is a mess and hard to follow
+
     void process()
     {
         std::vector<std::uint8_t> newData;
+        LockGuard lock(*webusb_mutex);
 
+        if (!mIncomingBuffer.empty())
         {
-            LockGuard lock(*webusb_mutex);
-
-            if (!mIncomingBuffer.empty())
-            {
-                newData = std::move(mIncomingBuffer);
-                mIncomingBuffer.clear();
-                mIncomingBuffer.shrink_to_fit();
-            }
+            newData = std::move(mIncomingBuffer);
+            mIncomingBuffer.clear();
+            mIncomingBuffer.shrink_to_fit();
         }
 
         const uint8_t* buffer = newData.data();
@@ -266,16 +265,33 @@ public:
                         return;
                     }
 
+                    std::vector<std::uint8_t> packet = std::move(mBuffer);
+                    reset();
+
+                    const bool releaseLock = lock.isLocked();
+
+                    if (releaseLock)
+                    {
+                        webusb_mutex->unlock();
+                    }
+
                     processPkt(
                         address,
-                        mBuffer[addrSize],
-                        reinterpret_cast<const uint8_t*>(&mBuffer[addrSize + kSizeCommand]),
-                        mBuffer.size() - addrSize - kSizeCommand - kSizeCrc
+                        packet[addrSize],
+                        reinterpret_cast<const uint8_t*>(&packet[addrSize + kSizeCommand]),
+                        packet.size() - addrSize - kSizeCommand - kSizeCrc
                     );
-                }
 
-                // Done processing this packet
-                reset();
+                    if (releaseLock)
+                    {
+                        webusb_mutex->lock();
+                    }
+                }
+                else
+                {
+                    // Done processing this packet
+                    reset();
+                }
             }
         }
     }
