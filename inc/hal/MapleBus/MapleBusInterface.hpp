@@ -138,6 +138,12 @@ class MapleBusInterface
 
         //! @returns true iff the bus is currently busy reading or writing.
         virtual bool isBusy() = 0;
+
+        //! Set the callback that gets executed when read or write completes
+        //! @note the callback may be called within ISR context
+        //! @param[in] fn The function to call
+        //! @param[in] context The context to pass to each function call
+        virtual void setCallback(void (*fn)(void*, uint32_t, Phase), void* context) = 0;
 };
 
 //! Creates a maple bus
