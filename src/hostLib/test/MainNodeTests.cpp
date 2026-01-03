@@ -143,7 +143,7 @@ class MainNodeTest : public ::testing::Test
             mDreamcastControllerObserver(),
             mMutex(),
             mScreenData(std::make_shared<ScreenData>(mMutex)),
-            mPlayerData(std::make_shared<PlayerData>(PlayerData{0, mDreamcastControllerObserver, mScreenData, mClock, mUsbFileSystem})),
+            mPlayerData(std::make_shared<PlayerData>(0, mDreamcastControllerObserver, mScreenData, mClock, mUsbFileSystem)),
             mMapleBus(std::make_shared<MockMapleBus>()),
             mPrioritizedTxScheduler(std::make_shared<PrioritizedTxScheduler>(mMutex2, 0x00)),
             mDreamcastMainNode(mMapleBus, mPlayerData, mPrioritizedTxScheduler)

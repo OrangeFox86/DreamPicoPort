@@ -61,13 +61,13 @@ std::map<uint8_t, DreamcastNodeData> setup_dreamcast_nodes(const std::vector<Pla
         DreamcastNodeData thisNode;
 
         thisNode.playerDef = std::make_shared<PlayerDefinition>(playerDef);
-        thisNode.playerData = std::make_shared<PlayerData>(PlayerData{
-            .playerIndex = playerDef.index,
-            .gamepad = thisObserver,
-            .screenData = std::make_shared<ScreenData>(screenMutexes[playerDef.index], playerDef.index),
-            .clock = clock,
-            .fileSystem = usb_msc_get_file_system()
-        });
+        thisNode.playerData = std::make_shared<PlayerData>(
+            playerDef.index,
+            thisObserver,
+            std::make_shared<ScreenData>(screenMutexes[playerDef.index], playerDef.index),
+            clock,
+            usb_msc_get_file_system()
+        );
         thisNode.scheduler = std::make_shared<PrioritizedTxScheduler>(
             schedulerMutexes[playerDef.index],
             playerDef.mapleHostAddr

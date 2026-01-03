@@ -76,6 +76,8 @@ class DreamcastController : public DreamcastPeripheral
         static const uint32_t US_PER_CHECK = 16000;
         //! The gamepad to write button presses to
         DreamcastControllerObserver& mGamepad;
+        //! Player data shared across cores (used for atomic snapshots)
+        std::shared_ptr<PlayerData> mPlayerData;
         //! True iff the controller is waiting for data
         bool mWaitingForData;
         //! Initialized to true and set to false in task()
