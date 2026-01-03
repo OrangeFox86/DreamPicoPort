@@ -257,12 +257,7 @@ void DreamcastMainNode::readTask(uint64_t currentTimeUs)
     }
     else if (currentTimeUs >= mChangeReleaseTime)
     {
-        // Notify core0 to clear the change condition via atomic snapshot
-        if (mPlayerData)
-        {
-            mPlayerData->pending_change_value.store(0, std::memory_order_relaxed);
-            mPlayerData->pending_change.store(true, std::memory_order_relaxed);
-        }
+        mPlayerData->gamepad.setChangeCondition(false);
         mChangeReleaseTime = 0;
     }
 }
@@ -408,11 +403,6 @@ void DreamcastMainNode::cancelInfoRequest()
 
 void DreamcastMainNode::peripheralChangeEvent(uint64_t currentTimeUs)
 {
-    // Signal core0 to assert change condition via atomic snapshot
-    if (mPlayerData)
-    {
-        mPlayerData->pending_change_value.store(1, std::memory_order_relaxed);
-        mPlayerData->pending_change.store(true, std::memory_order_relaxed);
-    }
+    mPlayerData->gamepad.setChangeCondition(true);
     mChangeReleaseTime = currentTimeUs + (CONNECT_EVENT_SIGNAL_TIME_MS * 1000);
 }

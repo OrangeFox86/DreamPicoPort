@@ -67,6 +67,9 @@ class DreamcastControllerObserver
         //! Sets the type of output for the D-Pad
         //! @param[in] dpadType the D-Pad output type
         virtual void setDpadOutput(DpadType dpadType) = 0;
+
+        //! Send any waiting data to USB
+        virtual void process() = 0;
 };
 
 #endif // __DREAMCAST_CONTROLLER_OBSERVER_H__

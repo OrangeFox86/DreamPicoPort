@@ -27,7 +27,6 @@
 #include "hal/System/ClockInterface.hpp"
 #include "ScreenData.hpp"
 #include "hal/Usb/UsbFileSystem.hpp"
-#include <atomic>
 #include <cstdint>
 #include <cstring>
 
@@ -40,15 +39,6 @@ struct PlayerData
     ClockInterface& clock;
     UsbFileSystem& fileSystem;
 
-    // Atomic snapshot fields for cross-core communication (core1 -> core0)
-    std::atomic<uint64_t> latest_controller_condition{0};
-    std::atomic<bool> controller_condition_updated{false};
-
-    std::atomic<bool> pending_connected{false};
-    std::atomic<bool> pending_disconnected{false};
-
-    std::atomic<bool> pending_change{false};
-    std::atomic<uint32_t> pending_change_value{0};
     PlayerData(
         uint32_t playerIndex_,
         DreamcastControllerObserver& gamepad_,
@@ -60,13 +50,7 @@ struct PlayerData
         gamepad(gamepad_),
         screenData(screenData_),
         clock(clock_),
-        fileSystem(fileSystem_),
-        latest_controller_condition(0),
-        controller_condition_updated(false),
-        pending_connected(false),
-        pending_disconnected(false),
-        pending_change(false),
-        pending_change_value(0)
+        fileSystem(fileSystem_)
     {}
 };
 

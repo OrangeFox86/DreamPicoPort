@@ -287,38 +287,12 @@ int main()
     {
         usb_task();
 
-        // Poll atomic snapshots from core1 and apply to USB observers on core0
+        // Process pending controller output
         for (auto& node : dcNodes)
         {
             auto& pd = node.second.playerData;
             if (!pd) continue;
-
-            // Controller condition snapshot
-            if (pd->controller_condition_updated.exchange(false, std::memory_order_acq_rel))
-            {
-                uint64_t packed = pd->latest_controller_condition.load(std::memory_order_acquire);
-                DreamcastControllerObserver::ControllerCondition cond;
-                memcpy(&cond, &packed, sizeof(cond));
-                pd->gamepad.setControllerCondition(cond);
-            }
-
-            // Connected/disconnected events
-            if (pd->pending_connected.exchange(false, std::memory_order_acq_rel))
-            {
-                pd->gamepad.controllerConnected();
-            }
-
-            if (pd->pending_disconnected.exchange(false, std::memory_order_acq_rel))
-            {
-                pd->gamepad.controllerDisconnected();
-            }
-
-            // Change condition
-            if (pd->pending_change.exchange(false, std::memory_order_acq_rel))
-            {
-                uint32_t v = pd->pending_change_value.load(std::memory_order_acquire);
-                pd->gamepad.setChangeCondition(v != 0);
-            }
+            pd->gamepad.process();
         }
 
         if (anyMapleAutoDetect && (time_us_32() - lastMapleDetectTime) >= kMapleDetectPeriodUs)

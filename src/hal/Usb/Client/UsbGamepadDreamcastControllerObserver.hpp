@@ -27,6 +27,8 @@
 #include "hal/Usb/DreamcastControllerObserver.hpp"
 #include "UsbGamepad.h"
 
+#include <atomic>
+
 //! Yes, I know this name is ridiculous, but at least it's descriptive!
 //! This connects the Dreamcast controller observer to a USB gamepad device
 class UsbGamepadDreamcastControllerObserver : public DreamcastControllerObserver
@@ -65,11 +67,17 @@ class UsbGamepadDreamcastControllerObserver : public DreamcastControllerObserver
         //! @param[in] dpadType the D-Pad output type
         void setDpadOutput(DpadType dpadType) override final;
 
+        //! Send any waiting data to USB
+        void process() override final;
+
     private:
         //! The USB controller I update
         UsbGamepad& mUsbController;
         //! The type of output for the D-Pad
         DpadType mDpadType;
+
+        std::atomic<bool> mNextSendForced;
+        std::atomic<bool> mSendPending;
 };
 
 #endif // __USB_CONTROLLER_DREAMCAST_CONTROLLER_OBSERVER_H__

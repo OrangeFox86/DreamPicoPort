@@ -39,20 +39,12 @@ DreamcastController::DreamcastController(
     mFirstTask(true),
     mConditionTxId(0)
 {
-    // Notify core0 that controller connected via atomic snapshot
-    if (mPlayerData)
-    {
-        mPlayerData->pending_connected.store(true, std::memory_order_relaxed);
-    }
+    mGamepad.controllerConnected();
 }
 
 DreamcastController::~DreamcastController()
 {
-    // Notify core0 that controller disconnected via atomic snapshot
-    if (mPlayerData)
-    {
-        mPlayerData->pending_disconnected.store(true, std::memory_order_relaxed);
-    }
+    mGamepad.controllerDisconnected();
 }
 
 void DreamcastController::txStarted(std::shared_ptr<const Transmission> tx)
@@ -87,16 +79,7 @@ void DreamcastController::txComplete(std::shared_ptr<const MaplePacket> packet,
             // Handle condition data
             DreamcastControllerObserver::ControllerCondition controllerCondition;
             memcpy(&controllerCondition, &packet->payload[1], 2 * sizeof(uint32_t));
-
-            // Pack condition into uint64_t and store as atomic snapshot for core0 to process
-            if (mPlayerData)
-            {
-                uint64_t packed = 0;
-                static_assert(sizeof(controllerCondition) <= sizeof(packed), "controller condition too large");
-                memcpy(&packed, &controllerCondition, sizeof(controllerCondition));
-                mPlayerData->latest_controller_condition.store(packed, std::memory_order_relaxed);
-                mPlayerData->controller_condition_updated.store(true, std::memory_order_release);
-            }
+            mGamepad.setControllerCondition(controllerCondition);
         }
     }
 }
