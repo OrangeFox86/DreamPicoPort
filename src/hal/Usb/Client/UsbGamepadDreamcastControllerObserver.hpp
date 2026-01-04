@@ -77,7 +77,7 @@ class UsbGamepadDreamcastControllerObserver : public DreamcastControllerObserver
         DpadType mDpadType;
         //! Set to true when the next send should force controller update
         std::atomic<bool> mNextSendForced;
-        //!
+        //! Set to true when a send is pending, handled on process()
         std::atomic<bool> mSendPending;
 };
 
