@@ -16,24 +16,29 @@
 
 const char* FlycastTtyCommandHandler::INTERFACE_VERSION = "1.00";
 
+// Note: it is invalid to use usb_cdc_write() here since these are generally called from core 1
+
 static void send_response(const std::string& response)
 {
-    usb_cdc_write(response.c_str(), response.size());
+    printf("%s", response.c_str());
 }
 
 static void send_response(const char* response)
 {
-    usb_cdc_write(response, strlen(response));
+    printf("%s", response);
 }
 
 static void send_response(const char* response, int length)
 {
-    usb_cdc_write(response, length);
+    while (length--)
+    {
+        fputc(*response++, stdout);
+    }
 }
 
 static void send_response(char response)
 {
-    usb_cdc_write(&response, 1);
+    fputc(response, stdout);
 }
 
 

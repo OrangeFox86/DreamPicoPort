@@ -190,7 +190,7 @@ void UsbGamepad::updateAllReleased()
     currentDpad[DPAD_DOWN] = false;
     currentDpad[DPAD_LEFT] = false;
     currentDpad[DPAD_RIGHT] = false;
-    currentButtons = 0;
+    currentButtons &= (1 << BUTTON20); // button 20 is a special case and should be left alone
     buttonsUpdated = true;
   }
 }

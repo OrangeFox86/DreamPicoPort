@@ -32,6 +32,7 @@
 #include "pico/multicore.h"
 #include <hardware/watchdog.h>
 #include <atomic>
+#include <string.h>
 
 #include "CriticalSectionMutex.hpp"
 #include "Mutex.hpp"
@@ -51,14 +52,39 @@ static std::map<uint8_t, DreamcastNodeData> dcNodes;
 // Updated whenever core0 does a loop for watchdog check in core1
 static std::atomic<bool> core0Alive = true;
 
-// Watchdog configuration: timeout in milliseconds
-static constexpr uint32_t kSharedWatchdogTimeoutMs = 1000; // 1 second
-
 // Exception handler for RP2040
 void __not_in_flash_func(exception_handler)()
 {
-    watchdog_enable(1, true);
-    while (true);
+    while (true)
+    {
+        watchdog_reboot(0, 0, 0);
+        busy_wait_ms(10);
+    }
+}
+
+// Initialize and enable the hardware watchdog for shared use between cores.
+static void heartbeat_setup()
+{
+    static constexpr uint32_t kSharedWatchdogTimeoutMs = 1000; // 1 second
+    watchdog_enable(kSharedWatchdogTimeoutMs, true);
+}
+
+// Called from core 0 to signal heartbeat
+static void core0_heartbeat()
+{
+    core0Alive.store(true, std::memory_order_relaxed);
+}
+
+// Called from core 1 to signal heartbeat
+static void core1_heartbeat()
+{
+    // check value and reset to false in one operation
+    // (relaxed because it doesn't need to synchronize with other data)
+    if (core0Alive.exchange(false, std::memory_order_relaxed))
+    {
+        // We're both alive
+        watchdog_update();
+    }
 }
 
 // Second Core Process
@@ -69,7 +95,7 @@ void core1()
     exception_set_exclusive_handler(HARDFAULT_EXCEPTION, exception_handler);
 #endif
 
-    // Initialize TTY and WebUsb parsers
+    // Initialize TTY parsers
     std::unique_ptr<SerialStreamParser> ttyParser = make_parsers(dcNodes);
 
     while(true)
@@ -87,11 +113,8 @@ void core1()
         // Process any waiting commands in the WebUSB parser
         webusb_process();
 
-        if (core0Alive.exchange(false)) // check value and reset to false in one operation
-        {
-            // We're both alive
-            watchdog_update();
-        }
+        // Signal core 1 liveness to shared watchdog
+        core1_heartbeat();
     }
 }
 
@@ -230,9 +253,8 @@ int main()
         currentDppSettings.simpleUsbLedGpio
     );
 
-    // Initialize and enable the hardware watchdog for shared use between cores.
-    // core1() will kick the hardware watchdog periodically if either core reports liveness.
-    watchdog_enable(kSharedWatchdogTimeoutMs, true);
+    // Enable heartbeat watchdog
+    heartbeat_setup();
 
     multicore_launch_core1(core1);
 
@@ -251,8 +273,8 @@ int main()
                 }
             }
 
-            // Signal main core liveness to shared watchdog
-            core0Alive = true;
+            // Signal core 0 liveness to shared watchdog
+            core0_heartbeat();
         }
 
         maple_detect(dcNodes, true);
@@ -269,8 +291,21 @@ int main()
 
     while(true)
     {
+        // Process USB operations (must be done on core 0)
         usb_task();
 
+        // Process pending controller output (must be done on core 0)
+        for (auto& node : dcNodes)
+        {
+            auto& pd = node.second.playerData;
+            if (!pd) continue;
+            pd->gamepad.process();
+        }
+
+        // Flush any outgoing WebUSB packets queued by other core (must be done on core 0)
+        webusb_flush_outgoing();
+
+        // Do any automatic detection of controllers (must be done on core 0)
         if (anyMapleAutoDetect && (time_us_32() - lastMapleDetectTime) >= kMapleDetectPeriodUs)
         {
             maple_detect(dcNodes);
@@ -278,10 +313,11 @@ int main()
             lastMapleDetectTime = time_us_32();
         }
 
-        // Signal main core liveness to shared watchdog
-        core0Alive = true;
-
+        // Process save requests (must be done on core 0)
         DppSettings::processSaveRequests(hwStopFn);
+
+        // Signal core 0 liveness to shared watchdog
+        core0_heartbeat();
     }
 }
 

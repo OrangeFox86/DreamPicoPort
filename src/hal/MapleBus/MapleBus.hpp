@@ -93,6 +93,12 @@ class MapleBus : public MapleBusInterface
         //! @returns true iff the bus is currently busy reading or writing.
         inline bool isBusy() override { return mCurrentPhase != Phase::IDLE; }
 
+        //! Set the callback that gets executed when read or write completes
+        //! @note the callback may be called within ISR context
+        //! @param[in] fn The function to call
+        //! @param[in] context The context to pass to each function call
+        void setCallback(void (*fn)(void*, uint32_t, Phase), void* context) override;
+
     private:
         //! Ensures that the bus is open
         bool lineCheck();
@@ -176,6 +182,11 @@ class MapleBus : public MapleBusInterface
         uint64_t mLastReceivedWordTimeUs;
         //! The last sampled read word transfer count
         uint32_t mLastReadTransferCount;
+
+        //! The callback function to execute on phase change
+        void (*mCallbackFn)(void*, uint32_t, Phase);
+        //! Context to pass to each call of mCallbackFn
+        void *mCallbackFnContext;
 };
 
 std::shared_ptr<MapleBusInterface> create_maple_bus(uint32_t pinA, int32_t dirPin, bool dirOutHigh);

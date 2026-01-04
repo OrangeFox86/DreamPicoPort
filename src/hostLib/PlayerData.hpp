@@ -27,6 +27,8 @@
 #include "hal/System/ClockInterface.hpp"
 #include "ScreenData.hpp"
 #include "hal/Usb/UsbFileSystem.hpp"
+#include <cstdint>
+#include <cstring>
 
 //! Contains data that is tied to a specific player
 struct PlayerData
@@ -37,3 +39,4 @@ struct PlayerData
     ClockInterface& clock;
     UsbFileSystem& fileSystem;
 };
+

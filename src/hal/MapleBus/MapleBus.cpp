@@ -141,7 +141,9 @@ MapleBus::MapleBus(uint32_t pinA, int32_t dirPin, bool dirOutHigh) :
     mRxByteOrder(MaplePacket::ByteOrder::HOST),
     mProcKillTime(std::numeric_limits<uint64_t>::max()),
     mLastReceivedWordTimeUs(0),
-    mLastReadTransferCount(0)
+    mLastReadTransferCount(0),
+    mCallbackFn(nullptr),
+    mCallbackFnContext(nullptr)
 {
     mapleWriteIsr[mSmOut.mSmIdx] = this;
     mapleReadIsr[mSmIn.mSmIdx] = this;
@@ -201,6 +203,11 @@ inline void MapleBus::readIsr()
     {
         mSmIn.stop();
         mCurrentPhase = Phase::READ_COMPLETE;
+
+        if (mCallbackFn)
+        {
+            mCallbackFn(mCallbackFnContext, mPinA, mCurrentPhase);
+        }
     }
     // else: shouldn't have reached here
 }
@@ -241,6 +248,11 @@ inline void MapleBus::writeIsr()
 
         // Nothing more to do
         mCurrentPhase = Phase::WRITE_COMPLETE;
+
+        if (mCallbackFn)
+        {
+            mCallbackFn(mCallbackFnContext, mPinA, mCurrentPhase);
+        }
     }
 }
 
@@ -558,6 +570,12 @@ MapleBusInterface::Status MapleBus::processEvents(uint64_t currentTimeUs)
     }
 
     return status;
+}
+
+void MapleBus::setCallback(void (*fn)(void*, uint32_t, Phase), void* context)
+{
+    mCallbackFn = fn;
+    mCallbackFnContext = context;
 }
 
 void MapleBus::crc8(volatile const uint32_t *source, uint32_t len, uint8_t &crc)

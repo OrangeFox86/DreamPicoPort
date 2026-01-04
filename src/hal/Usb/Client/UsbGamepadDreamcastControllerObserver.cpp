@@ -25,7 +25,9 @@
 
 UsbGamepadDreamcastControllerObserver::UsbGamepadDreamcastControllerObserver(UsbGamepad& usbController) :
     mUsbController(usbController),
-    mDpadType(DpadType::HAT)
+    mDpadType(DpadType::HAT),
+    mNextSendForced(false),
+    mSendPending(false)
 {}
 
 void UsbGamepadDreamcastControllerObserver::setControllerCondition(const ControllerCondition& controllerCondition)
@@ -99,7 +101,7 @@ void UsbGamepadDreamcastControllerObserver::setControllerCondition(const Control
     mUsbController.setAnalogThumbX(false, static_cast<int32_t>(controllerCondition.rAnalogLR) - 128);
     mUsbController.setAnalogThumbY(false, static_cast<int32_t>(controllerCondition.rAnalogUD) - 128);
 
-    mUsbController.send();
+    mSendPending.store(true, std::memory_order_release);
 }
 
 void UsbGamepadDreamcastControllerObserver::setSecondaryControllerCondition(
@@ -113,25 +115,27 @@ void UsbGamepadDreamcastControllerObserver::setSecondaryControllerCondition(
     mUsbController.setButton(UsbGamepad::BUTTON19, 0 == secondaryControllerCondition.right);
 
     // Don't bother USB with this update - only update within setControllerCondition()
-    //mUsbController.send();
+    //mSendPending.store(true, std::memory_order_release);
 }
 
 void UsbGamepadDreamcastControllerObserver::setChangeCondition(bool changeSignal)
 {
     mUsbController.setButton(UsbGamepad::BUTTON20, changeSignal);
-    mUsbController.send();
+    mSendPending.store(true, std::memory_order_release);
 }
 
 void UsbGamepadDreamcastControllerObserver::controllerConnected()
 {
     mUsbController.updateControllerConnected(true);
-    mUsbController.send(true);
+    mNextSendForced.store(true, std::memory_order_relaxed);
+    mSendPending.store(true, std::memory_order_release);
 }
 
 void UsbGamepadDreamcastControllerObserver::controllerDisconnected()
 {
     mUsbController.updateControllerConnected(false);
-    mUsbController.send(true);
+    mNextSendForced.store(true, std::memory_order_relaxed);
+    mSendPending.store(true, std::memory_order_release);
 }
 
 void UsbGamepadDreamcastControllerObserver::setInstanceId(uint8_t instance)
@@ -141,10 +145,20 @@ void UsbGamepadDreamcastControllerObserver::setInstanceId(uint8_t instance)
 
 void UsbGamepadDreamcastControllerObserver::forceSend()
 {
-    mUsbController.send(true);
+    mNextSendForced.store(true, std::memory_order_relaxed);
+    mSendPending.store(true, std::memory_order_release);
 }
 
 void UsbGamepadDreamcastControllerObserver::setDpadOutput(DpadType dpadType)
 {
     mDpadType = dpadType;
+}
+
+void UsbGamepadDreamcastControllerObserver::process()
+{
+    if (mSendPending.exchange(false, std::memory_order_acquire))
+    {
+        const bool force = mNextSendForced.exchange(false, std::memory_order_relaxed);
+        mUsbController.send(force);
+    }
 }
