@@ -34,7 +34,6 @@ DreamcastController::DreamcastController(
 ) :
     DreamcastPeripheral("controller", addr, fd, scheduler, playerData->playerIndex),
     mGamepad(playerData->gamepad),
-    mPlayerData(playerData),
     mWaitingForData(false),
     mFirstTask(true),
     mConditionTxId(0)

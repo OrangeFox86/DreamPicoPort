@@ -75,8 +75,9 @@ class UsbGamepadDreamcastControllerObserver : public DreamcastControllerObserver
         UsbGamepad& mUsbController;
         //! The type of output for the D-Pad
         DpadType mDpadType;
-
+        //! Set to true when the next send should force controller update
         std::atomic<bool> mNextSendForced;
+        //!
         std::atomic<bool> mSendPending;
 };
 
