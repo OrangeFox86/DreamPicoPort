@@ -347,14 +347,14 @@ public:
 
                 if (bufsize > 0)
                 {
-                    tud_vendor_n_write_flush(mItf);
                     tud_task();
+                    tud_vendor_n_write_flush(mItf);
                 }
             }
 
             // Ensure final flush
-            tud_vendor_n_write_flush(mItf);
             tud_task();
+            tud_vendor_n_write_flush(mItf);
         }
     }
 
