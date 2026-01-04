@@ -95,6 +95,9 @@ void core1()
     exception_set_exclusive_handler(HARDFAULT_EXCEPTION, exception_handler);
 #endif
 
+    // Initialize TTY parsers
+    std::unique_ptr<SerialStreamParser> ttyParser = make_parsers(dcNodes);
+
     while(true)
     {
         // Process each main node
@@ -103,6 +106,12 @@ void core1()
             // Worst execution duration of below is ~350 us at 133 MHz when debug print is disabled
             node.second.mainNode->task(time_us_64());
         }
+
+        // Process any waiting commands in the TTY parser
+        ttyParser->process();
+
+        // Process any waiting commands in the WebUSB parser
+        webusb_process();
 
         // Signal core 1 liveness to shared watchdog
         core1_heartbeat();
@@ -271,9 +280,6 @@ int main()
         maple_detect(dcNodes, true);
     }
 
-    // Initialize TTY and WebUsb parsers
-    std::unique_ptr<SerialStreamParser> ttyParser = make_parsers(dcNodes);
-
     static const uint32_t kMapleDetectPeriodUs = 125000;
     uint32_t lastMapleDetectTime = time_us_32();
 
@@ -285,9 +291,10 @@ int main()
 
     while(true)
     {
+        // Process USB operations (must be done on core 0)
         usb_task();
 
-        // Process pending controller output
+        // Process pending controller output (must be done on core 0)
         for (auto& node : dcNodes)
         {
             auto& pd = node.second.playerData;
@@ -295,6 +302,10 @@ int main()
             pd->gamepad.process();
         }
 
+        // Flush any outgoing WebUSB packets queued by other core (must be done on core 0)
+        webusb_flush_outgoing();
+
+        // Do any automatic detection of controllers (must be done on core 0)
         if (anyMapleAutoDetect && (time_us_32() - lastMapleDetectTime) >= kMapleDetectPeriodUs)
         {
             maple_detect(dcNodes);
@@ -302,16 +313,11 @@ int main()
             lastMapleDetectTime = time_us_32();
         }
 
-        // Process any waiting commands in the TTY parser
-        ttyParser->process();
-
-        // Process any waiting commands in the WebUSB parser
-        webusb_process();
+        // Process save requests (must be done on core 0)
+        DppSettings::processSaveRequests(hwStopFn);
 
         // Signal core 0 liveness to shared watchdog
         core0_heartbeat();
-
-        DppSettings::processSaveRequests(hwStopFn);
     }
 }
 

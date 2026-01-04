@@ -37,6 +37,7 @@
 #include <atomic>
 #include <algorithm>
 #include <memory>
+#include <deque>
 
 // Packet format (big endian order):
 // Magic Bytes [4] | Size [2] | Inverse Size [2] | Return Address [1-9] | Command [1] | Payload [0-N] | CRC [2]
@@ -65,6 +66,9 @@ public:
 
     static constexpr const std::uint8_t kCmdBadCmd = 0xFF;
 
+    //! Limit number of outgoing packets to 10 just in case there is a lockup on the processing core
+    static constexpr const std::size_t kMaxOutgoingSize = 10;
+
 public:
     WebUsbInterface() = delete;
 
@@ -76,6 +80,8 @@ public:
         reset();
         mIncomingBuffer.clear();
         mIncomingBuffer.shrink_to_fit();
+        mOutgoingQueue.clear();
+        mOutgoingQueue.shrink_to_fit();
 
         if (sendZeros && mLastSendSize >= 0)
         {
@@ -296,6 +302,62 @@ public:
         }
     }
 
+    void flushOutgoing()
+    {
+        while (true)
+        {
+            std::vector<std::uint8_t> pkt;
+
+            {
+                LockGuard lock(*webusb_mutex);
+                if (mOutgoingQueue.empty())
+                {
+                    return;
+                }
+                pkt = mOutgoingQueue.front();
+                mOutgoingQueue.pop_front();
+            }
+
+            // Write packet via TinyUSB. We perform the same logic as the original vendorWrite
+            const uint8_t* buffer = pkt.data();
+            uint32_t bufsize = static_cast<uint32_t>(pkt.size());
+            uint32_t consecutiveFailures = 0;
+
+            while (bufsize > 0)
+            {
+                uint32_t written = tud_vendor_n_write(mItf, buffer, bufsize);
+
+                if (written == 0 && bufsize > 0)
+                {
+                    ++consecutiveFailures;
+                    if (consecutiveFailures >= 2)
+                    {
+                        // Give up on this packet
+                        break;
+                    }
+                }
+                else
+                {
+                    consecutiveFailures = 0;
+                }
+
+                uint32_t wrote = (written >= bufsize) ? bufsize : written;
+                bufsize -= wrote;
+                buffer += wrote;
+
+                if (bufsize > 0)
+                {
+                    tud_vendor_n_write_flush(mItf);
+                    tud_task();
+                }
+            }
+
+            // Ensure final flush
+            tud_vendor_n_write_flush(mItf);
+            tud_task();
+        }
+    }
+
 private:
     void processPkt(const std::string& address, const uint8_t cmd, const uint8_t* payload, uint16_t payloadLen)
     {
@@ -389,37 +451,34 @@ private:
         std::uint8_t crcBuffer[kSizeCrc];
         uint16ToBytes(crcBuffer, crc);
 
+        // Build full packet into a single buffer and enqueue it. Actual TinyUSB writes
+        // will be performed on core0 by calling `webusb_flush_outgoing()`.
+        std::vector<uint8_t> fullPkt;
+        fullPkt.reserve(headerSize + payloadLen + sizeof(crcBuffer));
+        fullPkt.insert(fullPkt.end(), &header[0], &header[0] + headerSize);
+        for (const auto& it : payloadList)
         {
-            std::unique_ptr<LockGuard> lock;
-
-            if (acquireLock)
-            {
-                lock = std::make_unique<LockGuard>(*webusb_mutex);
-            }
-
-            mLastSendSize = pktSize;
-
-            if (vendorWrite(mItf, header, headerSize) != headerSize)
-            {
-                // Failed to write
-                return;
-            }
-
-            for (const auto& it : payloadList)
-            {
-                if (vendorWrite(mItf, it.first, it.second) != it.second)
-                {
-                    // Failed to write
-                    return;
-                }
-            }
-
-            if (vendorWrite(mItf, crcBuffer, sizeof(crcBuffer), true) != sizeof(crcBuffer))
-            {
-                // Failed to write
-                return;
-            }
+            const uint8_t* p = reinterpret_cast<const uint8_t*>(it.first);
+            fullPkt.insert(fullPkt.end(), p, p + it.second);
         }
+        fullPkt.insert(fullPkt.end(), crcBuffer, crcBuffer + sizeof(crcBuffer));
+
+        // Acquire lock, if necessary
+        std::unique_ptr<LockGuard> optionalLock;
+        if (acquireLock)
+        {
+            optionalLock = std::make_unique<LockGuard>(*webusb_mutex);
+        }
+
+        if (mOutgoingQueue.size() >= kMaxOutgoingSize)
+        {
+            // Throw out this packet
+            return;
+        }
+
+        // Enqueue packet
+        mLastSendSize = pktSize;
+        mOutgoingQueue.push_back(std::move(fullPkt));
     }
 
     static std::uint16_t bytesToUint16(const void* payload)
@@ -510,16 +569,23 @@ private:
 
     //! Last send packet size or -1 if none
     std::int32_t mLastSendSize = -1;
+
+    //! Queue of data waiting to be sent
+    std::deque<std::vector<std::uint8_t>> mOutgoingQueue;
 };
 
 // definition of mParsers
 std::unordered_map<std::uint8_t, std::shared_ptr<WebUsbCommandHandler>> WebUsbInterface::mParsers;
 
 //! All available interfaces, mapped by interface number [0, CFG_TUD_VENDOR)
-static std::array<WebUsbInterface, CFG_TUD_VENDOR> webusb_interfaces = {
-    WebUsbInterface(0),
-    WebUsbInterface(1)
-};
+static std::vector<WebUsbInterface> webusb_interfaces = []() {
+    std::vector<WebUsbInterface> arr;
+    arr.reserve(CFG_TUD_VENDOR);
+    for (uint8_t i = 0; i < CFG_TUD_VENDOR; ++i) {
+        arr.push_back(WebUsbInterface(i));
+    }
+    return arr;
+}();
 
 void webusb_init(MutexInterface* mutex)
 {
@@ -567,6 +633,15 @@ void webusb_process()
     for (WebUsbInterface& itf : webusb_interfaces)
     {
         itf.process();
+    }
+}
+
+// Drain outgoing queue and perform TinyUSB writes on core0 only.
+void webusb_flush_outgoing()
+{
+    for(WebUsbInterface& itf : webusb_interfaces)
+    {
+        itf.flushOutgoing();
     }
 }
 

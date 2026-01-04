@@ -47,4 +47,6 @@ class MockDreamcastControllerObserver : public DreamcastControllerObserver
         MOCK_METHOD(void, forceSend, (), (override));
 
         MOCK_METHOD(void, setDpadOutput, (DreamcastControllerObserver::DpadType dpadType), (override));
+
+        MOCK_METHOD(void, process, (), (override));
 };
