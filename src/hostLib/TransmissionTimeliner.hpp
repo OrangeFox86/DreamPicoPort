@@ -70,4 +70,8 @@ protected:
     std::shared_ptr<PrioritizedTxScheduler> mSchedule;
     //! The currently sending transmission
     std::shared_ptr<const Transmission> mCurrentTx;
+    //! True if the last write task was busy
+    bool mLastWasBusy;
+    //! Last time marker that the bus was busy
+    std::uint64_t mLastBusyTime;
 };
