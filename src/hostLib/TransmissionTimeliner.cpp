@@ -31,9 +31,7 @@ TransmissionTimeliner::TransmissionTimeliner(
 ):
     mBus(bus),
     mSchedule(schedule),
-    mCurrentTx(nullptr),
-    mLastWasBusy(false),
-    mLastBusyTime(0)
+    mCurrentTx(nullptr)
 {}
 
 TransmissionTimeliner::ReadStatus TransmissionTimeliner::readTask(uint64_t currentTimeUs)
@@ -69,35 +67,23 @@ std::shared_ptr<const Transmission> TransmissionTimeliner::writeTask(uint64_t cu
 {
     std::shared_ptr<const Transmission> txSent = nullptr;
 
-    const bool busIsBusy = mBus->isBusy();
-
-    if (!busIsBusy)
+    if (!mBus->isBusy())
     {
-        if (mLastWasBusy)
+        PrioritizedTxScheduler::ScheduleItem item = mSchedule->peekNext(currentTimeUs);
+        txSent = item.getTx();
+        if (txSent != nullptr)
         {
-            mLastBusyTime = currentTimeUs;
-        }
-        // For the greatest compatibility, slow down writes so that there is 1 ms separation
-        else if (currentTimeUs - mLastBusyTime >= 1000)
-        {
-            PrioritizedTxScheduler::ScheduleItem item = mSchedule->peekNext(currentTimeUs);
-            txSent = item.getTx();
-            if (txSent != nullptr)
+            if (mBus->write(*txSent->packet, txSent->expectResponse, MAPLE_RESPONSE_TIMEOUT_US, txSent->rxByteOrder))
             {
-                if (mBus->write(*txSent->packet, txSent->expectResponse, MAPLE_RESPONSE_TIMEOUT_US, txSent->rxByteOrder))
-                {
-                    mCurrentTx = txSent;
-                    mSchedule->popItem(item);
-                }
-                else
-                {
-                    txSent = nullptr;
-                }
+                mCurrentTx = txSent;
+                mSchedule->popItem(item);
+            }
+            else
+            {
+                txSent = nullptr;
             }
         }
     }
-
-    mLastWasBusy = busIsBusy;
 
     return txSent;
 }
