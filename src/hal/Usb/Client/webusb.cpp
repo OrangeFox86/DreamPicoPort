@@ -605,8 +605,7 @@ void webusb_connection_event(uint16_t interfaceNumber, uint16_t value)
         // 3: Connect only
 
         // Connected or disconnected. In either case, clear write buffer.
-        // (this is not available in this SDK version)
-        // tud_vendor_n_write_clear(index);
+        tud_vendor_n_write_clear(index);
 
         if (value != 0)
         {
