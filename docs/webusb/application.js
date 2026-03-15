@@ -433,8 +433,15 @@
       // Extract the tens place (high nibble) and ones place (low nibble)
       const majorHigh = (selectedPort.major >> 4) & 0x0F;
       const majorLow = selectedPort.major & 0x0F;
-      const majorVer = (majorHigh == 0) ? `${majorLow}` : `${majorHigh}${majorLow}`;
-      let deviceVersion = `v${majorVer}.${selectedPort.minor}.${selectedPort.patch}`;
+      const majorVer = (majorHigh * 10) + majorLow;
+      // Major version of 91+ are test versions
+      const realMajorVer = (majorVer > 90) ? (majorVer - 90) : majorVer;
+      let deviceVersion = "";
+      if (realMajorVer != majorVer) {
+        deviceVersion = `(v${realMajorVer}.${selectedPort.minor}.${selectedPort.patch}+)`;
+      } else {
+        deviceVersion = `v${majorVer}.${selectedPort.minor}.${selectedPort.patch}`;
+      }
       let selectedDeviceText = `Selected device: ${selectedPort.name}`;
       if (!selectedPort.name.includes(selectedSerial)) {
         selectedDeviceText += `, serial: ${selectedSerial}`;
@@ -442,6 +449,7 @@
       if (!selectedPort.name.includes(deviceVersion)) {
         selectedDeviceText += `, ${deviceVersion}`;
       }
+
 
       // Check for latest version
       versionUpdateDisplay.innerHTML = "";
@@ -458,7 +466,7 @@
             const major = parseInt(parts[0], 10);
             const minor = parseInt(parts[1], 10);
             const patch = parseInt(parts[2], 10);
-            if (major > selectedPort.major || (major === selectedPort.major && minor > selectedPort.minor) || (major === selectedPort.major && minor === selectedPort.minor && patch > selectedPort.patch)) {
+            if (major > realMajorVer || (major === realMajorVer && minor > selectedPort.minor) || (major === realMajorVer && minor === selectedPort.minor && patch > selectedPort.patch)) {
               versionUpdateDisplay.innerHTML = `<a href='https://github.com/OrangeFox86/DreamPicoPort/releases/tag/${tagName}'>New version of firmware ${versionStr} available</a>`;
             } else {
               versionUpdateDisplay.innerHTML = "";
