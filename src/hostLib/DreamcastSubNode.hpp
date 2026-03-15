@@ -1,6 +1,6 @@
 // MIT License
 //
-// Copyright (c) 2022-2025 James Smith of OrangeFox86
+// Copyright (c) 2022-2026 The DreamPicoPort Contributors
 // https://github.com/OrangeFox86/DreamcastControllerUsbPico
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
