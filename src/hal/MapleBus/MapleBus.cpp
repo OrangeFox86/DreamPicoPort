@@ -546,13 +546,12 @@ MapleBusInterface::Status MapleBus::processEvents(uint64_t currentTimeUs)
     else if (status.phase != Phase::IDLE && currentTimeUs >= mProcKillTime)
     {
         // The state machine is not idle, and it blew past a timeout - check what needs to be killed
+        status.failureReason = FailureReason::TIMEOUT;
 
         if (status.phase == Phase::WAITING_FOR_READ_START)
         {
             mSmIn.stop();
             status.phase = Phase::READ_FAILED;
-            status.failureReason = FailureReason::TIMEOUT;
-            mCurrentPhase = Phase::IDLE;
         }
         else // status.phase == Phase::WRITE_IN_PROGRESS - but also catches any other edge case
         {
@@ -560,13 +559,17 @@ MapleBusInterface::Status MapleBus::processEvents(uint64_t currentTimeUs)
             // have *just* transitioned to read as we were processing this timeout)
             mSmOut.stop(false);
             mSmIn.stop();
-            // Switch to input mode
-            setDirection(false);
 
             status.phase = Phase::WRITE_FAILED;
-            status.failureReason = FailureReason::TIMEOUT;
-            mCurrentPhase = Phase::IDLE;
         }
+
+        // Switch to input mode and ensure pull-ups are enabled
+        setDirection(false);
+        gpio_set_pulls(mPinA, true, false);
+        gpio_set_pulls(mPinB, true, false);
+
+        // Ensure state machine is back to idle
+        mCurrentPhase = Phase::IDLE;
     }
 
     return status;
