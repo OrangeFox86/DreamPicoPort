@@ -1,6 +1,6 @@
 ; MIT License
 ;
-; Copyright (c) 2022-2025 James Smith of OrangeFox86
+; Copyright (c) 2022-2026 The DreamPicoPort Contributors
 ; https://github.com/OrangeFox86/DreamcastControllerUsbPico
 ;
 ; Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -117,10 +117,7 @@ class MapleInStateMachine
             mSmIdx(pio_claim_unused_sm(mProgram.mPio, true)),
             mPrestarted(false)
         {
-            // Initialize the two pins as inputs with pullups
-            gpio_set_dir_in_masked(mMaskAB);
-            gpio_set_pulls(mPinA, true, false);
-            gpio_set_pulls(mPinB, true, false);
+            initPins();
 
             pio_sm_config c = maple_in_program_get_default_config(mProgram.mProgramOffset);
             sm_config_set_in_pins(&c, mPinA);
@@ -138,6 +135,17 @@ class MapleInStateMachine
 
             // Load our configuration, and jump to the start of the program
             pio_sm_init(mProgram.mPio, mSmIdx, mProgram.mProgramOffset, &c);
+        }
+
+        inline void initPins() const
+        {
+            // Initialize the two pins as inputs with pullups
+            gpio_set_pulls(mPinA, true, false);
+            gpio_set_pulls(mPinB, true, false);
+            gpio_set_dir_in_masked(mMaskAB);
+
+            gpio_set_function(mPinB, GPIO_FUNC_SIO);
+            gpio_set_function(mPinA, GPIO_FUNC_SIO);
         }
 
         inline void prestart()
@@ -170,12 +178,17 @@ class MapleInStateMachine
 
         inline void stop() const
         {
-            pio_sm_set_enabled(mProgram.mPio, mSmIdx, false);
+            disable();
 
             // Reset the pins' function to standard I/O with pullups
             gpio_set_dir_in_masked(mMaskAB);
             gpio_set_function(mPinA, GPIO_FUNC_SIO);
             gpio_set_function(mPinB, GPIO_FUNC_SIO);
+        }
+
+        inline void disable() const
+        {
+            pio_sm_set_enabled(mProgram.mPio, mSmIdx, false);
         }
 
     private:

@@ -1,6 +1,6 @@
 ; MIT License
 ;
-; Copyright (c) 2022-2025 James Smith of OrangeFox86
+; Copyright (c) 2022-2026 The DreamPicoPort Contributors
 ; https://github.com/OrangeFox86/DreamcastControllerUsbPico
 ;
 ; Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -140,10 +140,7 @@ class MapleOutStateMachine
             mMaskAB(3 << pin_a),
             mSmIdx(pio_claim_unused_sm(mProgram.mPio, true))
         {
-            // Initialize the two pins as inputs with pullups
-            gpio_set_dir_in_masked(mMaskAB);
-            gpio_set_pulls(mPinA, true, false);
-            gpio_set_pulls(mPinB, true, false);
+            initPins();
 
             pio_sm_config c = maple_out_program_get_default_config(mProgram.mProgramOffset);
             sm_config_set_sideset_pins(&c, mPinA);
@@ -157,6 +154,17 @@ class MapleOutStateMachine
 
             // Load our configuration, and jump to the start of the program
             pio_sm_init(mProgram.mPio, mSmIdx, mProgram.mProgramOffset, &c);
+        }
+
+        inline void initPins() const
+        {
+            // Initialize the two pins as inputs with pullups
+            gpio_set_pulls(mPinA, true, false);
+            gpio_set_pulls(mPinB, true, false);
+            gpio_set_dir_in_masked(mMaskAB);
+
+            gpio_set_function(mPinB, GPIO_FUNC_SIO);
+            gpio_set_function(mPinA, GPIO_FUNC_SIO);
         }
 
         inline void start() const
@@ -177,7 +185,8 @@ class MapleOutStateMachine
 
         inline void stop(bool hardstop) const
         {
-            pio_sm_set_enabled(mProgram.mPio, mSmIdx, false);
+            disable();
+
             if (hardstop)
             {
                 // Reset the pins' function to standard I/O, transitioning back HIGH before setting to input
@@ -189,9 +198,15 @@ class MapleOutStateMachine
                 // Allow pull-up to continue to keep B low
                 gpio_set_pulls(mPinB, false, true);
             }
+
             gpio_set_dir_in_masked(mMaskAB);
             gpio_set_function(mPinB, GPIO_FUNC_SIO);
             gpio_set_function(mPinA, GPIO_FUNC_SIO);
+        }
+
+        inline void disable() const
+        {
+            pio_sm_set_enabled(mProgram.mPio, mSmIdx, false);
         }
 
         inline static const PioProgram& getMapleOutProgram()

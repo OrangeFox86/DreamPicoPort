@@ -430,7 +430,10 @@
     // Starts the state machine which loads the settings from the device
     function startLoadSm(selectedPort) {
       selectedSerial = selectedPort.serial;
-      let deviceVersion = `v${selectedPort.major}.${selectedPort.minor}.${selectedPort.patch}`;
+      // Extract the tens place (high nibble) and ones place (low nibble)
+      const majorHigh = (selectedPort.major >> 4) & 0x0F;
+      const majorLow = selectedPort.major & 0x0F;
+      let deviceVersion = `v${majorHigh}${majorLow}.${selectedPort.minor}.${selectedPort.patch}`;
       let selectedDeviceText = `Selected device: ${selectedPort.name}`;
       if (!selectedPort.name.includes(selectedSerial)) {
         selectedDeviceText += `, serial: ${selectedSerial}`;

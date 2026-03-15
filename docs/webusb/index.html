@@ -44,20 +44,24 @@
           <table>
             <tr>
               <td>
-                <input type="checkbox" id="enable-msc-check" name="enableMsc" value="0" title="When checked, a simulated FAT drive will show up on connection. This is a problematic feature that is no longer supported. Controls under the VMU Memory tab replaces this feature.">
-                <label for="enable-msc-check">Enable Mass Storage Class</label>
+                <div title="When checked, a simulated FAT drive will show up on connection. This is a problematic feature that is no longer supported. Controls under the VMU Memory tab replaces this feature.">
+                  <input type="checkbox" id="enable-msc-check" name="enableMsc" value="0">
+                  <label for="enable-msc-check">Enable Mass Storage Class</label>
+                </div>
+                <div title="When checked, browser notification will pop up when the device is attached. This notification may be annoying in some browsers.">
+                  <input type="checkbox" id="enable-webusb-announce-check" name="enableWebusbAnnounce" value="0" checked>
+                  <label for="enable-webusb-announce-check">WebUSB Announcement</label>
+                </div>
                 <br>
-                <input type="checkbox" id="enable-webusb-announce-check" name="enableWebusbAnnounce" value="0" title="When checked, browser notification will pop up when the device is attached. This notification may be annoying in some browsers." checked>
-                <label for="enable-webusb-announce-check">WebUSB Announcement</label>
-                <br>
-                <br>
-                <label for="dpad-output">D-PAD output: </label>
-                <br>
-                <select id="dpad-output" name="dpad-output" title="Set the output for the D-PAD (must have firmware version 1.2.2 or later)&#10;This is provided because the hat switch enumeration may be problematic on some OSes or applications.">
-                  <option value="0">Hat switch (default)</option>
-                  <option value="1">Button outputs 25-28</option>
-                  <option value="2">Hat switch & buttons</option>
-                </select>
+                <div title="Set the output for the D-PAD (must have firmware version 1.2.2 or later)&#10;This is provided because the hat switch enumeration may be problematic on some OSes or applications.">
+                  <label for="dpad-output">D-PAD output: </label>
+                  <br>
+                  <select id="dpad-output" name="dpad-output">
+                    <option value="0">Hat switch (default)</option>
+                    <option value="1">Button outputs 25-28</option>
+                    <option value="2">Hat switch & buttons</option>
+                  </select>
+                </div>
               </td>
               <td>
                 <label for="player1-select">Controller A:</label>
