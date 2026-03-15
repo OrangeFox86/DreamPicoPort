@@ -433,7 +433,8 @@
       // Extract the tens place (high nibble) and ones place (low nibble)
       const majorHigh = (selectedPort.major >> 4) & 0x0F;
       const majorLow = selectedPort.major & 0x0F;
-      let deviceVersion = `v${majorHigh}${majorLow}.${selectedPort.minor}.${selectedPort.patch}`;
+      const majorVer = (majorHigh == 0) ? `${majorLow}` : `${majorHigh}${majorLow}`;
+      let deviceVersion = `v${majorVer}.${selectedPort.minor}.${selectedPort.patch}`;
       let selectedDeviceText = `Selected device: ${selectedPort.name}`;
       if (!selectedPort.name.includes(selectedSerial)) {
         selectedDeviceText += `, serial: ${selectedSerial}`;
