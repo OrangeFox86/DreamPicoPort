@@ -548,25 +548,23 @@ MapleBusInterface::Status MapleBus::processEvents(uint64_t currentTimeUs)
         // The state machine is not idle, and it blew past a timeout - check what needs to be killed
         status.failureReason = FailureReason::TIMEOUT;
 
-        if (status.phase == Phase::WAITING_FOR_READ_START)
+        if (status.phase == Phase::WAITING_FOR_READ_START || status.phase == Phase::READ_IN_PROGRESS)
         {
-            mSmIn.stop();
             status.phase = Phase::READ_FAILED;
         }
-        else // status.phase == Phase::WRITE_IN_PROGRESS - but also catches any other edge case
+        else
         {
-            // Stopping both out and in just in case there was a race condition (state machine could
-            // have *just* transitioned to read as we were processing this timeout)
-            mSmOut.stop(false);
-            mSmIn.stop();
-
             status.phase = Phase::WRITE_FAILED;
         }
 
-        // Switch to input mode and ensure pull-ups are enabled
-        setDirection(false);
-        gpio_set_pulls(mPinA, true, false);
-        gpio_set_pulls(mPinB, true, false);
+        // Halt all state machines which also reinitializes I/O
+        mSmOut.disable();
+        mSmIn.disable();
+
+        // Initializing pins on either of these should do the same thing
+        // Both are called only for completeness
+        mSmOut.initPins();
+        mSmIn.initPins();
 
         // Ensure state machine is back to idle
         mCurrentPhase = Phase::IDLE;
