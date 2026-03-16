@@ -3837,6 +3837,7 @@ You are welcome to use this library for commercial purposes. For attribution, we
 <part name="JP12" library="SparkFun-Jumpers" deviceset="JUMPER-SMT_2_NO" device="_NO-SILK" package3d_urn="urn:adsk.eagle:package:39277/1"/>
 <part name="R8" library="Tinkercad" library_urn="urn:adsk.eagle:library:30890021" deviceset="RESISTOR" device="_CHIP-0603(1608-METRIC)" package3d_urn="urn:adsk.eagle:package:16378565/5" technology="_" value="120"/>
 <part name="SUPPLY22" library="Tutorial - Fusion 360" library_urn="urn:adsk.eagle:library:16997205" deviceset="VCC-BAR" device="" value="+3.3V"/>
+<part name="JP13" library="SparkFun-Jumpers" deviceset="JUMPER-SMT_2_NO" device="_NO-SILK" package3d_urn="urn:adsk.eagle:package:39277/1"/>
 </parts>
 <sheets>
 <sheet>
@@ -4067,8 +4068,8 @@ You are welcome to use this library for commercial purposes. For attribution, we
 <instance part="SUPPLY20" gate="G$1" x="320.04" y="0" smashed="yes">
 <attribute name="VALUE" x="320.167" y="-3.175" size="1.778" layer="96" align="bottom-center"/>
 </instance>
-<instance part="SUPPLY21" gate="G$1" x="83.82" y="88.9" smashed="yes">
-<attribute name="VALUE" x="83.82" y="89.408" size="1.778" layer="96" align="bottom-center"/>
+<instance part="SUPPLY21" gate="G$1" x="71.12" y="114.3" smashed="yes">
+<attribute name="VALUE" x="71.12" y="114.808" size="1.778" layer="96" align="bottom-center"/>
 </instance>
 <instance part="SUPPLY23" gate="G$1" x="96.52" y="10.16" smashed="yes">
 <attribute name="VALUE" x="96.647" y="6.985" size="1.778" layer="96" align="bottom-center"/>
@@ -4182,6 +4183,10 @@ You are welcome to use this library for commercial purposes. For attribution, we
 </instance>
 <instance part="SUPPLY22" gate="G$1" x="114.3" y="-30.48" smashed="yes">
 <attribute name="VALUE" x="114.3" y="-29.972" size="1.778" layer="96" align="bottom-center"/>
+</instance>
+<instance part="JP13" gate="G$1" x="78.74" y="104.14" smashed="yes">
+<attribute name="NAME" x="78.74" y="106.934" size="1.778" layer="95" font="vector" align="center"/>
+<attribute name="VALUE" x="78.74" y="101.346" size="1.778" layer="96" font="vector" align="center"/>
 </instance>
 </instances>
 <busses>
@@ -4557,12 +4562,17 @@ You are welcome to use this library for commercial purposes. For attribution, we
 <pinref part="SUPPLY26" gate="G$1" pin="VCC"/>
 </segment>
 <segment>
-<wire x1="71.12" y1="81.28" x2="83.82" y2="81.28" width="0.1524" layer="91"/>
-<wire x1="83.82" y1="81.28" x2="83.82" y2="86.36" width="0.1524" layer="91"/>
+<pinref part="JP13" gate="G$1" pin="1"/>
+<wire x1="71.12" y1="83.82" x2="71.12" y2="104.14" width="0.1524" layer="91"/>
+<wire x1="71.12" y1="104.14" x2="73.66" y2="104.14" width="0.1524" layer="91"/>
+<pinref part="U1" gate="G$1" pin="VBUS"/>
+<wire x1="71.12" y1="104.14" x2="71.12" y2="111.76" width="0.1524" layer="91"/>
+<junction x="71.12" y="104.14"/>
 <pinref part="SUPPLY21" gate="G$1" pin="VCC"/>
-<wire x1="83.82" y1="81.28" x2="96.52" y2="81.28" width="0.1524" layer="91"/>
-<junction x="83.82" y="81.28"/>
-<pinref part="U1" gate="G$1" pin="VSYS"/>
+<wire x1="71.12" y1="111.76" x2="71.12" y2="109.22" width="0.1524" layer="91"/>
+<wire x1="71.12" y1="109.22" x2="96.52" y2="109.22" width="0.1524" layer="91"/>
+<junction x="71.12" y="111.76"/>
+<wire x1="96.52" y1="109.22" x2="96.52" y2="81.28" width="0.1524" layer="91"/>
 <pinref part="C1" gate="A" pin="1"/>
 </segment>
 </net>
@@ -4969,6 +4979,14 @@ You are welcome to use this library for commercial purposes. For attribution, we
 <wire x1="175.26" y1="68.58" x2="172.72" y2="68.58" width="0.1524" layer="91"/>
 <wire x1="172.72" y1="68.58" x2="172.72" y2="66.04" width="0.1524" layer="91"/>
 <pinref part="RC4" gate="G$1" pin="1"/>
+</segment>
+</net>
+<net name="N$24" class="0">
+<segment>
+<pinref part="JP13" gate="G$1" pin="2"/>
+<wire x1="83.82" y1="104.14" x2="83.82" y2="81.28" width="0.1524" layer="91"/>
+<wire x1="83.82" y1="81.28" x2="71.12" y2="81.28" width="0.1524" layer="91"/>
+<pinref part="U1" gate="G$1" pin="VSYS"/>
 </segment>
 </net>
 </nets>
