@@ -34,13 +34,33 @@ const std::uint8_t FlycastWebUsbCommandHandler::kInterfaceVersion[2] = {1, 0};
 
 FlycastWebUsbCommandHandler::FlycastWebUsbCommandHandler(
     SystemIdentification& identification,
+    ClockInterface& clock,
     const std::shared_ptr<MapleWebUsbCommandHandler>& mapleWebUsbCommandHandler,
     const std::map<uint8_t, DreamcastNodeData>& dcNodes
 ) :
     mIdentification(identification),
+    mClock(clock),
     mMapleWebUsbCommandHandler(mapleWebUsbCommandHandler),
     mDcNodes(dcNodes)
 {}
+
+template <typename T>
+static constexpr T flipEndian(T val) noexcept
+{
+    static_assert(std::is_integral_v<T>, "Type must be integral");
+
+    auto* ptr = reinterpret_cast<std::uint8_t*>(&val);
+    std::reverse(ptr, ptr + sizeof(T));
+    return val;
+}
+
+template <typename T>
+static void appendIntToResponse(std::string& response, T val)
+{
+    T out = flipEndian(val);
+    const char* const pOut = reinterpret_cast<const char*>(&out);
+    response.append(pOut, sizeof(T));
+}
 
 void FlycastWebUsbCommandHandler::process(
     const std::uint8_t* payload,
@@ -146,7 +166,7 @@ void FlycastWebUsbCommandHandler::process(
         }
         return;
 
-        // X?0, X?1, X?2, or X?3 will print summary for the given node index
+        // X?0, X?1, X?2, or X?3 will return summary for the given node index
         case '?':
         {
             // Remove question mark
@@ -160,41 +180,83 @@ void FlycastWebUsbCommandHandler::process(
             std::map<uint8_t, DreamcastNodeData>::iterator dcNodeIter = mDcNodes.end();
             if (idx >= 0 && (dcNodeIter = mDcNodes.find(idx)) != mDcNodes.end())
             {
-                dcNodeIter->second.mainNode->requestSummary(
-                    [responseFn](const std::list<std::list<std::array<uint32_t, 2>>>& summary)
+                std::string response;
+                response.reserve(64);
+
+                std::list<std::list<std::array<uint32_t, 2>>> summary = dcNodeIter->second.mainNode->getSummary();
+                bool first = true;
+                for (const auto& i : summary)
+                {
+                    if (!first)
                     {
-                        std::string response;
-                        response.reserve(64);
-
-                        bool first = true;
-                        for (const auto& i : summary)
-                        {
-                            if (!first)
-                            {
-                                // Semicolon means start of next peripheral data
-                                response.push_back(';');
-                            }
-
-                            for (const auto& j : i)
-                            {
-                                // Pipe means a 4-byte value will follow (first is function code)
-                                response.push_back('|');
-                                uint32_t out = MaplePacket::flipWordBytes(j[0]);
-                                const char* const p8Out = reinterpret_cast<const char*>(&out);
-                                response.append(p8Out, 4);
-
-                                // Pipe means a 4-byte value will follow (second is function definitions word)
-                                response.push_back('|');
-                                out = MaplePacket::flipWordBytes(j[1]);
-                                response.append(p8Out, 4);
-                            }
-
-                            first = false;
-                        }
-
-                        responseFn(kResponseSuccess, {{response.data(), response.size()}});
+                        // Semicolon means start of next peripheral data
+                        response.push_back(';');
                     }
-                );
+
+                    for (const auto& j : i)
+                    {
+                        // Pipe means a 4-byte value will follow (first is function code)
+                        response.push_back('|');
+                        uint32_t out = MaplePacket::flipWordBytes(j[0]);
+                        const char* const p8Out = reinterpret_cast<const char*>(&out);
+                        response.append(p8Out, 4);
+
+                        // Pipe means a 4-byte value will follow (second is function definitions word)
+                        response.push_back('|');
+                        out = MaplePacket::flipWordBytes(j[1]);
+                        response.append(p8Out, 4);
+                    }
+
+                    first = false;
+                }
+
+                responseFn(kResponseSuccess, {{response.data(), response.size()}});
+            }
+            else
+            {
+                responseFn(kResponseFailure, {});
+            }
+        }
+        return;
+
+        // X$0, X$1, X$2, or X$3 will return MapleBus status
+        case '$':
+        {
+            // Remove $
+            ++iter;
+            int idx = -1;
+            if (iter < eol)
+            {
+                idx = *iter;
+            }
+
+            std::map<uint8_t, DreamcastNodeData>::iterator dcNodeIter = mDcNodes.end();
+            if (idx >= 0 && (dcNodeIter = mDcNodes.find(idx)) != mDcNodes.end())
+            {
+                std::string response;
+                response.reserve(108);
+
+                const std::uint64_t now = mClock.getTimeUs();
+                appendIntToResponse(response, now);
+
+                DreamcastMainNode::MapleStatus status = dcNodeIter->second.mainNode->getMapleStatus();
+
+                appendIntToResponse(response, static_cast<std::uint32_t>(status.phase));
+
+                appendIntToResponse(response, status.mapleStats.numReads);
+                appendIntToResponse(response, status.mapleStats.numNullReads);
+                appendIntToResponse(response, status.mapleStats.numReadFailCrc);
+                appendIntToResponse(response, status.mapleStats.numReadFailIncomplete);
+                appendIntToResponse(response, status.mapleStats.numReadFailOverflow);
+                appendIntToResponse(response, status.mapleStats.numReadFailTimeout);
+                appendIntToResponse(response, status.mapleStats.lastReadStartTime);
+                appendIntToResponse(response, status.mapleStats.lastReadCompleteTime);
+                appendIntToResponse(response, status.mapleStats.numWrites);
+                appendIntToResponse(response, status.mapleStats.numWriteFail);
+                appendIntToResponse(response, status.mapleStats.lastWriteStartTime);
+                appendIntToResponse(response, status.mapleStats.lastWriteCompleteTime);
+
+                responseFn(kResponseSuccess, {{response.data(), response.size()}});
             }
             else
             {

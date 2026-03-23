@@ -32,6 +32,7 @@
 #include <memory>
 #include <vector>
 #include <functional>
+#include <tuple>
 
 //! Handles communication for the main Dreamcast node for a single bus. In other words, this
 //! facilitates communication to test for and identify a main peripheral such as a controller and
@@ -78,11 +79,22 @@ class DreamcastMainNode : public DreamcastNode
         //! Prints summary of all devices
         void printSummary();
 
-        //! Register a callback to be called within Maple core context when summary is obtained
-        //! @param[in] callback  The callback to call when the information is obtained which is called within the task()
-        //!                      context. The outer list explain each main node. The inner list explain each peripheral.
-        //!                      The inner array index [0] is function code and [1] is function definitions word.
-        void requestSummary(const std::function<void(const std::list<std::list<std::array<uint32_t, 2>>>&)>& callback);
+        //! @return a summary of what peripherals are connected. The outer list explain each main node. The inner list
+        //!         explain each peripheral. The inner array index [0] is function code and [1] is function definitions
+        //!         word.
+        std::list<std::list<std::array<uint32_t, 2>>> getSummary() const;
+
+        //! Contains MapleBus status data
+        struct MapleStatus
+        {
+            //! Last received phase of the state machine
+            MapleBusInterface::Phase phase;
+            //! The current statistics for the MapleBus
+            MapleBusInterface::MapleStats mapleStats;
+        };
+
+        //! @return current status and statistics information
+        MapleStatus getMapleStatus() const;
 
         //! @return true iff device detected on this node
         inline bool isDeviceDetected()
@@ -127,6 +139,8 @@ class DreamcastMainNode : public DreamcastNode
         const bool mDetectionOnly;
         //! True when a device is detected on this node
         bool mDeviceDetected;
+        //! The MapleBusInterface associated with this node
+        std::shared_ptr<MapleBusInterface> mMapleBus;
         //! The sub nodes under this node
         std::vector<std::shared_ptr<DreamcastSubNode>> mSubNodes;
         //! Executes transmissions from the schedule
@@ -137,8 +151,8 @@ class DreamcastMainNode : public DreamcastNode
         uint32_t mCommFailCount;
         //! Print summary on next cycle when true
         bool mPrintSummary;
-        //! The callback to execute when set to relay the summary
-        std::function<void(const std::list<std::list<std::array<uint32_t, 2>>>&)> mSummaryCallback;
+        //! The last recorded phase of the MapleBusInterface
+        MapleBusInterface::Phase mLastPhase;
         //! Set to true when connected signal should be sent on next task
         bool mSendConnectedSignal;
         //! The time at which the change signal should be released

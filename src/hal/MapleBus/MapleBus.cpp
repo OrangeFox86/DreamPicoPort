@@ -142,6 +142,7 @@ MapleBus::MapleBus(uint32_t pinA, int32_t dirPin, bool dirOutHigh) :
     mProcKillTime(std::numeric_limits<uint64_t>::max()),
     mLastReceivedWordTimeUs(0),
     mLastReadTransferCount(0),
+    mStats{},
     mCallbackFn(nullptr),
     mCallbackFnContext(nullptr)
 {
@@ -292,6 +293,21 @@ void MapleBus::setDirection(bool output)
     }
 }
 
+void MapleBus::resetSms()
+{
+    // Halt all state machines which also reinitializes I/O
+    mSmOut.disable();
+    mSmIn.disable();
+
+    // Initializing pins on either of these should do the same thing
+    // Both are called only for completeness
+    mSmOut.initPins();
+    mSmIn.initPins();
+
+    // Ensure state machine is back to idle
+    mCurrentPhase = Phase::IDLE;
+}
+
 bool MapleBus::write(
     const MaplePacket& packet,
     bool autostartRead,
@@ -300,6 +316,9 @@ bool MapleBus::write(
 )
 {
     bool rv = false;
+
+    ++mStats.numWrites;
+    mStats.lastWriteStartTime = time_us_64();
 
     if (!isBusy())
     {
@@ -385,6 +404,9 @@ bool MapleBus::startRead(uint64_t readTimeoutUs, MaplePacket::ByteOrder rxByteOr
 {
     bool rv = false;
 
+    ++mStats.numReads;
+    mStats.lastReadStartTime = time_us_64();
+
     if (!isBusy())
     {
         // Make sure previous DMA instances are killed
@@ -434,140 +456,166 @@ MapleBusInterface::Status MapleBus::processEvents(uint64_t currentTimeUs)
     // mCurrentPhase.
     status.phase = mCurrentPhase;
 
-    if (status.phase == Phase::READ_COMPLETE)
+    switch (status.phase)
     {
-        // Wait up to 1 ms for the RX FIFO to become empty (automatically drained by the read DMA)
-        uint64_t timeoutTime = time_us_64() + 1000;
-        while (!pio_sm_is_rx_fifo_empty(mSmIn.mProgram.mPio, mSmIn.mSmIdx)
-               && time_us_64() < timeoutTime);
+        case Phase::IDLE:
+            break; // nothing to do
 
-        // transfer_count decrements down to 0, so compute the inverse to get number of words
-        uint32_t dmaWordsRead = (sizeof(mReadBuffer) / sizeof(mReadBuffer[0]))
-                                - dma_channel_hw_addr(mDmaReadChannel)->transfer_count;
-
-        // Should have at least frame and CRC words
-        if (dmaWordsRead > 1)
+        case Phase::READ_COMPLETE:
         {
-            // The frame word always contains how many proceeding words there are [0,255]
-            // For at least 1 instance (VMU extended device info) the number of words received will
-            // not match len. For this reason, the following allows for more words to be read than
-            // specified by the frame word as long as the CRC is still correct.
-            uint8_t len;
-            uint8_t expectedCrc;
-            if (mRxByteOrder != MaplePacket::ByteOrder::NETWORK)
-            {
-                // Host order
-                len = mReadBuffer[0] & 0xFF;
-                expectedCrc = mReadBuffer[dmaWordsRead - 1] & 0xFF;
-            }
-            else
-            {
-                // Network order
-                len = mReadBuffer[0] >> 24;
-                expectedCrc = mReadBuffer[dmaWordsRead - 1] >> 24;
-            }
+            // Wait up to 1 ms for the RX FIFO to become empty (automatically drained by the read DMA)
+            uint64_t timeoutTime = time_us_64() + 1000;
+            while (!pio_sm_is_rx_fifo_empty(mSmIn.mProgram.mPio, mSmIn.mSmIdx)
+                && time_us_64() < timeoutTime);
 
-            if (len <= (dmaWordsRead - 2))
+            // transfer_count decrements down to 0, so compute the inverse to get number of words
+            uint32_t dmaWordsRead = (sizeof(mReadBuffer) / sizeof(mReadBuffer[0]))
+                                    - dma_channel_hw_addr(mDmaReadChannel)->transfer_count;
+
+            // Should have at least frame and CRC words
+            if (dmaWordsRead > 1)
             {
-                // Copy what was read and compute CRC
-                wordCpy(&mLastRead[0], &mReadBuffer[0], dmaWordsRead - 1);
-                uint8_t crc = 0;
-                crc8(&mLastRead[0], dmaWordsRead - 1, crc);
-                // Data is only valid if the CRC is correct
-                if (crc == expectedCrc)
+                // The frame word always contains how many proceeding words there are [0,255]
+                // For at least 1 instance (VMU extended device info) the number of words received will
+                // not match len. For this reason, the following allows for more words to be read than
+                // specified by the frame word as long as the CRC is still correct.
+                uint8_t len;
+                uint8_t expectedCrc;
+                if (mRxByteOrder != MaplePacket::ByteOrder::NETWORK)
                 {
-                    status.readBuffer = mLastRead;
-                    status.readBufferLen = dmaWordsRead - 1;
-                    status.rxByteOrder = mRxByteOrder;
+                    // Host order
+                    len = mReadBuffer[0] & 0xFF;
+                    expectedCrc = mReadBuffer[dmaWordsRead - 1] & 0xFF;
                 }
                 else
                 {
-                    // Read failed because CRC was invalid
+                    // Network order
+                    len = mReadBuffer[0] >> 24;
+                    expectedCrc = mReadBuffer[dmaWordsRead - 1] >> 24;
+                }
+
+                if (len <= (dmaWordsRead - 2))
+                {
+                    // Copy what was read and compute CRC
+                    wordCpy(&mLastRead[0], &mReadBuffer[0], dmaWordsRead - 1);
+                    uint8_t crc = 0;
+                    crc8(&mLastRead[0], dmaWordsRead - 1, crc);
+                    // Data is only valid if the CRC is correct
+                    if (crc == expectedCrc)
+                    {
+                        status.readBuffer = mLastRead;
+                        status.readBufferLen = dmaWordsRead - 1;
+                        status.rxByteOrder = mRxByteOrder;
+                        mStats.lastReadCompleteTime = time_us_64();
+                    }
+                    else
+                    {
+                        // Read failed because CRC was invalid
+                        status.phase = Phase::READ_FAILED;
+                        status.failureReason = FailureReason::CRC_INVALID;
+                        ++mStats.numReadFailCrc;
+                    }
+                }
+                else
+                {
+                    // Read failed because not enough words read
                     status.phase = Phase::READ_FAILED;
-                    status.failureReason = FailureReason::CRC_INVALID;
+                    status.failureReason = FailureReason::MISSING_DATA;
+                    ++mStats.numReadFailIncomplete;
                 }
             }
             else
             {
-                // Read failed because not enough words read
+                // Read failed because nothing was sent through DMA
                 status.phase = Phase::READ_FAILED;
                 status.failureReason = FailureReason::MISSING_DATA;
+                ++mStats.numReadFailIncomplete;
             }
-        }
-        else
-        {
-            // Read failed because nothing was sent through DMA
-            status.phase = Phase::READ_FAILED;
-            status.failureReason = FailureReason::MISSING_DATA;
-        }
 
-        // We processed the read, so the machine can go back to idle
-        mCurrentPhase = Phase::IDLE;
-    }
-    else if (status.phase == Phase::WRITE_COMPLETE)
-    {
-        // Nothing to do here
-
-        // We processed the write, so the machine can go back to idle
-        mCurrentPhase = Phase::IDLE;
-    }
-    else if (status.phase == Phase::READ_IN_PROGRESS)
-    {
-        // Check for buffer overflow or inter-word timeout
-        // The RX transfer count decrements from buffer size down to 0 as words are read in maple_in
-        uint32_t transferCount = dma_channel_hw_addr(mDmaReadChannel)->transfer_count;
-        if (transferCount == 0)
-        {
-            // 1 extra word is allocated in the buffer, so transfer count should never reach 0
-            status.phase = Phase::READ_FAILED;
-            status.failureReason = FailureReason::BUFFER_OVERFLOW;
+            // We processed the read, so the machine can go back to idle
             mCurrentPhase = Phase::IDLE;
         }
-        else if (mLastReadTransferCount == transferCount)
+        break;
+
+        case Phase::WRITE_COMPLETE:
         {
-            if (currentTimeUs > mLastReceivedWordTimeUs
-                && (currentTimeUs - mLastReceivedWordTimeUs) >= MAPLE_INTER_WORD_READ_TIMEOUT_US)
+            mStats.lastWriteCompleteTime = time_us_64();
+
+            // We processed the write, so the machine can go back to idle
+            mCurrentPhase = Phase::IDLE;
+        }
+        break;
+
+        case Phase::READ_IN_PROGRESS:
+        {
+            // Check for buffer overflow or inter-word timeout
+            // The RX transfer count decrements from buffer size down to 0 as words are read in maple_in
+            uint32_t transferCount = dma_channel_hw_addr(mDmaReadChannel)->transfer_count;
+            if (transferCount == 0)
             {
-                // Inter-word timeout occurred
-                mSmIn.stop();
+                // 1 extra word is allocated in the buffer, so transfer count should never reach 0
+                mSmIn.disable();
+                mSmIn.initPins();
                 status.phase = Phase::READ_FAILED;
-                status.failureReason = FailureReason::TIMEOUT;
+                ++mStats.numReadFailOverflow;
+                status.failureReason = FailureReason::BUFFER_OVERFLOW;
                 mCurrentPhase = Phase::IDLE;
             }
+            else if (mLastReadTransferCount == transferCount)
+            {
+                if (currentTimeUs > mLastReceivedWordTimeUs
+                    && (currentTimeUs - mLastReceivedWordTimeUs) >= MAPLE_INTER_WORD_READ_TIMEOUT_US)
+                {
+                    // Inter-word timeout occurred
+                    mSmIn.disable();
+                    mSmIn.initPins();
+                    status.phase = Phase::READ_FAILED;
+                    ++mStats.numReadFailTimeout;
+                    status.failureReason = FailureReason::TIMEOUT;
+                    mCurrentPhase = Phase::IDLE;
+                }
+            }
+            else
+            {
+                mLastReadTransferCount = transferCount;
+                mLastReceivedWordTimeUs = currentTimeUs;
+            }
+
+            // (mProcKillTime is ignored while actively reading)
         }
-        else
+        break;
+
+        case Phase::WRITE_IN_PROGRESS: // Fall through
+        case Phase::WAITING_FOR_READ_START:
         {
-            mLastReadTransferCount = transferCount;
-            mLastReceivedWordTimeUs = currentTimeUs;
+            if (currentTimeUs >= mProcKillTime)
+            {
+                // The state machine is not idle, and it blew past a timeout - check what needs to be killed
+                status.failureReason = FailureReason::TIMEOUT;
+
+                if (status.phase == Phase::WAITING_FOR_READ_START)
+                {
+                    status.phase = Phase::READ_FAILED;
+                    ++mStats.numNullReads;
+                }
+                else
+                {
+                    status.phase = Phase::WRITE_FAILED;
+                    ++mStats.numWriteFail;
+                }
+
+                resetSms();
+            }
         }
+        break;
 
-        // (mProcKillTime is ignored while actively reading)
-    }
-    else if (status.phase != Phase::IDLE && currentTimeUs >= mProcKillTime)
-    {
-        // The state machine is not idle, and it blew past a timeout - check what needs to be killed
-        status.failureReason = FailureReason::TIMEOUT;
-
-        if (status.phase == Phase::WAITING_FOR_READ_START || status.phase == Phase::READ_IN_PROGRESS)
-        {
-            status.phase = Phase::READ_FAILED;
-        }
-        else
-        {
-            status.phase = Phase::WRITE_FAILED;
-        }
-
-        // Halt all state machines which also reinitializes I/O
-        mSmOut.disable();
-        mSmIn.disable();
-
-        // Initializing pins on either of these should do the same thing
-        // Both are called only for completeness
-        mSmOut.initPins();
-        mSmIn.initPins();
-
-        // Ensure state machine is back to idle
-        mCurrentPhase = Phase::IDLE;
+        case Phase::WRITE_FAILED:
+        case Phase::READ_FAILED:
+        case Phase::INVALID:
+        default:
+            // Invalid states
+            resetSms();
+            break;
     }
 
     return status;
@@ -577,6 +625,11 @@ void MapleBus::setCallback(void (*fn)(void*, uint32_t, Phase), void* context)
 {
     mCallbackFn = fn;
     mCallbackFnContext = context;
+}
+
+const MapleBusInterface::MapleStats& MapleBus::getStats() const
+{
+    return mStats;
 }
 
 void MapleBus::crc8(volatile const uint32_t *source, uint32_t len, uint8_t &crc)

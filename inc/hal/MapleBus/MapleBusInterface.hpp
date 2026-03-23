@@ -96,6 +96,36 @@ class MapleBusInterface
             {}
         };
 
+        //! Holds the statistics for a MapleBus
+        struct MapleStats
+        {
+            //! Total number of read attempts
+            std::uint64_t numReads = 0;
+            //! Number of read attempts where no activity is seen on the line (i.e. nothing attached)
+            std::uint64_t numNullReads = 0;
+            //! Number of read attempts that received a CRC which was invalid
+            std::uint64_t numReadFailCrc = 0;
+            //! Number of read attempts that completed but didn't receive enough data
+            std::uint64_t numReadFailIncomplete = 0;
+            //! Number of read attempts that overflowed the input DMA
+            std::uint64_t numReadFailOverflow = 0;
+            //! Number of read attempts that started but timed out
+            std::uint64_t numReadFailTimeout = 0;
+            //! The last time point where read was attempted
+            std::uint64_t lastReadStartTime = 0;
+            //! The last time point where read was successful
+            std::uint64_t lastReadCompleteTime = 0;
+
+            //! Total number of write attempts
+            std::uint64_t numWrites;
+            //! Number of write attempts that failed
+            std::uint64_t numWriteFail;
+            //! The last time point where write was attempted
+            std::uint64_t lastWriteStartTime = 0;
+            //! The last time point where write was successful
+            std::uint64_t lastWriteCompleteTime = 0;
+        };
+
     public:
         //! Virtual desturctor
         virtual ~MapleBusInterface() {}
@@ -144,6 +174,9 @@ class MapleBusInterface
         //! @param[in] fn The function to call
         //! @param[in] context The context to pass to each function call
         virtual void setCallback(void (*fn)(void*, uint32_t, Phase), void* context) = 0;
+
+        //! @return the current statistics of this maple bus
+        virtual const MapleStats& getStats() const = 0;
 };
 
 //! Creates a maple bus

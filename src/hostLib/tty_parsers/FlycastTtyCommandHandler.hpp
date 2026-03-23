@@ -93,5 +93,4 @@ private:
     uint8_t mNumAvailableNodes;
     std::unique_ptr<FlycastEchoTransmitter> mFlycastEchoTransmitter;
     std::unique_ptr<FlycastBinaryEchoTransmitter> mFlycastBinaryEchoTransmitter;
-    std::function<void(const std::list<std::list<std::array<uint32_t, 2>>>& summary)> mSummaryCallback;
 };

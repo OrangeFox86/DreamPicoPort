@@ -147,8 +147,7 @@ FlycastTtyCommandHandler::FlycastTtyCommandHandler(
     mIdentification(identification),
     mDcNodes(dcNodes),
     mDefaultNode(nullptr),
-    mNumAvailableNodes(0),
-    mSummaryCallback(std::bind(&FlycastTtyCommandHandler::summaryCallback, this, std::placeholders::_1))
+    mNumAvailableNodes(0)
 {
     mFlycastEchoTransmitter = std::make_unique<FlycastEchoTransmitter>(mMutex);
     mFlycastBinaryEchoTransmitter = std::make_unique<FlycastBinaryEchoTransmitter>(mMutex);
@@ -353,7 +352,7 @@ void FlycastTtyCommandHandler::submit(const char* chars, uint32_t len)
                 if (pDcNode)
                 {
                     // NOTE: Mutex will be taken in the callback
-                    pDcNode->mainNode->requestSummary(mSummaryCallback);
+                    summaryCallback(pDcNode->mainNode->getSummary());
                 }
                 else
                 {
