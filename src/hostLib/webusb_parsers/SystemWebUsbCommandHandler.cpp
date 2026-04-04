@@ -26,9 +26,13 @@
 #include <cstring>
 
 SystemWebUsbCommandHandler::SystemWebUsbCommandHandler(
-    SystemIdentification& identification
+    SystemIdentification& identification,
+    ClockInterface& clock,
+    const std::map<uint8_t, DreamcastNodeData>& dcNodes
 ) :
-    mIdentification(identification)
+    mIdentification(identification),
+    mClock(clock),
+    mDcNodes(dcNodes)
 {}
 
 void SystemWebUsbCommandHandler::process(
@@ -66,6 +70,52 @@ void SystemWebUsbCommandHandler::process(
             mIdentification.getSerial(buffer, sizeof(buffer) - 1);
             buffer[sizeof(buffer) - 1] = '\0';
             responseFn(kResponseSuccess, {{buffer, strlen(buffer) + 1}});
+        }
+        return;
+
+        // -$0, -$1, -$2, or -$3 will return MapleBus status
+        case '$':
+        {
+            // Remove $
+            ++iter;
+            int idx = -1;
+            if (iter < eol)
+            {
+                idx = *iter;
+            }
+
+            std::map<uint8_t, DreamcastNodeData>::iterator dcNodeIter = mDcNodes.end();
+            if (idx >= 0 && (dcNodeIter = mDcNodes.find(idx)) != mDcNodes.end())
+            {
+                std::string response;
+                response.reserve(108);
+
+                const std::uint64_t now = mClock.getTimeUs();
+                appendIntToResponse(response, now);
+
+                DreamcastMainNode::MapleStatus status = dcNodeIter->second.mainNode->getMapleStatus();
+
+                appendIntToResponse(response, static_cast<std::uint32_t>(status.phase));
+
+                appendIntToResponse(response, status.mapleStats.numReads);
+                appendIntToResponse(response, status.mapleStats.numNullReads);
+                appendIntToResponse(response, status.mapleStats.numReadFailCrc);
+                appendIntToResponse(response, status.mapleStats.numReadFailIncomplete);
+                appendIntToResponse(response, status.mapleStats.numReadFailOverflow);
+                appendIntToResponse(response, status.mapleStats.numReadFailTimeout);
+                appendIntToResponse(response, status.mapleStats.lastReadStartTime);
+                appendIntToResponse(response, status.mapleStats.lastReadCompleteTime);
+                appendIntToResponse(response, status.mapleStats.numWrites);
+                appendIntToResponse(response, status.mapleStats.numWriteFail);
+                appendIntToResponse(response, status.mapleStats.lastWriteStartTime);
+                appendIntToResponse(response, status.mapleStats.lastWriteCompleteTime);
+
+                responseFn(kResponseSuccess, {{response.data(), response.size()}});
+            }
+            else
+            {
+                responseFn(kResponseFailure, {});
+            }
         }
         return;
 

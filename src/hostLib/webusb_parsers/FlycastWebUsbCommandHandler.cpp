@@ -34,33 +34,13 @@ const std::uint8_t FlycastWebUsbCommandHandler::kInterfaceVersion[2] = {1, 0};
 
 FlycastWebUsbCommandHandler::FlycastWebUsbCommandHandler(
     SystemIdentification& identification,
-    ClockInterface& clock,
     const std::shared_ptr<MapleWebUsbCommandHandler>& mapleWebUsbCommandHandler,
     const std::map<uint8_t, DreamcastNodeData>& dcNodes
 ) :
     mIdentification(identification),
-    mClock(clock),
     mMapleWebUsbCommandHandler(mapleWebUsbCommandHandler),
     mDcNodes(dcNodes)
 {}
-
-template <typename T>
-static constexpr T flipEndian(T val) noexcept
-{
-    static_assert(std::is_integral_v<T>, "Type must be integral");
-
-    auto* ptr = reinterpret_cast<std::uint8_t*>(&val);
-    std::reverse(ptr, ptr + sizeof(T));
-    return val;
-}
-
-template <typename T>
-static void appendIntToResponse(std::string& response, T val)
-{
-    T out = flipEndian(val);
-    const char* const pOut = reinterpret_cast<const char*>(&out);
-    response.append(pOut, sizeof(T));
-}
 
 void FlycastWebUsbCommandHandler::process(
     const std::uint8_t* payload,
@@ -209,52 +189,6 @@ void FlycastWebUsbCommandHandler::process(
 
                     first = false;
                 }
-
-                responseFn(kResponseSuccess, {{response.data(), response.size()}});
-            }
-            else
-            {
-                responseFn(kResponseFailure, {});
-            }
-        }
-        return;
-
-        // X$0, X$1, X$2, or X$3 will return MapleBus status
-        case '$':
-        {
-            // Remove $
-            ++iter;
-            int idx = -1;
-            if (iter < eol)
-            {
-                idx = *iter;
-            }
-
-            std::map<uint8_t, DreamcastNodeData>::iterator dcNodeIter = mDcNodes.end();
-            if (idx >= 0 && (dcNodeIter = mDcNodes.find(idx)) != mDcNodes.end())
-            {
-                std::string response;
-                response.reserve(108);
-
-                const std::uint64_t now = mClock.getTimeUs();
-                appendIntToResponse(response, now);
-
-                DreamcastMainNode::MapleStatus status = dcNodeIter->second.mainNode->getMapleStatus();
-
-                appendIntToResponse(response, static_cast<std::uint32_t>(status.phase));
-
-                appendIntToResponse(response, status.mapleStats.numReads);
-                appendIntToResponse(response, status.mapleStats.numNullReads);
-                appendIntToResponse(response, status.mapleStats.numReadFailCrc);
-                appendIntToResponse(response, status.mapleStats.numReadFailIncomplete);
-                appendIntToResponse(response, status.mapleStats.numReadFailOverflow);
-                appendIntToResponse(response, status.mapleStats.numReadFailTimeout);
-                appendIntToResponse(response, status.mapleStats.lastReadStartTime);
-                appendIntToResponse(response, status.mapleStats.lastReadCompleteTime);
-                appendIntToResponse(response, status.mapleStats.numWrites);
-                appendIntToResponse(response, status.mapleStats.numWriteFail);
-                appendIntToResponse(response, status.mapleStats.lastWriteStartTime);
-                appendIntToResponse(response, status.mapleStats.lastWriteCompleteTime);
 
                 responseFn(kResponseSuccess, {{response.data(), response.size()}});
             }

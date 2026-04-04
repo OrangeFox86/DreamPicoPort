@@ -45,7 +45,6 @@ class FlycastWebUsbCommandHandler : public WebUsbCommandHandler
 public:
     FlycastWebUsbCommandHandler(
         SystemIdentification& identification,
-        ClockInterface& clock,
         const std::shared_ptr<MapleWebUsbCommandHandler>& mapleWebUsbCommandHandler,
         const std::map<uint8_t, DreamcastNodeData>& dcNodes
     );
@@ -70,7 +69,6 @@ public:
 private:
     static const std::uint8_t kInterfaceVersion[2];
     SystemIdentification& mIdentification;
-    ClockInterface& mClock;
     std::shared_ptr<MapleWebUsbCommandHandler> mMapleWebUsbCommandHandler;
     std::map<uint8_t, DreamcastNodeData> mDcNodes;
 };
