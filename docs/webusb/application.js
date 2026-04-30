@@ -1822,10 +1822,12 @@
       complete() {
         let html = '';
         for (let idx = 0; idx < 4; ++idx) {
+          const controllerLetter = String.fromCharCode("A".charCodeAt(0) + idx);
           if (this.data[idx]) {
             let dv = new DataView(this.data[idx].buffer, this.data[idx].byteOffset);
             let offset = 0;
             let now = dv.getBigUint64(offset, false); offset += 8;
+            let inSync = dv.getUint32(offset, false); offset += 4;
             let phase = dv.getUint32(offset, false); offset += 4;
             const phaseLookup = [
               "idle",
@@ -1844,34 +1846,35 @@
             let numReadFailOverflow = dv.getBigUint64(offset, false); offset += 8;
             let numReadFailTimeout = dv.getBigUint64(offset, false); offset += 8;
             let lastReadStartTime = dv.getBigUint64(offset, false); offset += 8;
-            let lastReadStartDiff = now - lastReadStartTime;
+            let lastReadStartDiffMs = Number(lastReadStartTime - now) / 1000.0;
             let lastReadCompleteTime = dv.getBigUint64(offset, false); offset += 8;
-            let lastReadCompleteDiff = now - lastReadCompleteTime;
+            let lastReadCompleteDiffMs = Number(lastReadCompleteTime - now) / 1000.0;
             let numWrites = dv.getBigUint64(offset, false); offset += 8;
             let numWriteFail = dv.getBigUint64(offset, false); offset += 8;
             let lastWriteStartTime = dv.getBigUint64(offset, false); offset += 8;
-            let lastWriteStartDiff = now - lastWriteStartTime;
+            let lastWriteStartDiffMs = Number(lastWriteStartTime - now) / 1000.0;
             let lastWriteCompleteTime = dv.getBigUint64(offset, false); offset += 8;
-            let lastWriteCompleteDiff = now - lastWriteCompleteTime;
-            html += '<h3>Controller ' + String.fromCharCode("A".charCodeAt(0) + idx) + ' Diagnostics</h3>';
+            let lastWriteCompleteDiffMs = Number(lastWriteCompleteTime - now) / 1000.0;
+            html += '<h3>Controller ' + controllerLetter + ' Diagnostics</h3>';
             html += '<table border="1"><tr><th>Field</th><th>Value</th></tr>';
-            html += '<tr><td>Timestamp</td><td>' + now.toString() + ' microseconds</td></tr>';
-            html += '<tr><td>Phase</td><td>' + phase + ' (' + ((phase < phaseLookup.length) ? phaseLookup[phase] : "unknown") + ')</td></tr>';
+            html += '<tr><td>Current Timestamp</td><td>' + now.toString() + ' \u00B5s</td></tr>';
+            html += '<tr><td>Synchronized</td><td>' + ((inSync != 0) ? "YES" : "NO") + '</td></tr>';
+            html += '<tr><td>Current Phase</td><td>' + phase + ' (' + ((phase < phaseLookup.length) ? phaseLookup[phase] : "unknown") + ')</td></tr>';
             html += '<tr><td>Num Reads</td><td>' + numReads + '</td></tr>';
             html += '<tr><td>Num Null Reads</td><td>' + numNullReads + '</td></tr>';
             html += '<tr><td>Num Read Fail CRC</td><td>' + numReadFailCrc + '</td></tr>';
             html += '<tr><td>Num Read Fail Incomplete</td><td>' + numReadFailIncomplete + '</td></tr>';
             html += '<tr><td>Num Read Fail Overflow</td><td>' + numReadFailOverflow + '</td></tr>';
             html += '<tr><td>Num Read Fail Timeout</td><td>' + numReadFailTimeout + '</td></tr>';
-            html += '<tr><td>Last Read Start Time</td><td>' + lastReadStartTime.toString() + ' (now - ' + lastReadStartDiff.toString() + ') microseconds</td></tr>';
-            html += '<tr><td>Last Read Complete Time</td><td>' + lastReadCompleteTime.toString() + ' (now - ' + lastReadCompleteDiff.toString() + ') microseconds</td></tr>';
+            html += '<tr><td>Last Read Start Time</td><td>' + lastReadStartTime.toString() + ' \u00B5s (' + lastReadStartDiffMs.toString() + ' ms)</td></tr>';
+            html += '<tr><td>Last Read Complete Time</td><td>' + lastReadCompleteTime.toString() + ' \u00B5s (' + lastReadCompleteDiffMs.toString() + ' ms)</td></tr>';
             html += '<tr><td>Num Writes</td><td>' + numWrites + '</td></tr>';
             html += '<tr><td>Num Write Fail</td><td>' + numWriteFail + '</td></tr>';
-            html += '<tr><td>Last Write Start Time</td><td>' + lastWriteStartTime.toString() + ' (now - ' + lastWriteStartDiff.toString() + ') microseconds</td></tr>';
-            html += '<tr><td>Last Write Complete Time</td><td>' + lastWriteCompleteTime.toString() + ' (now - ' + lastWriteCompleteDiff.toString() + ') microseconds</td></tr>';
+            html += '<tr><td>Last Write Start Time</td><td>' + lastWriteStartTime.toString() + ' \u00B5s (' + lastWriteStartDiffMs.toString() + ' ms)</td></tr>';
+            html += '<tr><td>Last Write Complete Time</td><td>' + lastWriteCompleteTime.toString() + ' \u00B5s (' + lastWriteCompleteDiffMs.toString() + ' ms)</td></tr>';
             html += '</table><br>';
           } else {
-            html += '<h3>Controller ' + idx + ' Diagnostics</h3><p>No data available</p>';
+            html += '<h3>Controller ' + controllerLetter + ' Diagnostics</h3><p>No data available</p>';
           }
         }
         testsStatusDisplay.innerHTML = html;

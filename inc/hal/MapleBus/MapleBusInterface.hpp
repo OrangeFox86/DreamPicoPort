@@ -30,6 +30,7 @@
 #include "utils.h"
 #include "MaplePacket.hpp"
 #include <limits>
+#include <cstring>
 
 //! Maple Bus interface class
 class MapleBusInterface
@@ -124,6 +125,9 @@ class MapleBusInterface
             std::uint64_t lastWriteStartTime = 0;
             //! The last time point where write was successful
             std::uint64_t lastWriteCompleteTime = 0;
+
+            bool operator==(const MapleStats&) const = default;
+            bool operator!=(const MapleStats&) const = default;
         };
 
     public:

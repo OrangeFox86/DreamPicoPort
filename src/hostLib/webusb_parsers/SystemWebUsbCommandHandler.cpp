@@ -86,13 +86,36 @@ void SystemWebUsbCommandHandler::process(
             std::map<uint8_t, DreamcastNodeData>::iterator dcNodeIter = mDcNodes.end();
             if (idx >= 0 && (dcNodeIter = mDcNodes.find(idx)) != mDcNodes.end())
             {
+                auto& node = *dcNodeIter->second.mainNode;
+
                 std::string response;
-                response.reserve(108);
+                response.reserve(112);
 
                 const std::uint64_t now = mClock.getTimeUs();
                 appendIntToResponse(response, now);
 
-                DreamcastMainNode::MapleStatus status = dcNodeIter->second.mainNode->getMapleStatus();
+                // Keep reading status until last two reads are equal or total of 3 reads made
+                static constexpr uint32_t kMaxStatusReads = 3;
+                DreamcastMainNode::MapleStatus status = node.getMapleStatus();
+                bool synchronized = false;
+
+                {
+                    DreamcastMainNode::MapleStatus lastStatus;
+
+                    for (uint32_t numStatusReads = 1; numStatusReads < kMaxStatusReads; ++numStatusReads)
+                    {
+                        lastStatus = status;
+                        status = node.getMapleStatus();
+
+                        if (status == lastStatus)
+                        {
+                            synchronized = true;
+                            break;
+                        }
+                    }
+                }
+
+                appendIntToResponse(response, static_cast<std::uint32_t>(synchronized));
 
                 appendIntToResponse(response, static_cast<std::uint32_t>(status.phase));
 

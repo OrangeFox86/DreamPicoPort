@@ -91,6 +91,9 @@ class DreamcastMainNode : public DreamcastNode
             MapleBusInterface::Phase phase;
             //! The current statistics for the MapleBus
             MapleBusInterface::MapleStats mapleStats;
+
+            bool operator==(const MapleStatus&) const = default;
+            bool operator!=(const MapleStatus&) const = default;
         };
 
         //! @return current status and statistics information
