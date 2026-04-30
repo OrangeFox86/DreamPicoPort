@@ -428,6 +428,21 @@
       return numMissing;
     }
 
+    function compareVersions(verLeft, verRight) {
+      const maxLength = Math.max(verLeft.length, verRight.length);
+
+      for (let i = 0; i < maxLength; i++) {
+        // Treat missing indexes as 0
+        const left = verLeft[i] || 0;
+        const right = verRight[i] || 0;
+
+        if (left < right) return -1;
+        if (left > right) return 1;
+      }
+
+      return 0;
+    }
+
     // Starts the state machine which loads the settings from the device
     function startLoadSm(selectedPort) {
       selectedSerial = selectedPort.serial;
@@ -450,7 +465,10 @@
       if (!selectedPort.name.includes(deviceVersion)) {
         selectedDeviceText += `, ${deviceVersion}`;
       }
+      const thisVersion = [realMajorVer, selectedPort.minor, selectedPort.patch]
 
+      // Enable or disable controls based on version
+      testsDiagnosticsButton.style.visibility = (compareVersions(thisVersion, [1, 2, 4]) < 0) ? 'hidden' : 'visible';
 
       // Check for latest version
       versionUpdateDisplay.innerHTML = "";
@@ -464,10 +482,8 @@
           if (parts.length !== 3) {
             console.error(`Invalid version format: ${tagName}`);
           } else {
-            const major = parseInt(parts[0], 10);
-            const minor = parseInt(parts[1], 10);
-            const patch = parseInt(parts[2], 10);
-            if (major > realMajorVer || (major === realMajorVer && minor > selectedPort.minor) || (major === realMajorVer && minor === selectedPort.minor && patch > selectedPort.patch)) {
+            const latestVersion = [parseInt(parts[0], 10), parseInt(parts[1], 10), parseInt(parts[2], 10)]
+            if (compareVersions(thisVersion, latestVersion) < 0) {
               versionUpdateDisplay.innerHTML = `<a href='https://github.com/OrangeFox86/DreamPicoPort/releases/tag/${tagName}'>New version of firmware ${versionStr} available</a>`;
             } else {
               versionUpdateDisplay.innerHTML = "";
@@ -1795,7 +1811,7 @@
 
       process(addr, cmd, payload) {
         if (cmd == CMD_INVALID || cmd == CMD_BAD) {
-          this.stop('Firmware update required to retrieve diagnostics', 'red', 'bold');
+          this.stop('Failed to retrieve diagnostics', 'red', 'bold');
         } else if (addr >= DiagnosticsStateMachine.GET_DIAGNOSTICS_START_ADDR && addr < DiagnosticsStateMachine.GET_DIAGNOSTICS_START_ADDR + 4) {
           let idx = Number(addr) - Number(DiagnosticsStateMachine.GET_DIAGNOSTICS_START_ADDR);
 
