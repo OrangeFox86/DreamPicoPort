@@ -75,6 +75,7 @@
     let testsProfileButton = document.querySelector('#tests-profile');
     let testsBasicButton = document.querySelector('#tests-basic');
     let testsStressButton = document.querySelector('#tests-stress');
+    let testsDiagnosticsButton = document.querySelector('#tests-diagnostics');
     let testsStatusDisplay = document.querySelector('#tests-status');
 
     let lastReceivedReleaseTag = null;
@@ -1778,6 +1779,105 @@
       }
     }
 
+    // State machine which gets and displays state machine diagnostics information
+    class DiagnosticsStateMachine extends StateMachine {
+      static GET_DIAGNOSTICS_START_ADDR = 180; // 180, 181, 182, 183 for each controller
+
+      constructor() {
+        super("Get Diagnostics");
+        this.data = [];
+      }
+
+      start() {
+        testsStatusDisplay.innerHTML = "";
+        send(DiagnosticsStateMachine.GET_DIAGNOSTICS_START_ADDR, '-'.charCodeAt(0), ['$'.charCodeAt(0), 0]);
+      }
+
+      process(addr, cmd, payload) {
+        if (cmd == CMD_INVALID || cmd == CMD_BAD) {
+          this.stop('Firmware update required to retrieve diagnostics', 'red', 'bold');
+        } else if (addr >= DiagnosticsStateMachine.GET_DIAGNOSTICS_START_ADDR && addr < DiagnosticsStateMachine.GET_DIAGNOSTICS_START_ADDR + 4) {
+          let idx = Number(addr) - Number(DiagnosticsStateMachine.GET_DIAGNOSTICS_START_ADDR);
+
+          if (cmd == CMD_OK) {
+            this.data.push(payload);
+          } else {
+            // This state machine may not be running right now
+            this.data.push(null);
+          }
+
+          if (addr != DiagnosticsStateMachine.GET_DIAGNOSTICS_START_ADDR + 3) {
+            // Send next
+            send(DiagnosticsStateMachine.GET_DIAGNOSTICS_START_ADDR + idx + 1, '-'.charCodeAt(0), ['$'.charCodeAt(0), idx + 1]);
+          } else {
+            // Retrieved all data
+            this.complete()
+            this.stop('Diagnostics Retrieved')
+          }
+        } else {
+          this.stop('Get diagnostics failed', 'red', 'bold');
+        }
+      }
+
+      complete() {
+        let html = '';
+        for (let idx = 0; idx < 4; ++idx) {
+          if (this.data[idx]) {
+            let dv = new DataView(this.data[idx].buffer, this.data[idx].byteOffset);
+            let offset = 0;
+            let now = dv.getBigUint64(offset, false); offset += 8;
+            let phase = dv.getUint32(offset, false); offset += 4;
+            const phaseLookup = [
+              "idle",
+              "writing",
+              "write failed",
+              "write complete",
+              "read pending",
+              "reading",
+              "read failed",
+              "read complete"
+            ]
+            let numReads = dv.getBigUint64(offset, false); offset += 8;
+            let numNullReads = dv.getBigUint64(offset, false); offset += 8;
+            let numReadFailCrc = dv.getBigUint64(offset, false); offset += 8;
+            let numReadFailIncomplete = dv.getBigUint64(offset, false); offset += 8;
+            let numReadFailOverflow = dv.getBigUint64(offset, false); offset += 8;
+            let numReadFailTimeout = dv.getBigUint64(offset, false); offset += 8;
+            let lastReadStartTime = dv.getBigUint64(offset, false); offset += 8;
+            let lastReadStartDiff = now - lastReadStartTime;
+            let lastReadCompleteTime = dv.getBigUint64(offset, false); offset += 8;
+            let lastReadCompleteDiff = now - lastReadCompleteTime;
+            let numWrites = dv.getBigUint64(offset, false); offset += 8;
+            let numWriteFail = dv.getBigUint64(offset, false); offset += 8;
+            let lastWriteStartTime = dv.getBigUint64(offset, false); offset += 8;
+            let lastWriteStartDiff = now - lastWriteStartTime;
+            let lastWriteCompleteTime = dv.getBigUint64(offset, false); offset += 8;
+            let lastWriteCompleteDiff = now - lastWriteCompleteTime;
+            html += '<h3>Controller ' + String.fromCharCode("A".charCodeAt(0) + idx) + ' Diagnostics</h3>';
+            html += '<table border="1"><tr><th>Field</th><th>Value</th></tr>';
+            html += '<tr><td>Timestamp</td><td>' + now.toString() + ' microseconds</td></tr>';
+            html += '<tr><td>Phase</td><td>' + phase + ' (' + ((phase < phaseLookup.length) ? phaseLookup[phase] : "unknown") + ')</td></tr>';
+            html += '<tr><td>Num Reads</td><td>' + numReads + '</td></tr>';
+            html += '<tr><td>Num Null Reads</td><td>' + numNullReads + '</td></tr>';
+            html += '<tr><td>Num Read Fail CRC</td><td>' + numReadFailCrc + '</td></tr>';
+            html += '<tr><td>Num Read Fail Incomplete</td><td>' + numReadFailIncomplete + '</td></tr>';
+            html += '<tr><td>Num Read Fail Overflow</td><td>' + numReadFailOverflow + '</td></tr>';
+            html += '<tr><td>Num Read Fail Timeout</td><td>' + numReadFailTimeout + '</td></tr>';
+            html += '<tr><td>Last Read Start Time</td><td>' + lastReadStartTime.toString() + ' (now - ' + lastReadStartDiff.toString() + ') microseconds</td></tr>';
+            html += '<tr><td>Last Read Complete Time</td><td>' + lastReadCompleteTime.toString() + ' (now - ' + lastReadCompleteDiff.toString() + ') microseconds</td></tr>';
+            html += '<tr><td>Num Writes</td><td>' + numWrites + '</td></tr>';
+            html += '<tr><td>Num Write Fail</td><td>' + numWriteFail + '</td></tr>';
+            html += '<tr><td>Last Write Start Time</td><td>' + lastWriteStartTime.toString() + ' (now - ' + lastWriteStartDiff.toString() + ') microseconds</td></tr>';
+            html += '<tr><td>Last Write Complete Time</td><td>' + lastWriteCompleteTime.toString() + ' (now - ' + lastWriteCompleteDiff.toString() + ') microseconds</td></tr>';
+            html += '</table><br>';
+          } else {
+            html += '<h3>Controller ' + idx + ' Diagnostics</h3><p>No data available</p>';
+          }
+        }
+        testsStatusDisplay.innerHTML = html;
+      }
+    }
+
     // State machine which writes GPIO settings
     class WriteGpioStateMachine extends StateMachine {
       static SEND_CONTROLLER_A_ADDR = 20;
@@ -1981,6 +2081,12 @@
       startSm(new StressTestStateMachine());
     }
 
+    // Starts the state machine which runs stress tests
+    function startDiagnosticsSm() {
+      setStatus("Getting diagnostics...");
+      startSm(new DiagnosticsStateMachine());
+    }
+
     // Starts the state machine which writes the current settings within the GPIO tab
     function startWriteGpioSm() {
       setStatus("Writing GPIO Settings...");
@@ -2016,6 +2122,11 @@
     // Test: Stress
     testsStressButton.addEventListener('click', function() {
       startStressTest();
+    });
+
+    // Test: Get Diagnostics
+    testsDiagnosticsButton.addEventListener('click', function() {
+      startDiagnosticsSm();
     });
 
     // Save GPIO Settings Button - click handler

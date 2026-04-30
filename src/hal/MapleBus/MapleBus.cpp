@@ -240,6 +240,10 @@ inline void MapleBus::writeIsr()
             mProcKillTime = time_us_64() + mResponseTimeoutUs;
         }
 
+        // Update stats now that write completed and read is started
+        mStats.lastReadStartTime = mStats.lastWriteCompleteTime = time_us_64();
+        ++mStats.numReads;
+
         mCurrentPhase = Phase::WAITING_FOR_READ_START;
     }
     else

@@ -77,9 +77,8 @@ void SystemWebUsbCommandHandler::process(
         case '$':
         {
             // Remove $
-            ++iter;
             int idx = -1;
-            if (iter < eol)
+            if (numPayload > 0)
             {
                 idx = *iter;
             }
