@@ -46,7 +46,7 @@
 #define MAPLE_NS_PER_BIT 480
 
 // Added percentage on top of the expected write completion duration to use for timeout
-#define MAPLE_WRITE_TIMEOUT_EXTRA_PERCENT 50
+#define MAPLE_WRITE_TIMEOUT_EXTRA_PERCENT 20
 
 // Estimated nanoseconds before peripheral responds - this is used for scheduling only
 #define MAPLE_RESPONSE_DELAY_NS 50
