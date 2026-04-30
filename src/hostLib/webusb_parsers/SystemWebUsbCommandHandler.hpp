@@ -43,7 +43,9 @@ class SystemWebUsbCommandHandler : public WebUsbCommandHandler
 {
 public:
     SystemWebUsbCommandHandler(
-        SystemIdentification& identification
+        SystemIdentification& identification,
+        ClockInterface& clock,
+        const std::map<uint8_t, DreamcastNodeData>& dcNodes
     );
 
     virtual ~SystemWebUsbCommandHandler() = default;
@@ -65,4 +67,6 @@ public:
 
 private:
     SystemIdentification& mIdentification;
+    ClockInterface& mClock;
+    std::map<uint8_t, DreamcastNodeData> mDcNodes;
 };

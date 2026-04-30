@@ -146,7 +146,7 @@ void FlycastWebUsbCommandHandler::process(
         }
         return;
 
-        // X?0, X?1, X?2, or X?3 will print summary for the given node index
+        // X?0, X?1, X?2, or X?3 will return summary for the given node index
         case '?':
         {
             // Remove question mark
@@ -160,41 +160,37 @@ void FlycastWebUsbCommandHandler::process(
             std::map<uint8_t, DreamcastNodeData>::iterator dcNodeIter = mDcNodes.end();
             if (idx >= 0 && (dcNodeIter = mDcNodes.find(idx)) != mDcNodes.end())
             {
-                dcNodeIter->second.mainNode->requestSummary(
-                    [responseFn](const std::list<std::list<std::array<uint32_t, 2>>>& summary)
+                std::string response;
+                response.reserve(64);
+
+                std::list<std::list<std::array<uint32_t, 2>>> summary = dcNodeIter->second.mainNode->getSummary();
+                bool first = true;
+                for (const auto& i : summary)
+                {
+                    if (!first)
                     {
-                        std::string response;
-                        response.reserve(64);
-
-                        bool first = true;
-                        for (const auto& i : summary)
-                        {
-                            if (!first)
-                            {
-                                // Semicolon means start of next peripheral data
-                                response.push_back(';');
-                            }
-
-                            for (const auto& j : i)
-                            {
-                                // Pipe means a 4-byte value will follow (first is function code)
-                                response.push_back('|');
-                                uint32_t out = MaplePacket::flipWordBytes(j[0]);
-                                const char* const p8Out = reinterpret_cast<const char*>(&out);
-                                response.append(p8Out, 4);
-
-                                // Pipe means a 4-byte value will follow (second is function definitions word)
-                                response.push_back('|');
-                                out = MaplePacket::flipWordBytes(j[1]);
-                                response.append(p8Out, 4);
-                            }
-
-                            first = false;
-                        }
-
-                        responseFn(kResponseSuccess, {{response.data(), response.size()}});
+                        // Semicolon means start of next peripheral data
+                        response.push_back(';');
                     }
-                );
+
+                    for (const auto& j : i)
+                    {
+                        // Pipe means a 4-byte value will follow (first is function code)
+                        response.push_back('|');
+                        uint32_t out = MaplePacket::flipWordBytes(j[0]);
+                        const char* const p8Out = reinterpret_cast<const char*>(&out);
+                        response.append(p8Out, 4);
+
+                        // Pipe means a 4-byte value will follow (second is function definitions word)
+                        response.push_back('|');
+                        out = MaplePacket::flipWordBytes(j[1]);
+                        response.append(p8Out, 4);
+                    }
+
+                    first = false;
+                }
+
+                responseFn(kResponseSuccess, {{response.data(), response.size()}});
             }
             else
             {

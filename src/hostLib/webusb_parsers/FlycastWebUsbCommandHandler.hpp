@@ -25,6 +25,7 @@
 
 #include "hal/Usb/WebUsbCommandHandler.hpp"
 #include "hal/System/SystemIdentification.hpp"
+#include "hal/System/ClockInterface.hpp"
 #include "hal/System/MutexInterface.hpp"
 
 #include "PrioritizedTxScheduler.hpp"

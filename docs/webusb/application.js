@@ -75,6 +75,7 @@
     let testsProfileButton = document.querySelector('#tests-profile');
     let testsBasicButton = document.querySelector('#tests-basic');
     let testsStressButton = document.querySelector('#tests-stress');
+    let testsDiagnosticsButton = document.querySelector('#tests-diagnostics');
     let testsStatusDisplay = document.querySelector('#tests-status');
 
     let lastReceivedReleaseTag = null;
@@ -427,6 +428,21 @@
       return numMissing;
     }
 
+    function compareVersions(verLeft, verRight) {
+      const maxLength = Math.max(verLeft.length, verRight.length);
+
+      for (let i = 0; i < maxLength; i++) {
+        // Treat missing indexes as 0
+        const left = verLeft[i] || 0;
+        const right = verRight[i] || 0;
+
+        if (left < right) return -1;
+        if (left > right) return 1;
+      }
+
+      return 0;
+    }
+
     // Starts the state machine which loads the settings from the device
     function startLoadSm(selectedPort) {
       selectedSerial = selectedPort.serial;
@@ -449,7 +465,10 @@
       if (!selectedPort.name.includes(deviceVersion)) {
         selectedDeviceText += `, ${deviceVersion}`;
       }
+      const thisVersion = [realMajorVer, selectedPort.minor, selectedPort.patch]
 
+      // Enable or disable controls based on version
+      testsDiagnosticsButton.style.visibility = (compareVersions(thisVersion, [1, 2, 4]) < 0) ? 'hidden' : 'visible';
 
       // Check for latest version
       versionUpdateDisplay.innerHTML = "";
@@ -463,10 +482,8 @@
           if (parts.length !== 3) {
             console.error(`Invalid version format: ${tagName}`);
           } else {
-            const major = parseInt(parts[0], 10);
-            const minor = parseInt(parts[1], 10);
-            const patch = parseInt(parts[2], 10);
-            if (major > realMajorVer || (major === realMajorVer && minor > selectedPort.minor) || (major === realMajorVer && minor === selectedPort.minor && patch > selectedPort.patch)) {
+            const latestVersion = [parseInt(parts[0], 10), parseInt(parts[1], 10), parseInt(parts[2], 10)]
+            if (compareVersions(thisVersion, latestVersion) < 0) {
               versionUpdateDisplay.innerHTML = `<a href='https://github.com/OrangeFox86/DreamPicoPort/releases/tag/${tagName}'>New version of firmware ${versionStr} available</a>`;
             } else {
               versionUpdateDisplay.innerHTML = "";
@@ -1778,6 +1795,108 @@
       }
     }
 
+    // State machine which gets and displays state machine diagnostics information
+    class DiagnosticsStateMachine extends StateMachine {
+      static GET_DIAGNOSTICS_START_ADDR = 180; // 180, 181, 182, 183 for each controller
+
+      constructor() {
+        super("Get Diagnostics");
+        this.data = [];
+      }
+
+      start() {
+        testsStatusDisplay.innerHTML = "";
+        send(DiagnosticsStateMachine.GET_DIAGNOSTICS_START_ADDR, '-'.charCodeAt(0), ['$'.charCodeAt(0), 0]);
+      }
+
+      process(addr, cmd, payload) {
+        if (cmd == CMD_INVALID || cmd == CMD_BAD) {
+          this.stop('Failed to retrieve diagnostics', 'red', 'bold');
+        } else if (addr >= DiagnosticsStateMachine.GET_DIAGNOSTICS_START_ADDR && addr < DiagnosticsStateMachine.GET_DIAGNOSTICS_START_ADDR + 4) {
+          let idx = Number(addr) - Number(DiagnosticsStateMachine.GET_DIAGNOSTICS_START_ADDR);
+
+          if (cmd == CMD_OK) {
+            this.data.push(payload);
+          } else {
+            // This state machine may not be running right now
+            this.data.push(null);
+          }
+
+          if (addr != DiagnosticsStateMachine.GET_DIAGNOSTICS_START_ADDR + 3) {
+            // Send next
+            send(DiagnosticsStateMachine.GET_DIAGNOSTICS_START_ADDR + idx + 1, '-'.charCodeAt(0), ['$'.charCodeAt(0), idx + 1]);
+          } else {
+            // Retrieved all data
+            this.complete()
+            this.stop('Diagnostics Retrieved')
+          }
+        } else {
+          this.stop('Get diagnostics failed', 'red', 'bold');
+        }
+      }
+
+      complete() {
+        let html = '';
+        for (let idx = 0; idx < 4; ++idx) {
+          const controllerLetter = String.fromCharCode("A".charCodeAt(0) + idx);
+          if (this.data[idx]) {
+            let dv = new DataView(this.data[idx].buffer, this.data[idx].byteOffset);
+            let offset = 0;
+            let now = dv.getBigUint64(offset, false); offset += 8;
+            let inSync = dv.getUint32(offset, false); offset += 4;
+            let phase = dv.getUint32(offset, false); offset += 4;
+            const phaseLookup = [
+              "idle",
+              "writing",
+              "write failed",
+              "write complete",
+              "read pending",
+              "reading",
+              "read failed",
+              "read complete"
+            ]
+            let numReads = dv.getBigUint64(offset, false); offset += 8;
+            let numNullReads = dv.getBigUint64(offset, false); offset += 8;
+            let numReadFailCrc = dv.getBigUint64(offset, false); offset += 8;
+            let numReadFailIncomplete = dv.getBigUint64(offset, false); offset += 8;
+            let numReadFailOverflow = dv.getBigUint64(offset, false); offset += 8;
+            let numReadFailTimeout = dv.getBigUint64(offset, false); offset += 8;
+            let lastReadStartTime = dv.getBigUint64(offset, false); offset += 8;
+            let lastReadStartDiffMs = Number(lastReadStartTime - now) / 1000.0;
+            let lastReadCompleteTime = dv.getBigUint64(offset, false); offset += 8;
+            let lastReadCompleteDiffMs = Number(lastReadCompleteTime - now) / 1000.0;
+            let numWrites = dv.getBigUint64(offset, false); offset += 8;
+            let numWriteFail = dv.getBigUint64(offset, false); offset += 8;
+            let lastWriteStartTime = dv.getBigUint64(offset, false); offset += 8;
+            let lastWriteStartDiffMs = Number(lastWriteStartTime - now) / 1000.0;
+            let lastWriteCompleteTime = dv.getBigUint64(offset, false); offset += 8;
+            let lastWriteCompleteDiffMs = Number(lastWriteCompleteTime - now) / 1000.0;
+            html += '<h3>Controller ' + controllerLetter + ' Diagnostics</h3>';
+            html += '<table border="1"><tr><th>Field</th><th>Value</th></tr>';
+            html += '<tr><td>Current Timestamp</td><td>' + now.toString() + ' \u00B5s</td></tr>';
+            html += '<tr><td>Synchronized</td><td>' + ((inSync != 0) ? "YES" : "NO") + '</td></tr>';
+            html += '<tr><td>Current Phase</td><td>' + phase + ' (' + ((phase < phaseLookup.length) ? phaseLookup[phase] : "unknown") + ')</td></tr>';
+            html += '<tr><td>Num Reads</td><td>' + numReads + '</td></tr>';
+            html += '<tr><td>Num Null Reads</td><td>' + numNullReads + '</td></tr>';
+            html += '<tr><td>Num Read Fail CRC</td><td>' + numReadFailCrc + '</td></tr>';
+            html += '<tr><td>Num Read Fail Incomplete</td><td>' + numReadFailIncomplete + '</td></tr>';
+            html += '<tr><td>Num Read Fail Overflow</td><td>' + numReadFailOverflow + '</td></tr>';
+            html += '<tr><td>Num Read Fail Timeout</td><td>' + numReadFailTimeout + '</td></tr>';
+            html += '<tr><td>Last Read Start Time</td><td>' + lastReadStartTime.toString() + ' \u00B5s (' + lastReadStartDiffMs.toString() + ' ms)</td></tr>';
+            html += '<tr><td>Last Read Complete Time</td><td>' + lastReadCompleteTime.toString() + ' \u00B5s (' + lastReadCompleteDiffMs.toString() + ' ms)</td></tr>';
+            html += '<tr><td>Num Writes</td><td>' + numWrites + '</td></tr>';
+            html += '<tr><td>Num Write Fail</td><td>' + numWriteFail + '</td></tr>';
+            html += '<tr><td>Last Write Start Time</td><td>' + lastWriteStartTime.toString() + ' \u00B5s (' + lastWriteStartDiffMs.toString() + ' ms)</td></tr>';
+            html += '<tr><td>Last Write Complete Time</td><td>' + lastWriteCompleteTime.toString() + ' \u00B5s (' + lastWriteCompleteDiffMs.toString() + ' ms)</td></tr>';
+            html += '</table><br>';
+          } else {
+            html += '<h3>Controller ' + controllerLetter + ' Diagnostics</h3><p>No data available</p>';
+          }
+        }
+        testsStatusDisplay.innerHTML = html;
+      }
+    }
+
     // State machine which writes GPIO settings
     class WriteGpioStateMachine extends StateMachine {
       static SEND_CONTROLLER_A_ADDR = 20;
@@ -1981,6 +2100,12 @@
       startSm(new StressTestStateMachine());
     }
 
+    // Starts the state machine which runs stress tests
+    function startDiagnosticsSm() {
+      setStatus("Getting diagnostics...");
+      startSm(new DiagnosticsStateMachine());
+    }
+
     // Starts the state machine which writes the current settings within the GPIO tab
     function startWriteGpioSm() {
       setStatus("Writing GPIO Settings...");
@@ -2016,6 +2141,11 @@
     // Test: Stress
     testsStressButton.addEventListener('click', function() {
       startStressTest();
+    });
+
+    // Test: Get Diagnostics
+    testsDiagnosticsButton.addEventListener('click', function() {
+      startDiagnosticsSm();
     });
 
     // Save GPIO Settings Button - click handler

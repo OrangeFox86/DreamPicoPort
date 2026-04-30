@@ -92,7 +92,7 @@ class DreamcastNode : public Transmitter
 
         //! @return summary of peripherals on this node where the inner array index [0] is function code and [1] is
         //!         function definitions word
-        std::list<std::array<uint32_t, 2>> getPeripherals()
+        std::list<std::array<uint32_t, 2>> getPeripherals() const
         {
             std::list<std::array<uint32_t, 2>> summary;
             for (const std::shared_ptr<DreamcastPeripheral>& periph : mPeripherals)

@@ -99,6 +99,9 @@ class MapleBus : public MapleBusInterface
         //! @param[in] context The context to pass to each function call
         void setCallback(void (*fn)(void*, uint32_t, Phase), void* context) override;
 
+        //! @return the current statistics of this maple bus
+        const MapleStats& getStats() const override;
+
     private:
         //! Ensures that the bus is open
         bool lineCheck();
@@ -106,6 +109,9 @@ class MapleBus : public MapleBusInterface
         //! Set direction
         //! @param[in] output  True for output from this device or false for input to this device
         void setDirection(bool output);
+
+        //! Reset all state machines
+        void resetSms();
 
         //! Adds bytes to a CRC
         //! @param[in] source  Source array to read from
@@ -182,6 +188,8 @@ class MapleBus : public MapleBusInterface
         uint64_t mLastReceivedWordTimeUs;
         //! The last sampled read word transfer count
         uint32_t mLastReadTransferCount;
+        //! The statistics for this MapleBus
+        MapleStats mStats;
 
         //! The callback function to execute on phase change
         void (*mCallbackFn)(void*, uint32_t, Phase);

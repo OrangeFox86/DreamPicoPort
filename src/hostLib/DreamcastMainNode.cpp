@@ -47,11 +47,13 @@ DreamcastMainNode::DreamcastMainNode(
     ),
     mDetectionOnly(detectionOnly),
     mDeviceDetected(false),
+    mMapleBus(bus),
     mSubNodes(),
     mTransmissionTimeliner(bus, prioritizedTxScheduler),
     mScheduleId(-1),
     mCommFailCount(0),
     mPrintSummary(false),
+    mLastPhase(MapleBusInterface::Phase::IDLE),
     mSendConnectedSignal(false),
     mChangeReleaseTime(0)
 {
@@ -137,15 +139,39 @@ void DreamcastMainNode::printSummary()
     mPrintSummary = true;
 }
 
-void DreamcastMainNode::requestSummary(
-    const std::function<void(const std::list<std::list<std::array<uint32_t, 2>>>&)>& callback)
+std::list<std::list<std::array<uint32_t, 2>>> DreamcastMainNode::getSummary() const
 {
-    mSummaryCallback = callback;
+    std::list<std::list<std::array<uint32_t, 2>>> summary;
+
+    bool add = false;
+    for (
+        std::vector<std::shared_ptr<DreamcastSubNode>>::const_reverse_iterator iter = mSubNodes.crbegin();
+        iter != mSubNodes.crend();
+        ++iter
+    )
+    {
+        std::list<std::array<uint32_t, 2>> p = (*iter)->getPeripherals();
+        if (add || !p.empty())
+        {
+            summary.push_front(std::move(p));
+            add = true;
+        }
+    }
+
+    summary.push_front(getPeripherals());
+
+    return summary;
+}
+
+DreamcastMainNode::MapleStatus DreamcastMainNode::getMapleStatus() const
+{
+    return MapleStatus(mLastPhase, mMapleBus->getStats());
 }
 
 void DreamcastMainNode::readTask(uint64_t currentTimeUs)
 {
     TransmissionTimeliner::ReadStatus readStatus = mTransmissionTimeliner.readTask(currentTimeUs);
+    mLastPhase = readStatus.busPhase;
 
     // WARNING: The below is handled with care so that the transmitter pointer is guaranteed to be
     //          valid if not set to nullptr. Peripherals are only deleted in 2 places below*
@@ -309,33 +335,6 @@ void DreamcastMainNode::runDependentTasks(uint64_t currentTimeUs)
             (*iter)->printPeripherals();
         }
         printf("\n");
-    }
-
-    // Summary is retrieved here for multi-core safety/serialization
-    if (mSummaryCallback)
-    {
-        std::list<std::list<std::array<uint32_t, 2>>> summary;
-
-        bool add = false;
-        for (std::vector<std::shared_ptr<DreamcastSubNode>>::reverse_iterator iter = mSubNodes.rbegin();
-            iter != mSubNodes.rend();
-            ++iter)
-        {
-            std::list<std::array<uint32_t, 2>> p = (*iter)->getPeripherals();
-            if (add || !p.empty())
-            {
-                summary.push_front(std::move(p));
-                add = true;
-            }
-        }
-
-        summary.push_front(getPeripherals());
-
-        std::function<void(const std::list<std::list<std::array<uint32_t, 2>>>&)> callback;
-
-        mSummaryCallback.swap(callback);
-
-        callback(summary);
     }
 }
 

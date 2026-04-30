@@ -53,6 +53,32 @@ public:
         >& responseFn
     ) = 0;
 
+    //! Flip endianness
+    //! @tparam T The input/output type
+    //! @param[in] val The input value
+    //! @return Output value with endian flipped
+    template <typename T>
+    static constexpr T flipEndian(T val) noexcept
+    {
+        static_assert(std::is_integral_v<T>, "Type must be integral");
+
+        auto* ptr = reinterpret_cast<std::byte*>(&val);
+        std::reverse(ptr, ptr + sizeof(T));
+        return val;
+    }
+
+    //! Append an integer to a string output response
+    //! @tparam T Input integer type
+    //! @param[out] response The response to append to
+    //! @param[in] val The input value
+    template <typename T>
+    static void appendIntToResponse(std::string& response, T val)
+    {
+        T out = flipEndian(val);
+        const char* const pOut = reinterpret_cast<const char*>(&out);
+        response.append(pOut, sizeof(T));
+    }
+
     static constexpr const std::uint8_t kResponseSuccess = 0x0A;
     static constexpr const std::uint8_t kResponseAttention = 0x0B;
     static constexpr const std::uint8_t kResponseFailure = 0x0F;

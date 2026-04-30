@@ -26,9 +26,13 @@
 #include <cstring>
 
 SystemWebUsbCommandHandler::SystemWebUsbCommandHandler(
-    SystemIdentification& identification
+    SystemIdentification& identification,
+    ClockInterface& clock,
+    const std::map<uint8_t, DreamcastNodeData>& dcNodes
 ) :
-    mIdentification(identification)
+    mIdentification(identification),
+    mClock(clock),
+    mDcNodes(dcNodes)
 {}
 
 void SystemWebUsbCommandHandler::process(
@@ -66,6 +70,74 @@ void SystemWebUsbCommandHandler::process(
             mIdentification.getSerial(buffer, sizeof(buffer) - 1);
             buffer[sizeof(buffer) - 1] = '\0';
             responseFn(kResponseSuccess, {{buffer, strlen(buffer) + 1}});
+        }
+        return;
+
+        // -$0, -$1, -$2, or -$3 will return MapleBus status
+        case '$':
+        {
+            // Remove $
+            int idx = -1;
+            if (numPayload > 0)
+            {
+                idx = *iter;
+            }
+
+            std::map<uint8_t, DreamcastNodeData>::iterator dcNodeIter = mDcNodes.end();
+            if (idx >= 0 && (dcNodeIter = mDcNodes.find(idx)) != mDcNodes.end())
+            {
+                auto& node = *dcNodeIter->second.mainNode;
+
+                std::string response;
+                response.reserve(112);
+
+                const std::uint64_t now = mClock.getTimeUs();
+                appendIntToResponse(response, now);
+
+                // Keep reading status until last two reads are equal or total of 3 reads made
+                static constexpr uint32_t kMaxStatusReads = 3;
+                DreamcastMainNode::MapleStatus status = node.getMapleStatus();
+                bool synchronized = false;
+
+                {
+                    DreamcastMainNode::MapleStatus lastStatus;
+
+                    for (uint32_t numStatusReads = 1; numStatusReads < kMaxStatusReads; ++numStatusReads)
+                    {
+                        lastStatus = status;
+                        status = node.getMapleStatus();
+
+                        if (status == lastStatus)
+                        {
+                            synchronized = true;
+                            break;
+                        }
+                    }
+                }
+
+                appendIntToResponse(response, static_cast<std::uint32_t>(synchronized));
+
+                appendIntToResponse(response, static_cast<std::uint32_t>(status.phase));
+
+                appendIntToResponse(response, status.mapleStats.numReads);
+                appendIntToResponse(response, status.mapleStats.numNullReads);
+                appendIntToResponse(response, status.mapleStats.numReadFailCrc);
+                appendIntToResponse(response, status.mapleStats.numReadFailIncomplete);
+                appendIntToResponse(response, status.mapleStats.numReadFailOverflow);
+                appendIntToResponse(response, status.mapleStats.numReadFailTimeout);
+                appendIntToResponse(response, status.mapleStats.lastReadStartTime);
+                appendIntToResponse(response, status.mapleStats.lastReadCompleteTime);
+                appendIntToResponse(response, status.mapleStats.numWrites);
+                appendIntToResponse(response, status.mapleStats.numWriteFail);
+                appendIntToResponse(response, status.mapleStats.lastWriteStartTime);
+                appendIntToResponse(response, status.mapleStats.lastWriteCompleteTime);
+
+                responseFn(kResponseSuccess, {{response.data(), response.size()}});
+            }
+            else
+            {
+                responseFn(kResponseFailure, {});
+            }
         }
         return;
 

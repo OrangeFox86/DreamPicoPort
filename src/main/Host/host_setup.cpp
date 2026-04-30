@@ -41,6 +41,8 @@
 #include "Mutex.hpp"
 #include "Clock.hpp"
 
+static Clock gClock;
+
 std::map<uint8_t, DreamcastNodeData> setup_dreamcast_nodes(const std::vector<PlayerDefinition>& playerDefs)
 {
     std::map<uint8_t, DreamcastNodeData> dcNodeData;
@@ -48,7 +50,6 @@ std::map<uint8_t, DreamcastNodeData> setup_dreamcast_nodes(const std::vector<Pla
     static CriticalSectionMutex screenMutexes[MAX_DEVICES];
     DreamcastControllerObserver** observers = get_usb_controller_observers();
     static Mutex schedulerMutexes[MAX_DEVICES];
-    static Clock clock;
     uint8_t instanceId = 0;
     for (const PlayerDefinition& playerDef : playerDefs)
     {
@@ -65,7 +66,7 @@ std::map<uint8_t, DreamcastNodeData> setup_dreamcast_nodes(const std::vector<Pla
             .playerIndex = playerDef.index,
             .gamepad = thisObserver,
             .screenData = std::make_shared<ScreenData>(screenMutexes[playerDef.index], playerDef.index),
-            .clock = clock,
+            .clock = gClock,
             .fileSystem = usb_msc_get_file_system()
         });
         thisNode.scheduler = std::make_shared<PrioritizedTxScheduler>(
@@ -116,7 +117,7 @@ std::unique_ptr<SerialStreamParser> make_parsers(
         );
     webusb_add_parser(flycastWebUsbCommandParser);
     std::shared_ptr<SystemWebUsbCommandHandler> systemWebUsbCommandHandler =
-        std::make_shared<SystemWebUsbCommandHandler>(picoIdentification);
+        std::make_shared<SystemWebUsbCommandHandler>(picoIdentification, gClock, dcNodes);
     webusb_add_parser(systemWebUsbCommandHandler);
     std::shared_ptr<SettingsWebUsbCommandHandler> settingsWebUsbCommandHandler = std::make_shared<SettingsWebUsbCommandHandler>();
     webusb_add_parser(settingsWebUsbCommandHandler);
