@@ -715,6 +715,7 @@
           }
         };
       }, error => {
+        cancelSm(SM_DONE_CONNECT_FAILED);
         setStatus(error, 'red', 'bold');
         return false;
       });
@@ -731,7 +732,7 @@
           startLoadSm(selectedPort);
         }
       }).catch(error => {
-        cancelSm(SM_DONE_CONNECT_FAILED)
+        cancelSm(SM_DONE_CONNECT_FAILED);
         if (error.name === 'SecurityError' && navigator.platform.toLowerCase().includes('linux'))
         {
           setStatus(
