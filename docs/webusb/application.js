@@ -604,6 +604,23 @@
       }
     }
 
+    function handleConnectFailure(error) {
+      cancelSm(SM_DONE_CONNECT_FAILED);
+      if (error.name === 'SecurityError' && navigator.platform.toLowerCase().includes('linux'))
+      {
+        setStatus(
+          'udev rule is required. See: <a href="https://github.com/OrangeFox86/DreamPicoPort/wiki/Installation-Guide#linux" ' +
+            'target="_blank" style="color: inherit;">Installation Guide for Linux</a>',
+          'red',
+          'bold'
+        );
+      }
+      else if (error.name !== 'NotFoundError')
+      {
+        setStatus(error, 'red', 'bold');
+      }
+    }
+
     // Connect to the selected port and setup callbacks
     function connect() {
       port.connect().then(() => {
@@ -715,8 +732,7 @@
           }
         };
       }, error => {
-        cancelSm(SM_DONE_CONNECT_FAILED);
-        setStatus(error, 'red', 'bold');
+        handleConnectFailure(error);
         return false;
       });
 
@@ -732,20 +748,7 @@
           startLoadSm(selectedPort);
         }
       }).catch(error => {
-        cancelSm(SM_DONE_CONNECT_FAILED);
-        if (error.name === 'SecurityError' && navigator.platform.toLowerCase().includes('linux'))
-        {
-          setStatus(
-            'udev rule is required. See: <a href="https://github.com/OrangeFox86/DreamPicoPort/wiki/Installation-Guide#linux" ' +
-              'target="_blank" style="color: inherit;">Installation Guide for Linux</a>',
-            'red',
-            'bold'
-          );
-        }
-        else if (error.name !== 'NotFoundError')
-        {
-          setStatus(error, 'red', 'bold');
-        }
+        handleConnectFailure(error);
       });
     });
 
