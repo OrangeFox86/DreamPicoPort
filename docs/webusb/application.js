@@ -545,7 +545,7 @@
     // color: The color to set the status to
     // fontWeight: The font weight to set the status to
     function setStatus(str, color = 'black', fontWeight = 'normal') {
-      statusDisplay.textContent = str;
+      statusDisplay.innerHTML = str;
       statusDisplay.style.color = color;
       statusDisplay.style.fontWeight = fontWeight;
     }
@@ -601,6 +601,24 @@
         return true;
       } else {
         return setPortAndConnect(portOrSerialNumber);
+      }
+    }
+
+    function handleConnectFailure(error) {
+      cancelSm(SM_DONE_CONNECT_FAILED);
+      if (error.name === 'SecurityError' && navigator.platform.toLowerCase().includes('linux'))
+      {
+        setStatus(
+          'SecurityError: ' +
+            'udev rule is required. See: <a href="https://github.com/OrangeFox86/DreamPicoPort/wiki/Installation-Guide#linux" ' +
+            'target="_blank" style="color: inherit;">Installation Guide for Linux</a>',
+          'red',
+          'bold'
+        );
+      }
+      else if (error.name !== 'NotFoundError')
+      {
+        setStatus(error, 'red', 'bold');
       }
     }
 
@@ -715,7 +733,7 @@
           }
         };
       }, error => {
-        setStatus(error, 'red', 'bold');
+        handleConnectFailure(error);
         return false;
       });
 
@@ -731,10 +749,7 @@
           startLoadSm(selectedPort);
         }
       }).catch(error => {
-        if (error.name !== 'NotFoundError')
-        {
-          setStatus(error, 'red', 'bold');
-        }
+        handleConnectFailure(error);
       });
     });
 
