@@ -609,7 +609,8 @@
       if (error.name === 'SecurityError' && navigator.platform.toLowerCase().includes('linux'))
       {
         setStatus(
-          'udev rule is required. See: <a href="https://github.com/OrangeFox86/DreamPicoPort/wiki/Installation-Guide#linux" ' +
+          'SecurityError: ' +
+            'udev rule is required. See: <a href="https://github.com/OrangeFox86/DreamPicoPort/wiki/Installation-Guide#linux" ' +
             'target="_blank" style="color: inherit;">Installation Guide for Linux</a>',
           'red',
           'bold'
