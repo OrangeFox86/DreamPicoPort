@@ -91,9 +91,6 @@ void SystemWebUsbCommandHandler::process(
                 std::string response;
                 response.reserve(112);
 
-                const std::uint64_t now = mClock.getTimeUs();
-                appendIntToResponse(response, now);
-
                 // Keep reading status until last two reads are equal or total of 3 reads made
                 static constexpr uint32_t kMaxStatusReads = 3;
                 DreamcastMainNode::MapleStatus status = node.getMapleStatus();
@@ -114,6 +111,9 @@ void SystemWebUsbCommandHandler::process(
                         }
                     }
                 }
+
+                const std::uint64_t now = mClock.getTimeUs();
+                appendIntToResponse(response, now);
 
                 appendIntToResponse(response, static_cast<std::uint32_t>(synchronized));
 
