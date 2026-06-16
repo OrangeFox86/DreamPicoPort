@@ -1381,7 +1381,7 @@
                     }
                     let d = value[i];
                     let name = d["name"];
-                    let codeStr = "0x" + d["code"].toString(16).padStart(8, '0');
+                    let codeStr = "0x" + (d["code"] >>> 0).toString(16).padStart(8, '0');
                     fns += `${name}(${codeStr})`;
                   }
                   innerHTML += `<td>${fns}</td>`;
@@ -1517,6 +1517,10 @@
                 fnName = "Vibration";
               } else if (fn == 0x00000200) {
                 fnName = "Mouse";
+              } else if (fn == 0x00000400) {
+                fnName = "Ext Storage"
+              } else if (fn == 0x00000800) {
+                fnName = "Camera"
               }
               let code = profileData[idx][1];
               fnsData.push({"name": fnName, "id": fn, "code": code});
