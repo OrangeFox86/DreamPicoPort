@@ -126,6 +126,7 @@ std::unique_ptr<SerialStreamParser> make_parsers(
 }
 
 static uint8_t mapleEnabledMask = 0;
+static uint8_t mapleDetectedMask = 0;
 static DppSettings::PlayerDetectionMode mapleDetectUpdatedModes[DppSettings::kNumPlayers];
 static bool maplePlayerModesUpdated = false;
 
@@ -148,25 +149,33 @@ void maple_detect_init(const std::map<uint8_t, DreamcastNodeData>& dcNodes)
 void maple_detect(std::map<uint8_t, DreamcastNodeData>& dcNodes, bool rebootNowOnDetect)
 {
     // Time markers for auto detect when anyMapleAutoDetect is true
-    static uint64_t autoDetectTimeUs[MAX_DEVICES] = {};
     static uint64_t autoDetectReactionTimeUs = 0;
 
-    uint8_t i = 0;
     for (const std::pair<const uint8_t, DreamcastNodeData>& dcNode : dcNodes)
     {
         const DppSettings::PlayerDetectionMode& mode = dcNode.second.playerDef->detectionMode;
+        const uint8_t playerIdx = dcNode.first;
+        const uint8_t playerMask = (1 << playerIdx);
+        const bool detected = dcNode.second.mainNode->isDeviceDetected();
 
-        if (mode > DppSettings::PlayerDetectionMode::kAutoThreshold && autoDetectTimeUs[i] == 0)
+        if (detected)
         {
-            const uint8_t playerIdx = dcNode.first;
+            mapleDetectedMask |= playerMask;
+        }
+        else
+        {
+            mapleDetectedMask &= ~playerMask;
+        }
+
+        if (mode > DppSettings::PlayerDetectionMode::kAutoThreshold)
+        {
             if (dcNode.second.playerDef->autoDetectOnly)
             {
                 // Was disconnected on boot, react on connection
-                if (dcNode.second.mainNode->isDeviceDetected())
+                if (detected && (mapleEnabledMask & playerMask) == 0)
                 {
-                    mapleEnabledMask |= (1 << playerIdx);
-                    autoDetectTimeUs[i] = time_us_64();
-                    autoDetectReactionTimeUs = (autoDetectTimeUs[i] + 500000);
+                    mapleEnabledMask |= playerMask;
+                    autoDetectReactionTimeUs = (time_us_64() + 500000);
 
                     if (mode == DppSettings::PlayerDetectionMode::kAutoStatic)
                     {
@@ -179,24 +188,22 @@ void maple_detect(std::map<uint8_t, DreamcastNodeData>& dcNodes, bool rebootNowO
             else if (mode == DppSettings::PlayerDetectionMode::kAutoDynamic)
             {
                 // Was connected on boot, react on disconnect
-                if (!dcNode.second.mainNode->isDeviceDetected())
+                if (!detected && (mapleEnabledMask & playerMask) != 0)
                 {
-                    mapleEnabledMask &= ~(1 << playerIdx);
-                    autoDetectTimeUs[i] = time_us_64();
-                    autoDetectReactionTimeUs = (autoDetectTimeUs[i] + 500000);
+                    mapleEnabledMask &= ~playerMask;
+                    autoDetectReactionTimeUs = (time_us_64() + 500000);
                 }
             }
         }
-
-        ++i;
     }
+
+    watchdog_hw->scratch[1] = mapleEnabledMask | (mapleDetectedMask << 8);
 
     if (autoDetectReactionTimeUs > 0 && (rebootNowOnDetect || time_us_64() >= autoDetectReactionTimeUs))
     {
         usb_stop();
 
         watchdog_hw->scratch[0] = WATCHDOG_MAPLE_AUTO_DETECT_MAGIC;
-        watchdog_hw->scratch[1] = mapleEnabledMask;
 
         if (maplePlayerModesUpdated)
         {

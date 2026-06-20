@@ -151,11 +151,36 @@ int main()
     if (mapleRebootDetected)
     {
         // Reboot occurred because auto maple detect changed states
-        uint8_t mask = 1;
+        int32_t mask = 1;
         uint8_t i = 0;
         while (i < MAX_DEVICES)
         {
-            if ((mask & watchdog_hw->scratch[1]) != 0)
+            if (
+                currentDppSettings.playerDetectionModes[i] == DppSettings::PlayerDetectionMode::kEnable ||
+                (mask & watchdog_hw->scratch[1]) != 0
+            )
+            {
+                set_usb_descriptor_gamepad_en(i, true);
+            }
+
+            mask <<= 1;
+            ++i;
+        }
+    }
+    else if (settingsRebootDetected || usbCommandRebootDetected)
+    {
+        // Reboot occurred because settings updated or user commanded reboot
+        int32_t mask = 1 << 8;
+        uint8_t i = 0;
+        while (i < MAX_DEVICES)
+        {
+            if (
+                currentDppSettings.playerDetectionModes[i] == DppSettings::PlayerDetectionMode::kEnable ||
+                (
+                    currentDppSettings.playerDetectionModes[i] != DppSettings::PlayerDetectionMode::kDisable &&
+                    (mask & watchdog_hw->scratch[1]) != 0
+                )
+            )
             {
                 set_usb_descriptor_gamepad_en(i, true);
             }
