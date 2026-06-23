@@ -610,8 +610,8 @@
       {
         setStatus(
           'SecurityError: ' +
-            'udev rule is required. See: <a href="https://github.com/OrangeFox86/DreamPicoPort/wiki/Installation-Guide#linux" ' +
-            'target="_blank" style="color: inherit;">Installation Guide for Linux</a>',
+            'udev rule is required. See: <a href="https://github.com/OrangeFox86/DreamPicoPort/wiki/*-Host-Mode-Installation-Guide-(for-use-with-Flycast)#linux" ' +
+            'target="_blank" style="color: inherit;">Linux setup section in the Installation Guide</a>',
           'red',
           'bold'
         );
