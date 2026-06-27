@@ -1,7 +1,7 @@
 name: Package release
 on:
   release:
-    types: [created]
+    types: [created, published]
 jobs:
   deploy:
     runs-on: ubuntu-22.04

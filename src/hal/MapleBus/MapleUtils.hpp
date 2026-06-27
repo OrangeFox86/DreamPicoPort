@@ -21,36 +21,19 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#pragma once
+#ifndef __MAPLE_UTILS_H__
+#define __MAPLE_UTILS_H__
 
-#include "hal/MapleBus/MapleBusInterface.hpp"
-#include "hal/MapleBus/MaplePacket.hpp"
+#include "pico/stdlib.h"
+#include <cstdint>
 
-#include <gtest/gtest.h>
-#include <gmock/gmock.h>
+// Local definition copy of gpio_set_function so that it may be put in RAM
+void maple_gpio_set_function(uint gpio, gpio_function_t fn);
 
-class MockMapleBus : public MapleBusInterface
-{
-    public:
-        MOCK_METHOD(
-            bool,
-            write,
-            (
-                const MaplePacket& packet,
-                bool expectResponse,
-                uint64_t readTimeoutUs,
-                MaplePacket::ByteOrder rxByteOrder
-            ),
-            (override)
-        );
+// Local definition copy of gpio_set_pulls so that it may be put in RAM
+void maple_gpio_set_pulls(uint gpio, bool up, bool down);
 
-        MOCK_METHOD(Status, processEvents, (uint64_t currentTimeUs), (override));
+// Local definition copy of time_us_64 so that it may be put in RAM
+uint64_t maple_time_us_64();
 
-        MOCK_METHOD(bool, isBusy, (), (override));
-
-        MOCK_METHOD(bool, startRead, (uint64_t readTimeoutUs, MaplePacket::ByteOrder rxByteOrder), (override));
-
-        MOCK_METHOD(void, setCallback, ((void (*fn)(void*, uint32_t, Phase)), void* context), (override));
-
-        MOCK_METHOD((const MapleStats), getStats, (), (const, override));
-};
+#endif // __MAPLE_UTILS_H__

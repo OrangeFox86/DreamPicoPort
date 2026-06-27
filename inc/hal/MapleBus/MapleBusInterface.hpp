@@ -118,9 +118,9 @@ class MapleBusInterface
             std::uint64_t lastReadCompleteTime = 0;
 
             //! Total number of write attempts
-            std::uint64_t numWrites;
+            std::uint64_t numWrites = 0;
             //! Number of write attempts that failed
-            std::uint64_t numWriteFail;
+            std::uint64_t numWriteFail = 0;
             //! The last time point where write was attempted
             std::uint64_t lastWriteStartTime = 0;
             //! The last time point where write was successful
@@ -180,7 +180,7 @@ class MapleBusInterface
         virtual void setCallback(void (*fn)(void*, uint32_t, Phase), void* context) = 0;
 
         //! @return the current statistics of this maple bus
-        virtual const MapleStats& getStats() const = 0;
+        virtual const MapleStats getStats() const = 0;
 };
 
 //! Creates a maple bus
