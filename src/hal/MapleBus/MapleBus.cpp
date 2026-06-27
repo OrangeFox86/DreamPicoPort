@@ -143,7 +143,8 @@ MapleBus::MapleBus(uint32_t pinA, int32_t dirPin, bool dirOutHigh) :
     mProcKillTime(std::numeric_limits<uint64_t>::max()),
     mLastReceivedWordTimeUs(0),
     mLastReadTransferCount(0),
-    mStats{},
+    mNVStats{},
+    mVStats{},
     mCallbackFn(nullptr),
     mCallbackFnContext(nullptr)
 {
@@ -243,10 +244,10 @@ inline void __not_in_flash_func(MapleBus::writeIsr)()
 
         // Update stats now that write completed and read is started
         const uint64_t currentTime = maple_time_us_64();
-        mStats.lastWriteCompleteTime = currentTime;
-        mStats.lastReadStartTime = currentTime;
+        mVStats.lastWriteCompleteTime = currentTime;
+        mVStats.lastReadStartTime = currentTime;
 
-        mStats.numReads = mStats.numReads + 1;
+        mVStats.numReads = mVStats.numReads + 1;
 
         mCurrentPhase = Phase::WAITING_FOR_READ_START;
     }
@@ -325,8 +326,8 @@ bool MapleBus::write(
 {
     bool rv = false;
 
-    mStats.numWrites = mStats.numWrites + 1;
-    mStats.lastWriteStartTime = maple_time_us_64();
+    ++mNVStats.numWrites;
+    mNVStats.lastWriteStartTime = maple_time_us_64();
 
     if (!isBusy())
     {
@@ -412,8 +413,8 @@ bool MapleBus::startRead(uint64_t readTimeoutUs, MaplePacket::ByteOrder rxByteOr
 {
     bool rv = false;
 
-    mStats.numReads = mStats.numReads + 1;
-    mStats.lastReadStartTime = maple_time_us_64();
+    mVStats.numReads = mVStats.numReads + 1;
+    mVStats.lastReadStartTime = maple_time_us_64();
 
     if (!isBusy())
     {
@@ -514,14 +515,14 @@ MapleBusInterface::Status MapleBus::processEvents(uint64_t currentTimeUs)
                         status.readBuffer = mLastRead;
                         status.readBufferLen = dmaWordsRead - 1;
                         status.rxByteOrder = mRxByteOrder;
-                        mStats.lastReadCompleteTime = maple_time_us_64();
+                        mNVStats.lastReadCompleteTime = maple_time_us_64();
                     }
                     else
                     {
                         // Read failed because CRC was invalid
                         status.phase = Phase::READ_FAILED;
                         status.failureReason = FailureReason::CRC_INVALID;
-                        mStats.numReadFailCrc = mStats.numReadFailCrc + 1;
+                        ++mNVStats.numReadFailCrc;
                     }
                 }
                 else
@@ -529,7 +530,7 @@ MapleBusInterface::Status MapleBus::processEvents(uint64_t currentTimeUs)
                     // Read failed because not enough words read
                     status.phase = Phase::READ_FAILED;
                     status.failureReason = FailureReason::MISSING_DATA;
-                    mStats.numReadFailIncomplete = mStats.numReadFailIncomplete + 1;
+                    ++mNVStats.numReadFailIncomplete;
                 }
             }
             else
@@ -537,7 +538,7 @@ MapleBusInterface::Status MapleBus::processEvents(uint64_t currentTimeUs)
                 // Read failed because nothing was sent through DMA
                 status.phase = Phase::READ_FAILED;
                 status.failureReason = FailureReason::MISSING_DATA;
-                mStats.numReadFailIncomplete = mStats.numReadFailIncomplete + 1;
+                ++mNVStats.numReadFailIncomplete;
             }
 
             // We processed the read, so the machine can go back to idle
@@ -547,7 +548,7 @@ MapleBusInterface::Status MapleBus::processEvents(uint64_t currentTimeUs)
 
         case Phase::WRITE_COMPLETE:
         {
-            mStats.lastWriteCompleteTime = maple_time_us_64();
+            mVStats.lastWriteCompleteTime = maple_time_us_64();
 
             // We processed the write, so the machine can go back to idle
             mCurrentPhase = Phase::IDLE;
@@ -565,7 +566,7 @@ MapleBusInterface::Status MapleBus::processEvents(uint64_t currentTimeUs)
                 mSmIn.disable();
                 mSmIn.initPins();
                 status.phase = Phase::READ_FAILED;
-                mStats.numReadFailOverflow = mStats.numReadFailOverflow + 1;
+                ++mNVStats.numReadFailOverflow;
                 status.failureReason = FailureReason::BUFFER_OVERFLOW;
                 mCurrentPhase = Phase::IDLE;
             }
@@ -578,7 +579,7 @@ MapleBusInterface::Status MapleBus::processEvents(uint64_t currentTimeUs)
                     mSmIn.disable();
                     mSmIn.initPins();
                     status.phase = Phase::READ_FAILED;
-                    mStats.numReadFailTimeout = mStats.numReadFailTimeout + 1;
+                    ++mNVStats.numReadFailTimeout;
                     status.failureReason = FailureReason::TIMEOUT;
                     mCurrentPhase = Phase::IDLE;
                 }
@@ -604,12 +605,12 @@ MapleBusInterface::Status MapleBus::processEvents(uint64_t currentTimeUs)
                 if (status.phase == Phase::WAITING_FOR_READ_START)
                 {
                     status.phase = Phase::READ_FAILED;
-                    mStats.numNullReads = mStats.numNullReads + 1;
+                    ++mNVStats.numNullReads;
                 }
                 else
                 {
                     status.phase = Phase::WRITE_FAILED;
-                    mStats.numWriteFail = mStats.numWriteFail + 1;
+                    ++mNVStats.numWriteFail;
                 }
 
                 resetSms();
@@ -637,7 +638,20 @@ void MapleBus::setCallback(void (*fn)(void*, uint32_t, Phase), void* context)
 
 const MapleBusInterface::MapleStats MapleBus::getStats() const
 {
-    return const_cast<const MapleBusInterface::MapleStats&>(mStats);
+    MapleBusInterface::MapleStats stats;
+    stats.numReads = mVStats.numReads;
+    stats.numNullReads = mNVStats.numNullReads;
+    stats.numReadFailCrc = mNVStats.numReadFailCrc;
+    stats.numReadFailIncomplete = mNVStats.numReadFailIncomplete;
+    stats.numReadFailOverflow = mNVStats.numReadFailOverflow;
+    stats.numReadFailTimeout = mNVStats.numReadFailTimeout;
+    stats.lastReadStartTime = mVStats.lastReadStartTime;
+    stats.lastReadCompleteTime = mNVStats.lastReadCompleteTime;
+    stats.numWrites = mNVStats.numWrites;
+    stats.numWriteFail = mNVStats.numWriteFail;
+    stats.lastWriteStartTime = mNVStats.lastWriteStartTime;
+    stats.lastWriteCompleteTime = mVStats.lastWriteCompleteTime;
+    return stats;
 }
 
 void MapleBus::crc8(volatile const uint32_t *source, uint32_t len, uint8_t &crc)
