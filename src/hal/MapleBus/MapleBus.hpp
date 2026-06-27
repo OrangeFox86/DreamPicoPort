@@ -94,13 +94,13 @@ class MapleBus : public MapleBusInterface
         inline bool isBusy() override { return mCurrentPhase != Phase::IDLE; }
 
         //! Set the callback that gets executed when read or write completes
-        //! @note the callback may be called within ISR context
+        //! @note the callback may be called within ISR context, so it should be defined as __not_in_flash_func()
         //! @param[in] fn The function to call
         //! @param[in] context The context to pass to each function call
         void setCallback(void (*fn)(void*, uint32_t, Phase), void* context) override;
 
         //! @return the current statistics of this maple bus
-        const MapleStats& getStats() const override;
+        const MapleStats getStats() const override;
 
     private:
         //! Ensures that the bus is open
@@ -175,7 +175,7 @@ class MapleBus : public MapleBusInterface
         //! Persistent storage for external use after processEvents call
         uint32_t mLastRead[256];
         //! Current phase of the state machine
-        Phase mCurrentPhase;
+        volatile Phase mCurrentPhase;
         //! True if read should be started immediately after write has completed
         bool mExpectingResponse;
         //! The read timeout to use when mExpectingResponse is true
@@ -185,16 +185,16 @@ class MapleBus : public MapleBusInterface
         //! The time at which the next timeout will occur
         volatile uint64_t mProcKillTime;
         //! The last time which number of received words changed
-        uint64_t mLastReceivedWordTimeUs;
+        volatile uint64_t mLastReceivedWordTimeUs;
         //! The last sampled read word transfer count
         uint32_t mLastReadTransferCount;
         //! The statistics for this MapleBus
-        MapleStats mStats;
+        volatile MapleStats mStats;
 
         //! The callback function to execute on phase change
-        void (*mCallbackFn)(void*, uint32_t, Phase);
+        void (* volatile mCallbackFn)(void*, uint32_t, Phase);
         //! Context to pass to each call of mCallbackFn
-        void *mCallbackFnContext;
+        void* volatile mCallbackFnContext;
 };
 
 std::shared_ptr<MapleBusInterface> create_maple_bus(uint32_t pinA, int32_t dirPin, bool dirOutHigh);

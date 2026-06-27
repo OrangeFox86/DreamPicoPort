@@ -22,6 +22,7 @@
 // SOFTWARE.
 
 #include "MapleBus.hpp"
+#include "MapleUtils.hpp"
 #include "pico/stdlib.h"
 #include "hardware/structs/systick.h"
 #include "hardware/irq.h"
@@ -43,7 +44,7 @@ MapleBus* mapleReadIsr[4] = {};
 
 extern "C"
 {
-void maple_write_isr0(void)
+void __not_in_flash_func(maple_write_isr0)(void)
 {
     if (MAPLE_OUT_PIO->irq & (0x01))
     {
@@ -56,7 +57,7 @@ void maple_write_isr0(void)
         hw_set_bits(&MAPLE_OUT_PIO->irq, 0x04);
     }
 }
-void maple_write_isr1(void)
+void __not_in_flash_func(maple_write_isr1)(void)
 {
     if (MAPLE_OUT_PIO->irq & (0x02))
     {
@@ -69,7 +70,7 @@ void maple_write_isr1(void)
         hw_set_bits(&MAPLE_OUT_PIO->irq, 0x08);
     }
 }
-void maple_read_isr0(void)
+void __not_in_flash_func(maple_read_isr0)(void)
 {
     if (MAPLE_IN_PIO->irq & (0x01))
     {
@@ -82,7 +83,7 @@ void maple_read_isr0(void)
         hw_set_bits(&MAPLE_IN_PIO->irq, 0x04);
     }
 }
-void maple_read_isr1(void)
+void __not_in_flash_func(maple_read_isr1)(void)
 {
     if (MAPLE_IN_PIO->irq & (0x02))
     {
@@ -189,7 +190,7 @@ MapleBus::MapleBus(uint32_t pinA, int32_t dirPin, bool dirOutHigh) :
                             false);
 }
 
-inline void MapleBus::readIsr()
+inline void __not_in_flash_func(MapleBus::readIsr)()
 {
     // This ISR gets called from read PIO twice within a read cycle:
     // - The first time tells us that start sequence was received
@@ -198,7 +199,7 @@ inline void MapleBus::readIsr()
     if (mCurrentPhase == Phase::WAITING_FOR_READ_START)
     {
         mCurrentPhase = Phase::READ_IN_PROGRESS;
-        mLastReceivedWordTimeUs = time_us_64();
+        mLastReceivedWordTimeUs = maple_time_us_64();
     }
     else if (mCurrentPhase == Phase::READ_IN_PROGRESS)
     {
@@ -213,7 +214,7 @@ inline void MapleBus::readIsr()
     // else: shouldn't have reached here
 }
 
-inline void MapleBus::writeIsr()
+inline void __not_in_flash_func(MapleBus::writeIsr)()
 {
     // This ISR gets called from write PIO once writing has completed
 
@@ -229,7 +230,7 @@ inline void MapleBus::writeIsr()
         setDirection(false);
 
         // Soft stop was done on state machine, so ensure pull-up is re-enabled
-        gpio_set_pulls(mPinB, true, false);
+        maple_gpio_set_pulls(mPinB, true, false);
 
         if (mResponseTimeoutUs == NO_TIMEOUT)
         {
@@ -237,12 +238,15 @@ inline void MapleBus::writeIsr()
         }
         else
         {
-            mProcKillTime = time_us_64() + mResponseTimeoutUs;
+            mProcKillTime = maple_time_us_64() + mResponseTimeoutUs;
         }
 
         // Update stats now that write completed and read is started
-        mStats.lastReadStartTime = mStats.lastWriteCompleteTime = time_us_64();
-        ++mStats.numReads;
+        const uint64_t currentTime = maple_time_us_64();
+        mStats.lastWriteCompleteTime = currentTime;
+        mStats.lastReadStartTime = currentTime;
+
+        mStats.numReads = mStats.numReads + 1;
 
         mCurrentPhase = Phase::WAITING_FOR_READ_START;
     }
@@ -264,7 +268,7 @@ inline void MapleBus::writeIsr()
 bool MapleBus::lineCheck()
 {
 #if (MAPLE_OPEN_LINE_CHECK_TIME_US > 0)
-    const uint64_t targetTime = time_us_64() + MAPLE_OPEN_LINE_CHECK_TIME_US + 1;
+    const uint64_t targetTime = maple_time_us_64() + MAPLE_OPEN_LINE_CHECK_TIME_US + 1;
 
     // Ensure no one is pulling low
     do
@@ -274,20 +278,20 @@ bool MapleBus::lineCheck()
             // Something is pulling low
             return false;
         }
-    } while (time_us_64() < targetTime);
+    } while (maple_time_us_64() < targetTime);
 #endif
 
     return true;
 }
 
-void MapleBus::setDirection(bool output)
+void __not_in_flash_func(MapleBus::setDirection)(bool output)
 {
     if (!output)
     {
         // About to switch to input - ensure GPIO are input FIRST!
         gpio_set_dir_in_masked(mMaskAB);
-        gpio_set_function(mPinB, GPIO_FUNC_SIO);
-        gpio_set_function(mPinA, GPIO_FUNC_SIO);
+        maple_gpio_set_function(mPinB, GPIO_FUNC_SIO);
+        maple_gpio_set_function(mPinA, GPIO_FUNC_SIO);
     }
 
     // Output to dir pin that we are in input mode
@@ -321,8 +325,8 @@ bool MapleBus::write(
 {
     bool rv = false;
 
-    ++mStats.numWrites;
-    mStats.lastWriteStartTime = time_us_64();
+    mStats.numWrites = mStats.numWrites + 1;
+    mStats.lastWriteStartTime = maple_time_us_64();
 
     if (!isBusy())
     {
@@ -395,7 +399,7 @@ bool MapleBus::write(
             // Multiply by the extra percentage
             totalWriteTimeNs *= (1 + (MAPLE_WRITE_TIMEOUT_EXTRA_PERCENT / 100.0));
             // And then compute the time which the write process should complete
-            mProcKillTime = time_us_64() + INT_DIVIDE_CEILING(totalWriteTimeNs, 1000);
+            mProcKillTime = maple_time_us_64() + INT_DIVIDE_CEILING(totalWriteTimeNs, 1000);
 
             rv = true;
         }
@@ -408,8 +412,8 @@ bool MapleBus::startRead(uint64_t readTimeoutUs, MaplePacket::ByteOrder rxByteOr
 {
     bool rv = false;
 
-    ++mStats.numReads;
-    mStats.lastReadStartTime = time_us_64();
+    mStats.numReads = mStats.numReads + 1;
+    mStats.lastReadStartTime = maple_time_us_64();
 
     if (!isBusy())
     {
@@ -436,7 +440,7 @@ bool MapleBus::startRead(uint64_t readTimeoutUs, MaplePacket::ByteOrder rxByteOr
         }
         else
         {
-            mProcKillTime = time_us_64() + readTimeoutUs;
+            mProcKillTime = maple_time_us_64() + readTimeoutUs;
         }
         mCurrentPhase = Phase::WAITING_FOR_READ_START;
 
@@ -468,9 +472,9 @@ MapleBusInterface::Status MapleBus::processEvents(uint64_t currentTimeUs)
         case Phase::READ_COMPLETE:
         {
             // Wait up to 1 ms for the RX FIFO to become empty (automatically drained by the read DMA)
-            uint64_t timeoutTime = time_us_64() + 1000;
+            uint64_t timeoutTime = maple_time_us_64() + 1000;
             while (!pio_sm_is_rx_fifo_empty(mSmIn.mProgram.mPio, mSmIn.mSmIdx)
-                && time_us_64() < timeoutTime);
+                && maple_time_us_64() < timeoutTime);
 
             // transfer_count decrements down to 0, so compute the inverse to get number of words
             uint32_t dmaWordsRead = (sizeof(mReadBuffer) / sizeof(mReadBuffer[0]))
@@ -510,14 +514,14 @@ MapleBusInterface::Status MapleBus::processEvents(uint64_t currentTimeUs)
                         status.readBuffer = mLastRead;
                         status.readBufferLen = dmaWordsRead - 1;
                         status.rxByteOrder = mRxByteOrder;
-                        mStats.lastReadCompleteTime = time_us_64();
+                        mStats.lastReadCompleteTime = maple_time_us_64();
                     }
                     else
                     {
                         // Read failed because CRC was invalid
                         status.phase = Phase::READ_FAILED;
                         status.failureReason = FailureReason::CRC_INVALID;
-                        ++mStats.numReadFailCrc;
+                        mStats.numReadFailCrc = mStats.numReadFailCrc + 1;
                     }
                 }
                 else
@@ -525,7 +529,7 @@ MapleBusInterface::Status MapleBus::processEvents(uint64_t currentTimeUs)
                     // Read failed because not enough words read
                     status.phase = Phase::READ_FAILED;
                     status.failureReason = FailureReason::MISSING_DATA;
-                    ++mStats.numReadFailIncomplete;
+                    mStats.numReadFailIncomplete = mStats.numReadFailIncomplete + 1;
                 }
             }
             else
@@ -533,7 +537,7 @@ MapleBusInterface::Status MapleBus::processEvents(uint64_t currentTimeUs)
                 // Read failed because nothing was sent through DMA
                 status.phase = Phase::READ_FAILED;
                 status.failureReason = FailureReason::MISSING_DATA;
-                ++mStats.numReadFailIncomplete;
+                mStats.numReadFailIncomplete = mStats.numReadFailIncomplete + 1;
             }
 
             // We processed the read, so the machine can go back to idle
@@ -543,7 +547,7 @@ MapleBusInterface::Status MapleBus::processEvents(uint64_t currentTimeUs)
 
         case Phase::WRITE_COMPLETE:
         {
-            mStats.lastWriteCompleteTime = time_us_64();
+            mStats.lastWriteCompleteTime = maple_time_us_64();
 
             // We processed the write, so the machine can go back to idle
             mCurrentPhase = Phase::IDLE;
@@ -561,7 +565,7 @@ MapleBusInterface::Status MapleBus::processEvents(uint64_t currentTimeUs)
                 mSmIn.disable();
                 mSmIn.initPins();
                 status.phase = Phase::READ_FAILED;
-                ++mStats.numReadFailOverflow;
+                mStats.numReadFailOverflow = mStats.numReadFailOverflow + 1;
                 status.failureReason = FailureReason::BUFFER_OVERFLOW;
                 mCurrentPhase = Phase::IDLE;
             }
@@ -574,7 +578,7 @@ MapleBusInterface::Status MapleBus::processEvents(uint64_t currentTimeUs)
                     mSmIn.disable();
                     mSmIn.initPins();
                     status.phase = Phase::READ_FAILED;
-                    ++mStats.numReadFailTimeout;
+                    mStats.numReadFailTimeout = mStats.numReadFailTimeout + 1;
                     status.failureReason = FailureReason::TIMEOUT;
                     mCurrentPhase = Phase::IDLE;
                 }
@@ -600,12 +604,12 @@ MapleBusInterface::Status MapleBus::processEvents(uint64_t currentTimeUs)
                 if (status.phase == Phase::WAITING_FOR_READ_START)
                 {
                     status.phase = Phase::READ_FAILED;
-                    ++mStats.numNullReads;
+                    mStats.numNullReads = mStats.numNullReads + 1;
                 }
                 else
                 {
                     status.phase = Phase::WRITE_FAILED;
-                    ++mStats.numWriteFail;
+                    mStats.numWriteFail = mStats.numWriteFail + 1;
                 }
 
                 resetSms();
@@ -631,9 +635,9 @@ void MapleBus::setCallback(void (*fn)(void*, uint32_t, Phase), void* context)
     mCallbackFnContext = context;
 }
 
-const MapleBusInterface::MapleStats& MapleBus::getStats() const
+const MapleBusInterface::MapleStats MapleBus::getStats() const
 {
-    return mStats;
+    return const_cast<const MapleBusInterface::MapleStats&>(mStats);
 }
 
 void MapleBus::crc8(volatile const uint32_t *source, uint32_t len, uint8_t &crc)

@@ -161,7 +161,7 @@ class MapleInStateMachine
             mPrestarted = true;
         }
 
-        inline void start()
+        inline void __not_in_flash_func(start)()
         {
             if (!mPrestarted)
             {
@@ -176,7 +176,7 @@ class MapleInStateMachine
             pio_sm_set_enabled(mProgram.mPio, mSmIdx, true);
         }
 
-        inline void stop() const
+        inline void __not_in_flash_func(stop)() const
         {
             disable();
 
@@ -186,7 +186,7 @@ class MapleInStateMachine
             gpio_set_function(mPinB, GPIO_FUNC_SIO);
         }
 
-        inline void disable() const
+        inline void __not_in_flash_func(disable)() const
         {
             pio_sm_set_enabled(mProgram.mPio, mSmIdx, false);
         }
@@ -204,7 +204,7 @@ class MapleInStateMachine
         const uint mPinB;
         const uint mMaskAB;
         const uint mSmIdx;
-        bool mPrestarted;
+        volatile bool mPrestarted;
 };
 
 %}

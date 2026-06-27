@@ -180,7 +180,7 @@ class MapleBusInterface
         virtual void setCallback(void (*fn)(void*, uint32_t, Phase), void* context) = 0;
 
         //! @return the current statistics of this maple bus
-        virtual const MapleStats& getStats() const = 0;
+        virtual const MapleStats getStats() const = 0;
 };
 
 //! Creates a maple bus
