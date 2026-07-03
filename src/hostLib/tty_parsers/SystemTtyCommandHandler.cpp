@@ -26,6 +26,7 @@
 
 #include <stdio.h>
 #include <malloc.h>
+#include <inttypes.h>
 
 SystemTtyCommandHandler::SystemTtyCommandHandler(
     SystemIdentification& identification,
@@ -41,6 +42,10 @@ const char* SystemTtyCommandHandler::getCommandChars()
 {
     return "-";
 }
+
+
+// The memory printout causes issues when compiled for unit testing purposes
+#ifndef UNITTEST
 
 // Linker symbols defined by the Pico SDK memmap scripts
 extern char __end__;        // Start of the heap pool (right after .bss)
@@ -68,9 +73,13 @@ void print_memory_status(void)
     const bool isRam = (fnPtr >= (void*)0x20000000); // TODO: use SRAM_BASE (HAL needed)
     printf("Address of print_memory_status: 0x%p (%sin RAM)\n", fnPtr, isRam ? "" : "NOT ");
 
-    // Cast linker markers to integers to calculate sizes
-    uint32_t heap_start = (uint32_t)&__end__;
-    uint32_t heap_ceil  = (uint32_t)&__HeapLimit;
+    // Cast to an integer type that matches the host's pointer size
+    uintptr_t heap_start_ptr = reinterpret_cast<uintptr_t>(&__end__);
+    uintptr_t heap_ceil_ptr  = reinterpret_cast<uintptr_t>(&__HeapLimit);
+
+    // If you explicitly need them as 32-bit integers downstream for a protocol:
+    uint32_t heap_start = static_cast<uint32_t>(heap_start_ptr);
+    uint32_t heap_ceil  = static_cast<uint32_t>(heap_ceil_ptr);
 
     // 1. Total boundary allocated for the heap by the linker
     uint32_t total_heap_pool = heap_ceil - heap_start;
@@ -87,15 +96,21 @@ void print_memory_status(void)
     uint32_t actual_free_ram = unexpanded_pool + recycled_free;
 
     printf("\n==== RUNTIME HEAP PROFILE ====\n");
-    printf("Heap Region:         0x%08lX - 0x%08lX\n", heap_start, heap_ceil);
-    printf("Total Heap Pool:     %lu bytes\n", total_heap_pool);
-    printf("  ├─ Unexpanded:     %lu bytes (Never touched yet)\n", unexpanded_pool);
-    printf("  └─ Arena Expanded: %lu bytes (High-water mark)\n", arena_expanded);
-    printf("      ├─ Actively Used: %lu bytes\n", actively_used);
-    printf("      └─ Recycled Free: %lu bytes (Internal fragmentation)\n", recycled_free);
-    printf("\nREAL AVAILABLE RAM: %lu bytes\n", actual_free_ram);
+    printf("Heap Region:         0x%08" PRIX32 " - 0x%08" PRIX32 "\n", heap_start, heap_ceil);
+    printf("Total Heap Pool:     %" PRIu32 " bytes\n", total_heap_pool);
+    printf("  ├─ Unexpanded:     %" PRIu32 " bytes (Never touched yet)\n", unexpanded_pool);
+    printf("  └─ Arena Expanded: %" PRIu32 " bytes (High-water mark)\n", arena_expanded);
+    printf("      ├─ Actively Used: %" PRIu32 " bytes\n", actively_used);
+    printf("      └─ Recycled Free: %" PRIu32 " bytes (Internal fragmentation)\n", recycled_free);
+    printf("\nREAL AVAILABLE RAM: %" PRIu32 " bytes\n", actual_free_ram);
     printf("==============================\n");
 }
+
+#else
+
+void print_memory_status(void) {}
+
+#endif
 
 void SystemTtyCommandHandler::submit(const char* chars, uint32_t len)
 {
@@ -176,22 +191,22 @@ void SystemTtyCommandHandler::submit(const char* chars, uint32_t len)
                 }
 
                 const std::uint64_t now = mClock.getTimeUs();
-                printf("Now: %llu us\n", now);
+                printf("Now: %" PRIu64 " us\n", now);
                 printf("Data is %ssynchronized\n", synchronized ? "" : "NOT ");
                 printf("Phase: %s\n", MapleBusInterface::phaseToString(status.phase));
-                printf("Num Reads: %llu\n", status.mapleStats.numReads);
+                printf("Num Reads: %" PRIu64 "\n", status.mapleStats.numReads);
 
-                printf("Num NULL Reads: %llu\n", status.mapleStats.numNullReads);
-                printf("Num Read Fail CRC: %llu\n", status.mapleStats.numReadFailCrc);
-                printf("Num Read Fail Incomplete: %llu\n", status.mapleStats.numReadFailIncomplete);
-                printf("Num Read Fail Overflow: %llu\n", status.mapleStats.numReadFailOverflow);
-                printf("Num Read Fail Timeout: %llu\n", status.mapleStats.numReadFailTimeout);
-                printf("Last Read Start: %llu us\n", status.mapleStats.lastReadStartTime);
-                printf("Last Read Complete: %llu us\n", status.mapleStats.lastReadCompleteTime);
-                printf("Num Writes: %llu\n", status.mapleStats.numWrites);
-                printf("Num Write Fail: %llu\n", status.mapleStats.numWriteFail);
-                printf("Last Write Start: %llu us\n", status.mapleStats.lastWriteStartTime);
-                printf("Last Write Complete: %llu us\n", status.mapleStats.lastWriteCompleteTime);
+                printf("Num NULL Reads: %" PRIu64 "\n", status.mapleStats.numNullReads);
+                printf("Num Read Fail CRC: %" PRIu64 "\n", status.mapleStats.numReadFailCrc);
+                printf("Num Read Fail Incomplete: %" PRIu64 "\n", status.mapleStats.numReadFailIncomplete);
+                printf("Num Read Fail Overflow: %" PRIu64 "\n", status.mapleStats.numReadFailOverflow);
+                printf("Num Read Fail Timeout: %" PRIu64 "\n", status.mapleStats.numReadFailTimeout);
+                printf("Last Read Start: %" PRIu64 " us\n", status.mapleStats.lastReadStartTime);
+                printf("Last Read Complete: %" PRIu64 " us\n", status.mapleStats.lastReadCompleteTime);
+                printf("Num Writes: %" PRIu64 "\n", status.mapleStats.numWrites);
+                printf("Num Write Fail: %" PRIu64 "\n", status.mapleStats.numWriteFail);
+                printf("Last Write Start: %" PRIu64 " us\n", status.mapleStats.lastWriteStartTime);
+                printf("Last Write Complete: %" PRIu64 " us\n", status.mapleStats.lastWriteCompleteTime);
             }
             else
             {
