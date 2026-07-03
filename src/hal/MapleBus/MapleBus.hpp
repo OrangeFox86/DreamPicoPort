@@ -127,9 +127,11 @@ class MapleBus : public MapleBusInterface
         //! @param[out] dest  The destination array to write to
         //! @param[in] source  The source array to read from
         //! @param[in] len  Number of words to copy
-        static void wordCpy(volatile uint32_t* dest,
-                                   volatile const uint32_t* source,
-                                   uint32_t len);
+        static void wordCpy(
+            volatile uint32_t* dest,
+            volatile const uint32_t* source,
+            uint32_t len
+        );
 
         //! Flips the endianness of a word
         //! @param[in] word  Input word
@@ -185,8 +187,8 @@ class MapleBus : public MapleBusInterface
         uint64_t mProcStartTime;
         //! Duration from mProcStartTime that timeout will occur (atomic value)
         volatile uint32_t mProcKillDuration;
-        //! The last time which number of received words changed
-        volatile uint64_t mLastReceivedWordTimeUs;
+        //! The last duration since mProcStartTime which number of received words changed
+        volatile uint32_t mLastReceivedWordDurationUs;
         //! The last sampled read word transfer count
         uint32_t mLastReadTransferCount;
 

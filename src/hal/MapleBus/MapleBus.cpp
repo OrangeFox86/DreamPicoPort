@@ -44,6 +44,12 @@ MapleBus* mapleReadIsr[4] = {};
 
 extern "C"
 {
+// General ISR rules:
+// - All functionality executing within ISR must be run off of RAM (declared __not_in_flash_func)
+// - All values set within ISR functionality must be set as volatile
+// - No values set within an ISR may be greater than 32-bits (the size of a register) unless value
+//   is used solely for diagnostic purposes
+
 void __not_in_flash_func(maple_write_isr0)(void)
 {
     if (MAPLE_OUT_PIO->irq & (0x01))
@@ -142,7 +148,7 @@ MapleBus::MapleBus(uint32_t pinA, int32_t dirPin, bool dirOutHigh) :
     mRxByteOrder(MaplePacket::ByteOrder::HOST),
     mProcStartTime(0),
     mProcKillDuration(0),
-    mLastReceivedWordTimeUs(0),
+    mLastReceivedWordDurationUs(0),
     mLastReadTransferCount(0),
     mNVStats{},
     mVStats{},
@@ -201,7 +207,7 @@ inline void __not_in_flash_func(MapleBus::readIsr)()
     if (mCurrentPhase == Phase::WAITING_FOR_READ_START)
     {
         mCurrentPhase = Phase::READ_IN_PROGRESS;
-        mLastReceivedWordTimeUs = maple_time_us_64();
+        mLastReceivedWordDurationUs = static_cast<uint32_t>(maple_time_us_64() - mProcStartTime);
     }
     else if (mCurrentPhase == Phase::READ_IN_PROGRESS)
     {
@@ -577,8 +583,9 @@ MapleBusInterface::Status MapleBus::processEvents(uint64_t currentTimeUs)
             }
             else if (mLastReadTransferCount == transferCount)
             {
-                if (currentTimeUs > mLastReceivedWordTimeUs
-                    && (currentTimeUs - mLastReceivedWordTimeUs) >= MAPLE_INTER_WORD_READ_TIMEOUT_US)
+                uint64_t lastReceivedWordTimeUs = mProcStartTime + mLastReceivedWordDurationUs;
+                if (currentTimeUs > lastReceivedWordTimeUs
+                    && (currentTimeUs - lastReceivedWordTimeUs) >= MAPLE_INTER_WORD_READ_TIMEOUT_US)
                 {
                     // Inter-word timeout occurred
                     mSmIn.disable();
@@ -592,7 +599,7 @@ MapleBusInterface::Status MapleBus::processEvents(uint64_t currentTimeUs)
             else
             {
                 mLastReadTransferCount = transferCount;
-                mLastReceivedWordTimeUs = currentTimeUs;
+                mLastReceivedWordDurationUs = static_cast<uint32_t>(currentTimeUs - mProcStartTime);
             }
 
             // (mProcKillDuration is ignored while actively reading)
