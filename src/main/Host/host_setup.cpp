@@ -30,6 +30,7 @@
 
 #include "MaplePassthroughTtyCommandHandler.hpp"
 #include "FlycastTtyCommandHandler.hpp"
+#include "SystemTtyCommandHandler.hpp"
 
 #include "MapleWebUsbCommandHandler.hpp"
 #include "FlycastWebUsbCommandHandler.hpp"
@@ -104,6 +105,7 @@ std::unique_ptr<SerialStreamParser> make_parsers(
             dcNodes
         )
     );
+    ttyParser->addTtyCommandHandler(std::make_shared<SystemTtyCommandHandler>(picoIdentification, gClock, dcNodes));
 
     // Initialize and register WebUsb parsers
     std::shared_ptr<MapleWebUsbCommandHandler> mapleWebUsbCommandHandler =

@@ -16,7 +16,11 @@ endif()
 #
 
 add_executable(host ${HOST_SRC})
-pico_set_binary_type(host copy_to_ram)
+if (${PICO_BOARD} STREQUAL "pico2")
+  # Doing this on the pico would only leave about 10 KB of headroom in RAM
+  # pico2 has twice the RAM, so this is feasible there and helps with execution speed
+  pico_set_binary_type(host copy_to_ram)
+endif()
 pico_add_extra_outputs(host)
 target_link_libraries(host
   PRIVATE
@@ -45,7 +49,11 @@ target_include_directories(host
 # zero_host
 #
 add_executable(zero_host ${HOST_SRC})
-pico_set_binary_type(zero_host copy_to_ram)
+if (${PICO_BOARD} STREQUAL "pico2")
+  # Doing this on the pico would only leave about 10 KB of headroom in RAM
+  # pico2 has twice the RAM, so this is feasible there and helps with execution speed
+  pico_set_binary_type(zero_host copy_to_ram)
+endif()
 pico_add_extra_outputs(zero_host)
 target_link_libraries(zero_host
   PRIVATE

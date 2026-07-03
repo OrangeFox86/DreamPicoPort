@@ -195,5 +195,5 @@ void MaplePassthroughTtyCommandHandler::submit(const char* chars, uint32_t len)
 
 void MaplePassthroughTtyCommandHandler::printHelp()
 {
-    printf("0-1 a-f A-F: the beginning of a hex value to send to maple bus without CRC\n");
+    printf("0-1 a-f A-F: The beginning of a hex value to send to maple bus without CRC\n");
 }

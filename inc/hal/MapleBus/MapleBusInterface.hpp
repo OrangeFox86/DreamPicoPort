@@ -59,6 +59,23 @@ class MapleBusInterface
             INVALID
         };
 
+        //! @return the associated phase string for the given phase
+        static const char* phaseToString(Phase p)
+        {
+            switch (p)
+            {
+                case Phase::IDLE: return "Idle";
+                case Phase::WRITE_IN_PROGRESS: return "Write in Progress";
+                case Phase::WRITE_FAILED: return "Write Failed";
+                case Phase::WRITE_COMPLETE: return "Write Complete";
+                case Phase::WAITING_FOR_READ_START: return "Waiting for Read Start";
+                case Phase::READ_IN_PROGRESS: return "Read in Progress";
+                case Phase::READ_FAILED: return "Read Failed";
+                case Phase::READ_COMPLETE: return "Read Complete";
+                default: return "Invalid";
+            }
+        }
+
         //! Enumerates different types of read/write errors
         enum class FailureReason : uint8_t
         {
