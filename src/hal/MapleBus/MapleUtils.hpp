@@ -21,8 +21,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef __MAPLE_UTILS_H__
-#define __MAPLE_UTILS_H__
+#pragma once
 
 #include "pico/stdlib.h"
 #include <cstdint>
@@ -35,5 +34,3 @@ void maple_gpio_set_pulls(uint gpio, bool up, bool down);
 
 // Local definition copy of time_us_64 so that it may be put in RAM
 uint64_t maple_time_us_64();
-
-#endif // __MAPLE_UTILS_H__

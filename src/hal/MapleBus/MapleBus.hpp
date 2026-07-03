@@ -21,8 +21,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#ifndef __MAPLE_BUS_H__
-#define __MAPLE_BUS_H__
+#pragma once
 
 #include <memory>
 #include <limits>
@@ -234,5 +233,3 @@ class MapleBus : public MapleBusInterface
 };
 
 std::shared_ptr<MapleBusInterface> create_maple_bus(uint32_t pinA, int32_t dirPin, bool dirOutHigh);
-
-#endif // __MAPLE_BUS_H__
