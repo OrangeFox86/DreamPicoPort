@@ -30,10 +30,12 @@
 
 SystemTtyCommandHandler::SystemTtyCommandHandler(
     SystemIdentification& identification,
+    SystemDiagnostics& diagnostics,
     ClockInterface& clock,
     const std::map<uint8_t, DreamcastNodeData>& dcNodes
 ) :
     mIdentification(identification),
+    mDiagnostics(diagnostics),
     mClock(clock),
     mDcNodes(dcNodes)
 {}
@@ -43,60 +45,43 @@ const char* SystemTtyCommandHandler::getCommandChars()
     return "-";
 }
 
-
-// The memory printout causes issues when compiled for unit testing purposes
-#ifndef UNITTEST
-
-// Linker symbols defined by the Pico SDK memmap scripts
-extern char __end__;        // Start of the heap pool (right after .bss)
-extern char __HeapLimit;   // Hard limit of the heap pool (0x20040000)
-
-void print_memory_status(void)
+void print_memory_status(SystemDiagnostics& diagnostics)
 {
-    struct mallinfo mi = mallinfo();
-
-    // TODO: should make another HAL component for this information
-
-    printf("Non mmapped space (effective high watermark): %i\n", mi.arena);
-    printf("Free chunks: %i\n", mi.ordblks);
-    // printf("(always 0): %i\n", mi.smblks);
-    printf("Num mmapped regions: %i\n", mi.hblks);
-    printf("mmaped space: %i\n", mi.hblkhd);
-    // printf("(always 0): %i\n", mi.usmblks);
-    // printf("(always 0): %i\n", mi.fsmblks);
-    printf("Total space: %i\n", mi.uordblks);
-    printf("Free space: %i\n", mi.fordblks);
-    printf("Releasable: %i\n", mi.keepcost);
-
     // This helps determine if running code is loaded into RAM or not
     const void* const fnPtr = (void*)print_memory_status;
-    const bool isRam = (fnPtr >= (void*)0x20000000); // TODO: use SRAM_BASE (HAL needed)
-    printf("Address of print_memory_status: 0x%p (%sin RAM)\n", fnPtr, isRam ? "" : "NOT ");
+    const bool isRam = diagnostics.isInRam(fnPtr);
+    printf("Code currently executing within %s\n", isRam ? "RAM" : "Flash");
 
-    // Cast to an integer type that matches the host's pointer size
-    uintptr_t heap_start_ptr = reinterpret_cast<uintptr_t>(&__end__);
-    uintptr_t heap_ceil_ptr  = reinterpret_cast<uintptr_t>(&__HeapLimit);
+    SystemDiagnostics::MemoryDiagnostics md = diagnostics.getMemoryDiagnostics();
 
-    // If you explicitly need them as 32-bit integers downstream for a protocol:
-    uint32_t heap_start = static_cast<uint32_t>(heap_start_ptr);
-    uint32_t heap_ceil  = static_cast<uint32_t>(heap_ceil_ptr);
+    printf("Heap non mmapped space: %zu\n", md.arena);
+    printf("Heap free chunks: %zu\n", md.ordblks);
+    printf("Heap num mmapped regions: %zu\n", md.hblks);
+    printf("Heap mmaped space: %zu\n", md.hblkhd);
+    printf("Heap total space: %zu\n", md.uordblks);
+    printf("Heap free space: %zu\n", md.fordblks);
+    printf("Heap releasable: %zu\n", md.keepcost);
 
     // 1. Total boundary allocated for the heap by the linker
-    uint32_t total_heap_pool = heap_ceil - heap_start;
+    uint32_t total_heap_pool = static_cast<uint32_t>(md.heapceil - md.heapstart);
 
     // 2. High-water mark (how far the allocator has expanded up into the pool)
-    uint32_t arena_expanded = mi.arena;
+    uint32_t arena_expanded = static_cast<uint32_t>(md.arena);
 
     // 3. Breakdown of that expanded arena
-    uint32_t actively_used = mi.uordblks; // Memory currently held by your pointers
-    uint32_t recycled_free = mi.fordblks; // Freed memory cached inside the allocator
+    uint32_t actively_used = static_cast<uint32_t>(md.uordblks); // Memory currently held by application's pointers
+    uint32_t recycled_free = static_cast<uint32_t>(md.fordblks); // Freed memory cached inside the allocator
 
     // 4. Calculations for true headroom
     uint32_t unexpanded_pool = total_heap_pool - arena_expanded;
     uint32_t actual_free_ram = unexpanded_pool + recycled_free;
 
     printf("\n==== RUNTIME HEAP PROFILE ====\n");
-    printf("Heap Region:         0x%08" PRIX32 " - 0x%08" PRIX32 "\n", heap_start, heap_ceil);
+    printf(
+        "Heap Region:         0x%08" PRIX32 " - 0x%08" PRIX32 "\n",
+        static_cast<uint32_t>(md.heapstart),
+        static_cast<uint32_t>(md.heapceil)
+    );
     printf("Total Heap Pool:     %" PRIu32 " bytes\n", total_heap_pool);
     printf("  ├─ Unexpanded:     %" PRIu32 " bytes (Never touched yet)\n", unexpanded_pool);
     printf("  └─ Arena Expanded: %" PRIu32 " bytes (High-water mark)\n", arena_expanded);
@@ -105,12 +90,6 @@ void print_memory_status(void)
     printf("\nREAL AVAILABLE RAM: %" PRIu32 " bytes\n", actual_free_ram);
     printf("==============================\n");
 }
-
-#else
-
-void print_memory_status(void) {}
-
-#endif
 
 void SystemTtyCommandHandler::submit(const char* chars, uint32_t len)
 {
@@ -214,7 +193,7 @@ void SystemTtyCommandHandler::submit(const char* chars, uint32_t len)
 
         case 'm':
         {
-            print_memory_status();
+            print_memory_status(mDiagnostics);
         }
         break;
 

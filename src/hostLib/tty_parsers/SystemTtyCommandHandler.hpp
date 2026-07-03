@@ -24,6 +24,7 @@
 #pragma once
 
 #include "hal/Usb/TtyCommandHandler.hpp"
+#include "hal/System/SystemDiagnostics.hpp"
 #include "hal/System/SystemIdentification.hpp"
 #include "hal/System/MutexInterface.hpp"
 
@@ -40,6 +41,7 @@ class SystemTtyCommandHandler : public TtyCommandHandler
 public:
     SystemTtyCommandHandler(
         SystemIdentification& identification,
+        SystemDiagnostics& diagnostics,
         ClockInterface& clock,
         const std::map<uint8_t, DreamcastNodeData>& dcNodes
     );
@@ -55,6 +57,7 @@ public:
 
 private:
     SystemIdentification& mIdentification;
+    SystemDiagnostics& mDiagnostics;
     ClockInterface& mClock;
     std::map<uint8_t, DreamcastNodeData> mDcNodes;
 };

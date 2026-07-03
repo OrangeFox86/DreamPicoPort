@@ -21,17 +21,33 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include <PicoIdentification.hpp>
-#include "pico/unique_id.h"
-
+#pragma once
 #include <cstdint>
 
-std::uint32_t PicoIdentification::getSerialSize()
+class SystemDiagnostics
 {
-    return (PICO_UNIQUE_BOARD_ID_SIZE_BYTES * 2 + 1);
-}
+    public:
+        //! All memory diagnostics information
+        struct MemoryDiagnostics
+        {
+            std::size_t arena; // total space allocated from system
+            std::size_t ordblks; // number of non-inuse chunks
+            std::size_t hblks; // number of mmapped regions
+            std::size_t hblkhd; // total space in mmapped regions
+            std::size_t uordblks; // total allocated space
+            std::size_t fordblks; // total non-inuse space
+            std::size_t keepcost; // top-most, releasable (via malloc_trim) space
+            std::size_t heapstart; // Start of the heap pool (right after .bss)
+            std::size_t heapceil; // Hard limit of the heap pool
+        };
 
-void PicoIdentification::getSerial(char* buffer, std::uint32_t bufflen)
-{
-    pico_get_unique_board_id_string(buffer, bufflen);
-}
+        virtual ~SystemDiagnostics() = default;
+
+        //! @return current memory diagnostics data
+        virtual MemoryDiagnostics getMemoryDiagnostics() = 0;
+
+        //! Determines if a given pointer is in RAM
+        //! @param[in] ptr The pointer to check
+        //! @return true iff the given pointer is in RAM
+        virtual bool isInRam(const void* ptr) = 0;
+};
