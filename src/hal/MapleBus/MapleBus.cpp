@@ -399,10 +399,9 @@ bool MapleBus::write(
             uint32_t totalWriteTimeNs = packet.getTxTimeNs();
             // Multiply by the extra percentage
             totalWriteTimeNs += (static_cast<uint64_t>(totalWriteTimeNs) * MAPLE_WRITE_TIMEOUT_EXTRA_PERCENT) / 100;
-            // Add the static timeout duration buffer
-            totalWriteTimeNs += MAPLE_WRITE_TIMEOUT_EXTRA_NS;
             // And then compute the time which the write process should complete
-            mProcKillTime = maple_time_us_64() + INT_DIVIDE_CEILING(totalWriteTimeNs, 1000);
+            mProcKillTime =
+                maple_time_us_64() + INT_DIVIDE_CEILING(totalWriteTimeNs, 1000) + MAPLE_WRITE_TIMEOUT_EXTRA_US;
 
             rv = true;
         }

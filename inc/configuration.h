@@ -48,9 +48,9 @@
 // Added percentage on top of the expected write completion duration (for write timeout)
 #define MAPLE_WRITE_TIMEOUT_EXTRA_PERCENT 20
 
-// Added time in nanoseconds on top of the expected write completion duration (for write timeout)
+// Added time in microseconds on top of the expected write completion duration (for write timeout)
 // This accounts for any static delays caused by ISR execution
-#define MAPLE_WRITE_TIMEOUT_EXTRA_NS 1000000
+#define MAPLE_WRITE_TIMEOUT_EXTRA_US 1000
 
 // Estimated nanoseconds before peripheral responds - this is used for scheduling only
 #define MAPLE_RESPONSE_DELAY_NS 50
