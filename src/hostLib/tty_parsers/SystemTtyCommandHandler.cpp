@@ -87,7 +87,11 @@ void print_memory_status(SystemDiagnostics& diagnostics)
     printf("  └─ Arena Expanded: %" PRIu32 " bytes (High-water mark)\n", arena_expanded);
     printf("      ├─ Actively Used: %" PRIu32 " bytes\n", actively_used);
     printf("      └─ Recycled Free: %" PRIu32 " bytes (Internal fragmentation)\n", recycled_free);
-    printf("\nREAL AVAILABLE RAM: %" PRIu32 " bytes\n", actual_free_ram);
+    printf("\n==== RAM USAGE SUMMARY ====\n");
+    printf("TOTAL: %zu bytes\n", md.totalram);
+    printf("USED: %zu bytes\n", static_cast<std::size_t>(md.totalram - actual_free_ram));
+    printf("UNEXPANDED: %" PRIu32 " bytes\n", unexpanded_pool);
+    printf("AVAILABLE: %" PRIu32 " bytes\n", actual_free_ram);
     printf("==============================\n");
 }
 

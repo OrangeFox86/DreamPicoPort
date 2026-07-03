@@ -186,9 +186,9 @@ class MapleBus : public MapleBusInterface
         //! The last time a process was started
         uint64_t mProcStartTime;
         //! Duration from mProcStartTime that timeout will occur (atomic value)
-        volatile uint32_t mProcKillDuration;
+        volatile uint32_t mProcKillOffsetUs;
         //! The last duration since mProcStartTime which number of received words changed
-        volatile uint32_t mLastReceivedWordDurationUs;
+        volatile uint32_t mLastReceivedWordOffsetUs;
         //! The last sampled read word transfer count
         uint32_t mLastReadTransferCount;
 

@@ -147,8 +147,8 @@ MapleBus::MapleBus(uint32_t pinA, int32_t dirPin, bool dirOutHigh) :
     mResponseTimeoutUs(1000),
     mRxByteOrder(MaplePacket::ByteOrder::HOST),
     mProcStartTime(0),
-    mProcKillDuration(0),
-    mLastReceivedWordDurationUs(0),
+    mProcKillOffsetUs(0),
+    mLastReceivedWordOffsetUs(0),
     mLastReadTransferCount(0),
     mNVStats{},
     mVStats{},
@@ -207,7 +207,7 @@ inline void __not_in_flash_func(MapleBus::readIsr)()
     if (mCurrentPhase == Phase::WAITING_FOR_READ_START)
     {
         mCurrentPhase = Phase::READ_IN_PROGRESS;
-        mLastReceivedWordDurationUs = static_cast<uint32_t>(maple_time_us_64() - mProcStartTime);
+        mLastReceivedWordOffsetUs = static_cast<uint32_t>(maple_time_us_64() - mProcStartTime);
     }
     else if (mCurrentPhase == Phase::READ_IN_PROGRESS)
     {
@@ -242,11 +242,11 @@ inline void __not_in_flash_func(MapleBus::writeIsr)()
 
         if (mResponseTimeoutUs == NO_TIMEOUT)
         {
-            mProcKillDuration = std::numeric_limits<uint32_t>::max();
+            mProcKillOffsetUs = std::numeric_limits<uint32_t>::max();
         }
         else
         {
-            mProcKillDuration = static_cast<uint32_t>(maple_time_us_64() - mProcStartTime) + mResponseTimeoutUs;
+            mProcKillOffsetUs = static_cast<uint32_t>(maple_time_us_64() - mProcStartTime) + mResponseTimeoutUs;
         }
 
         // Update stats now that write completed and read is started
@@ -410,7 +410,7 @@ bool MapleBus::write(
             mProcStartTime = maple_time_us_64();
             const uint64_t killTime =
                 mProcStartTime + INT_DIVIDE_CEILING(totalWriteTimeNs, 1000) + MAPLE_WRITE_TIMEOUT_EXTRA_US;
-            mProcKillDuration = static_cast<uint32_t>(killTime - mProcStartTime);
+            mProcKillOffsetUs = static_cast<uint32_t>(killTime - mProcStartTime);
 
             rv = true;
         }
@@ -448,11 +448,11 @@ bool MapleBus::startRead(uint32_t readTimeoutUs, MaplePacket::ByteOrder rxByteOr
         mProcStartTime = maple_time_us_64();
         if (readTimeoutUs == NO_TIMEOUT)
         {
-            mProcKillDuration = std::numeric_limits<uint32_t>::max();
+            mProcKillOffsetUs = std::numeric_limits<uint32_t>::max();
         }
         else
         {
-            mProcKillDuration = readTimeoutUs;
+            mProcKillOffsetUs = readTimeoutUs;
         }
         mCurrentPhase = Phase::WAITING_FOR_READ_START;
 
@@ -583,7 +583,7 @@ MapleBusInterface::Status MapleBus::processEvents(uint64_t currentTimeUs)
             }
             else if (mLastReadTransferCount == transferCount)
             {
-                uint64_t lastReceivedWordTimeUs = mProcStartTime + mLastReceivedWordDurationUs;
+                uint64_t lastReceivedWordTimeUs = mProcStartTime + mLastReceivedWordOffsetUs;
                 if (currentTimeUs > lastReceivedWordTimeUs
                     && (currentTimeUs - lastReceivedWordTimeUs) >= MAPLE_INTER_WORD_READ_TIMEOUT_US)
                 {
@@ -599,10 +599,10 @@ MapleBusInterface::Status MapleBus::processEvents(uint64_t currentTimeUs)
             else
             {
                 mLastReadTransferCount = transferCount;
-                mLastReceivedWordDurationUs = static_cast<uint32_t>(currentTimeUs - mProcStartTime);
+                mLastReceivedWordOffsetUs = static_cast<uint32_t>(currentTimeUs - mProcStartTime);
             }
 
-            // (mProcKillDuration is ignored while actively reading)
+            // (mProcKillOffsetUs is ignored while actively reading)
         }
         break;
 
@@ -610,8 +610,8 @@ MapleBusInterface::Status MapleBus::processEvents(uint64_t currentTimeUs)
         case Phase::WAITING_FOR_READ_START:
         {
             if (
-                currentTimeUs >= (mProcStartTime + mProcKillDuration) &&
-                mProcKillDuration < std::numeric_limits<uint32_t>::max()
+                currentTimeUs >= (mProcStartTime + mProcKillOffsetUs) &&
+                mProcKillOffsetUs < std::numeric_limits<uint32_t>::max()
             )
             {
                 // The state machine is not idle, and it blew past a timeout - check what needs to be killed

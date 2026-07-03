@@ -39,6 +39,7 @@ class SystemDiagnostics
             std::size_t uordblks; // total allocated space
             std::size_t fordblks; // total non-inuse space
             std::size_t keepcost; // top-most, releasable (via malloc_trim) space
+            std::size_t totalram; // Total amount of RAM
             std::size_t heapstart; // Start of the heap pool (right after .bss)
             std::size_t heapceil; // Hard limit of the heap pool
         };

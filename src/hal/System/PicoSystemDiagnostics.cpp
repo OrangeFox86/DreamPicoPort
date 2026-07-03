@@ -47,6 +47,7 @@ PicoSystemDiagnostics::MemoryDiagnostics PicoSystemDiagnostics::getMemoryDiagnos
     md.uordblks = mi.uordblks;
     md.fordblks = mi.fordblks;
     md.keepcost = mi.keepcost;
+    md.totalram = (SRAM_END - SRAM_BASE);
     md.heapstart = static_cast<std::size_t>(heap_start_ptr);
     md.heapceil = static_cast<std::size_t>(heap_ceil_ptr);
 
