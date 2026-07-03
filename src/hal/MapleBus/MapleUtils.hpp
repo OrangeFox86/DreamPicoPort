@@ -21,17 +21,16 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include <PicoIdentification.hpp>
-#include "pico/unique_id.h"
+#pragma once
 
+#include "pico/stdlib.h"
 #include <cstdint>
 
-std::uint32_t PicoIdentification::getSerialSize()
-{
-    return (PICO_UNIQUE_BOARD_ID_SIZE_BYTES * 2 + 1);
-}
+// Local definition copy of gpio_set_function so that it may be put in RAM
+void maple_gpio_set_function(uint gpio, gpio_function_t fn);
 
-void PicoIdentification::getSerial(char* buffer, std::uint32_t bufflen)
-{
-    pico_get_unique_board_id_string(buffer, bufflen);
-}
+// Local definition copy of gpio_set_pulls so that it may be put in RAM
+void maple_gpio_set_pulls(uint gpio, bool up, bool down);
+
+// Local definition copy of time_us_64 so that it may be put in RAM
+uint64_t maple_time_us_64();

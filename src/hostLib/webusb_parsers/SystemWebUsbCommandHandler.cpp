@@ -76,7 +76,6 @@ void SystemWebUsbCommandHandler::process(
         // -$0, -$1, -$2, or -$3 will return MapleBus status
         case '$':
         {
-            // Remove $
             int idx = -1;
             if (numPayload > 0)
             {

@@ -1,6 +1,15 @@
 name: Test
 
-on: [push, pull_request]
+on:
+  # Triggers when a PR is opened or updated against 'main'
+  pull_request:
+    branches:
+      - main
+
+  # Triggers when a PR is merged into 'main' (or direct pushes occur)
+  push:
+    branches:
+      - main
 
 jobs:
   build:

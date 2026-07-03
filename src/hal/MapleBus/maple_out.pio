@@ -127,6 +127,7 @@ irq wait 0 rel side MASK_A
 #include "hardware/gpio.h"
 #include "hardware/pio.h"
 #include "PioProgram.hpp"
+#include "MapleUtils.hpp"
 
 #define MAPLE_OUT_PIO pio0
 
@@ -159,8 +160,8 @@ class MapleOutStateMachine
         inline void initPins() const
         {
             // Initialize the two pins as inputs with pullups
-            gpio_set_pulls(mPinA, true, false);
-            gpio_set_pulls(mPinB, true, false);
+            maple_gpio_set_pulls(mPinA, true, false);
+            maple_gpio_set_pulls(mPinB, true, false);
             gpio_set_dir_in_masked(mMaskAB);
 
             gpio_set_function(mPinB, GPIO_FUNC_SIO);
@@ -183,7 +184,7 @@ class MapleOutStateMachine
             pio_sm_set_enabled(mProgram.mPio, mSmIdx, true);
         }
 
-        inline void stop(bool hardstop) const
+        inline void __not_in_flash_func(stop)(bool hardstop) const
         {
             disable();
 
@@ -196,15 +197,15 @@ class MapleOutStateMachine
             else
             {
                 // Allow pull-up to continue to keep B low
-                gpio_set_pulls(mPinB, false, true);
+                maple_gpio_set_pulls(mPinB, false, true);
             }
 
             gpio_set_dir_in_masked(mMaskAB);
-            gpio_set_function(mPinB, GPIO_FUNC_SIO);
-            gpio_set_function(mPinA, GPIO_FUNC_SIO);
+            maple_gpio_set_function(mPinB, GPIO_FUNC_SIO);
+            maple_gpio_set_function(mPinA, GPIO_FUNC_SIO);
         }
 
-        inline void disable() const
+        inline void __not_in_flash_func(disable)() const
         {
             pio_sm_set_enabled(mProgram.mPio, mSmIdx, false);
         }

@@ -21,17 +21,19 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include <PicoIdentification.hpp>
-#include "pico/unique_id.h"
+#pragma once
 
-#include <cstdint>
+#include <hal/System/SystemDiagnostics.hpp>
 
-std::uint32_t PicoIdentification::getSerialSize()
+class PicoSystemDiagnostics : public SystemDiagnostics
 {
-    return (PICO_UNIQUE_BOARD_ID_SIZE_BYTES * 2 + 1);
-}
+    public:
+        PicoSystemDiagnostics() = default;
+        virtual ~PicoSystemDiagnostics() = default;
 
-void PicoIdentification::getSerial(char* buffer, std::uint32_t bufflen)
-{
-    pico_get_unique_board_id_string(buffer, bufflen);
-}
+        //! Overridden from SystemDiagnostics
+        MemoryDiagnostics getMemoryDiagnostics() override;
+
+        //! Overridden from SystemDiagnostics
+        bool isInRam(const void* ptr) override;
+};

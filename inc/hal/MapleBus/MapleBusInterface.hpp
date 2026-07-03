@@ -59,6 +59,23 @@ class MapleBusInterface
             INVALID
         };
 
+        //! @return the associated phase string for the given phase
+        static const char* phaseToString(Phase p)
+        {
+            switch (p)
+            {
+                case Phase::IDLE: return "Idle";
+                case Phase::WRITE_IN_PROGRESS: return "Write in Progress";
+                case Phase::WRITE_FAILED: return "Write Failed";
+                case Phase::WRITE_COMPLETE: return "Write Complete";
+                case Phase::WAITING_FOR_READ_START: return "Waiting for Read Start";
+                case Phase::READ_IN_PROGRESS: return "Read in Progress";
+                case Phase::READ_FAILED: return "Read Failed";
+                case Phase::READ_COMPLETE: return "Read Complete";
+                default: return "Invalid";
+            }
+        }
+
         //! Enumerates different types of read/write errors
         enum class FailureReason : uint8_t
         {
@@ -118,9 +135,9 @@ class MapleBusInterface
             std::uint64_t lastReadCompleteTime = 0;
 
             //! Total number of write attempts
-            std::uint64_t numWrites;
+            std::uint64_t numWrites = 0;
             //! Number of write attempts that failed
-            std::uint64_t numWriteFail;
+            std::uint64_t numWriteFail = 0;
             //! The last time point where write was attempted
             std::uint64_t lastWriteStartTime = 0;
             //! The last time point where write was successful
@@ -144,7 +161,7 @@ class MapleBusInterface
         virtual bool write(
             const MaplePacket& packet,
             bool autostartRead,
-            uint64_t readTimeoutUs=MAPLE_RESPONSE_TIMEOUT_US,
+            uint32_t readTimeoutUs=MAPLE_RESPONSE_TIMEOUT_US,
             MaplePacket::ByteOrder rxByteOrder = MaplePacket::ByteOrder::HOST
         ) = 0;
 
@@ -160,7 +177,7 @@ class MapleBusInterface
         //! @param[in] rxByteOrder  The desired byte order of the received packet
         //! @returns true iff bus was not busy and read started
         virtual bool startRead(
-            uint64_t readTimeoutUs=std::numeric_limits<uint64_t>::max(),
+            uint32_t readTimeoutUs=std::numeric_limits<uint32_t>::max(),
             MaplePacket::ByteOrder rxByteOrder = MaplePacket::ByteOrder::HOST
         ) = 0;
 
@@ -180,7 +197,7 @@ class MapleBusInterface
         virtual void setCallback(void (*fn)(void*, uint32_t, Phase), void* context) = 0;
 
         //! @return the current statistics of this maple bus
-        virtual const MapleStats& getStats() const = 0;
+        virtual MapleStats getStats() const = 0;
 };
 
 //! Creates a maple bus

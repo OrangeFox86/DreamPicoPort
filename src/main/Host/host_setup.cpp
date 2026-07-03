@@ -30,6 +30,7 @@
 
 #include "MaplePassthroughTtyCommandHandler.hpp"
 #include "FlycastTtyCommandHandler.hpp"
+#include "SystemTtyCommandHandler.hpp"
 
 #include "MapleWebUsbCommandHandler.hpp"
 #include "FlycastWebUsbCommandHandler.hpp"
@@ -37,6 +38,7 @@
 #include "SystemWebUsbCommandHandler.hpp"
 
 #include "PicoIdentification.hpp"
+#include "PicoSystemDiagnostics.hpp"
 #include "CriticalSectionMutex.hpp"
 #include "Mutex.hpp"
 #include "Clock.hpp"
@@ -104,6 +106,13 @@ std::unique_ptr<SerialStreamParser> make_parsers(
             dcNodes
         )
     );
+    static PicoSystemDiagnostics picoSystemDiagnostics;
+    ttyParser->addTtyCommandHandler(std::make_shared<SystemTtyCommandHandler>(
+        picoIdentification,
+        picoSystemDiagnostics,
+        gClock,
+        dcNodes
+    ));
 
     // Initialize and register WebUsb parsers
     std::shared_ptr<MapleWebUsbCommandHandler> mapleWebUsbCommandHandler =

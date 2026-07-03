@@ -21,17 +21,43 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include <PicoIdentification.hpp>
-#include "pico/unique_id.h"
+#pragma once
 
-#include <cstdint>
+#include "hal/Usb/TtyCommandHandler.hpp"
+#include "hal/System/SystemDiagnostics.hpp"
+#include "hal/System/SystemIdentification.hpp"
+#include "hal/System/MutexInterface.hpp"
 
-std::uint32_t PicoIdentification::getSerialSize()
+#include "DreamcastNodeData.hpp"
+
+#include <memory>
+#include <map>
+
+// Command structure: [whitespace]<command-char>[command]<\n>
+
+//! Command parser for processing commands from a TTY stream
+class SystemTtyCommandHandler : public TtyCommandHandler
 {
-    return (PICO_UNIQUE_BOARD_ID_SIZE_BYTES * 2 + 1);
-}
+public:
+    SystemTtyCommandHandler(
+        SystemIdentification& identification,
+        SystemDiagnostics& diagnostics,
+        ClockInterface& clock,
+        const std::map<uint8_t, DreamcastNodeData>& dcNodes
+    );
 
-void PicoIdentification::getSerial(char* buffer, std::uint32_t bufflen)
-{
-    pico_get_unique_board_id_string(buffer, bufflen);
-}
+    //! @returns the string of command characters this parser handles
+    virtual const char* getCommandChars() final;
+
+    //! Called when newline reached; submit command and reset
+    virtual void submit(const char* chars, uint32_t len) final;
+
+    //! Prints help message for this command
+    virtual void printHelp() final;
+
+private:
+    SystemIdentification& mIdentification;
+    SystemDiagnostics& mDiagnostics;
+    ClockInterface& mClock;
+    std::map<uint8_t, DreamcastNodeData> mDcNodes;
+};

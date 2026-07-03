@@ -13,6 +13,7 @@ target_link_libraries(hal-MapleBus
     pico_unique_id
     hardware_pio
     hardware_dma
+    hardware_gpio
 )
 target_compile_options(hal-MapleBus PRIVATE
   -Wall

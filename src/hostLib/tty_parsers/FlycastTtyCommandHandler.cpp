@@ -671,7 +671,7 @@ void FlycastTtyCommandHandler::submit(const char* chars, uint32_t len)
 
 void FlycastTtyCommandHandler::printHelp()
 {
-    send_response("X: commands from a flycast emulator\n");
+    send_response("X: Commands from a flycast emulator (deprecated)\n");
 }
 
 DreamcastNodeData* FlycastTtyCommandHandler::getNode(uint8_t idx)

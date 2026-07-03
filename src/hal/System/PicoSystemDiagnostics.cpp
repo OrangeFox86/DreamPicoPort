@@ -21,17 +21,40 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include <PicoIdentification.hpp>
-#include "pico/unique_id.h"
+#include "PicoSystemDiagnostics.hpp"
 
-#include <cstdint>
+#include "hardware/regs/addressmap.h"
 
-std::uint32_t PicoIdentification::getSerialSize()
+#include <malloc.h>
+#include <inttypes.h>
+
+// Linker symbols defined by the Pico SDK memmap scripts
+extern char __end__;        // Start of the heap pool (right after .bss)
+extern char __HeapLimit;   // Hard limit of the heap pool (0x20040000)
+
+PicoSystemDiagnostics::MemoryDiagnostics PicoSystemDiagnostics::getMemoryDiagnostics()
 {
-    return (PICO_UNIQUE_BOARD_ID_SIZE_BYTES * 2 + 1);
+    MemoryDiagnostics md;
+
+    uintptr_t heap_start_ptr = reinterpret_cast<uintptr_t>(&__end__);
+    uintptr_t heap_ceil_ptr  = reinterpret_cast<uintptr_t>(&__HeapLimit);
+
+    struct mallinfo mi = mallinfo();
+    md.arena = mi.arena;
+    md.ordblks = mi.ordblks;
+    md.hblks = mi.hblks;
+    md.hblkhd = mi.hblkhd;
+    md.uordblks = mi.uordblks;
+    md.fordblks = mi.fordblks;
+    md.keepcost = mi.keepcost;
+    md.totalram = (SRAM_END - SRAM_BASE);
+    md.heapstart = static_cast<std::size_t>(heap_start_ptr);
+    md.heapceil = static_cast<std::size_t>(heap_ceil_ptr);
+
+    return md;
 }
 
-void PicoIdentification::getSerial(char* buffer, std::uint32_t bufflen)
+bool PicoSystemDiagnostics::isInRam(const void* ptr)
 {
-    pico_get_unique_board_id_string(buffer, bufflen);
+    return (ptr >= (void*)SRAM_BASE);
 }
