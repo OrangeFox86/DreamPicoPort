@@ -161,7 +161,7 @@ class MapleBusInterface
         virtual bool write(
             const MaplePacket& packet,
             bool autostartRead,
-            uint64_t readTimeoutUs=MAPLE_RESPONSE_TIMEOUT_US,
+            uint32_t readTimeoutUs=MAPLE_RESPONSE_TIMEOUT_US,
             MaplePacket::ByteOrder rxByteOrder = MaplePacket::ByteOrder::HOST
         ) = 0;
 
@@ -177,7 +177,7 @@ class MapleBusInterface
         //! @param[in] rxByteOrder  The desired byte order of the received packet
         //! @returns true iff bus was not busy and read started
         virtual bool startRead(
-            uint64_t readTimeoutUs=std::numeric_limits<uint64_t>::max(),
+            uint32_t readTimeoutUs=std::numeric_limits<uint32_t>::max(),
             MaplePacket::ByteOrder rxByteOrder = MaplePacket::ByteOrder::HOST
         ) = 0;
 
@@ -197,7 +197,7 @@ class MapleBusInterface
         virtual void setCallback(void (*fn)(void*, uint32_t, Phase), void* context) = 0;
 
         //! @return the current statistics of this maple bus
-        virtual const MapleStats getStats() const = 0;
+        virtual MapleStats getStats() const = 0;
 };
 
 //! Creates a maple bus

@@ -140,7 +140,8 @@ MapleBus::MapleBus(uint32_t pinA, int32_t dirPin, bool dirOutHigh) :
     mExpectingResponse(false),
     mResponseTimeoutUs(1000),
     mRxByteOrder(MaplePacket::ByteOrder::HOST),
-    mProcKillTime(std::numeric_limits<uint64_t>::max()),
+    mProcStartTime(0),
+    mProcKillDuration(0),
     mLastReceivedWordTimeUs(0),
     mLastReadTransferCount(0),
     mNVStats{},
@@ -235,11 +236,11 @@ inline void __not_in_flash_func(MapleBus::writeIsr)()
 
         if (mResponseTimeoutUs == NO_TIMEOUT)
         {
-            mProcKillTime = std::numeric_limits<uint64_t>::max();
+            mProcKillDuration = std::numeric_limits<uint32_t>::max();
         }
         else
         {
-            mProcKillTime = maple_time_us_64() + mResponseTimeoutUs;
+            mProcKillDuration = static_cast<uint32_t>(maple_time_us_64() - mProcStartTime) + mResponseTimeoutUs;
         }
 
         // Update stats now that write completed and read is started
@@ -320,7 +321,7 @@ void MapleBus::resetSms()
 bool MapleBus::write(
     const MaplePacket& packet,
     bool autostartRead,
-    uint64_t readTimeoutUs,
+    uint32_t readTimeoutUs,
     MaplePacket::ByteOrder rxByteOrder
 )
 {
@@ -400,8 +401,10 @@ bool MapleBus::write(
             // Multiply by the extra percentage
             totalWriteTimeNs += (static_cast<uint64_t>(totalWriteTimeNs) * MAPLE_WRITE_TIMEOUT_EXTRA_PERCENT) / 100;
             // And then compute the time which the write process should complete
-            mProcKillTime =
-                maple_time_us_64() + INT_DIVIDE_CEILING(totalWriteTimeNs, 1000) + MAPLE_WRITE_TIMEOUT_EXTRA_US;
+            mProcStartTime = maple_time_us_64();
+            const uint64_t killTime =
+                mProcStartTime + INT_DIVIDE_CEILING(totalWriteTimeNs, 1000) + MAPLE_WRITE_TIMEOUT_EXTRA_US;
+            mProcKillDuration = static_cast<uint32_t>(killTime - mProcStartTime);
 
             rv = true;
         }
@@ -410,7 +413,7 @@ bool MapleBus::write(
     return rv;
 }
 
-bool MapleBus::startRead(uint64_t readTimeoutUs, MaplePacket::ByteOrder rxByteOrder)
+bool MapleBus::startRead(uint32_t readTimeoutUs, MaplePacket::ByteOrder rxByteOrder)
 {
     bool rv = false;
 
@@ -436,13 +439,14 @@ bool MapleBus::startRead(uint64_t readTimeoutUs, MaplePacket::ByteOrder rxByteOr
             mDmaReadChannel, mReadBuffer, mLastReadTransferCount);
 
         // Setup state
+        mProcStartTime = maple_time_us_64();
         if (readTimeoutUs == NO_TIMEOUT)
         {
-            mProcKillTime = std::numeric_limits<uint64_t>::max();
+            mProcKillDuration = std::numeric_limits<uint32_t>::max();
         }
         else
         {
-            mProcKillTime = maple_time_us_64() + readTimeoutUs;
+            mProcKillDuration = readTimeoutUs;
         }
         mCurrentPhase = Phase::WAITING_FOR_READ_START;
 
@@ -591,14 +595,17 @@ MapleBusInterface::Status MapleBus::processEvents(uint64_t currentTimeUs)
                 mLastReceivedWordTimeUs = currentTimeUs;
             }
 
-            // (mProcKillTime is ignored while actively reading)
+            // (mProcKillDuration is ignored while actively reading)
         }
         break;
 
         case Phase::WRITE_IN_PROGRESS: // Fall through
         case Phase::WAITING_FOR_READ_START:
         {
-            if (currentTimeUs >= mProcKillTime)
+            if (
+                currentTimeUs >= (mProcStartTime + mProcKillDuration) &&
+                mProcKillDuration < std::numeric_limits<uint32_t>::max()
+            )
             {
                 // The state machine is not idle, and it blew past a timeout - check what needs to be killed
                 status.failureReason = FailureReason::TIMEOUT;
@@ -637,7 +644,7 @@ void MapleBus::setCallback(void (*fn)(void*, uint32_t, Phase), void* context)
     mCallbackFnContext = context;
 }
 
-const MapleBusInterface::MapleStats MapleBus::getStats() const
+MapleBusInterface::MapleStats MapleBus::getStats() const
 {
     MapleBusInterface::MapleStats stats;
     stats.numReads = mVStats.numReads;

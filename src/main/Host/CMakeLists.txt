@@ -4,7 +4,7 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 
 file(GLOB HOST_SRC "${CMAKE_CURRENT_SOURCE_DIR}/host*.c*")
 
-if (${PICO_BOARD} STREQUAL "pico2")
+if ("${PICO_BOARD}" STREQUAL "pico2")
   # Increase the CPU frequency to 150MHz for the pico2 board
   add_definitions(-DCPU_FREQ_KHZ=150000)
 endif()
@@ -16,7 +16,7 @@ endif()
 #
 
 add_executable(host ${HOST_SRC})
-if (${PICO_BOARD} STREQUAL "pico2")
+if ("${PICO_BOARD}" STREQUAL "pico2")
   # Doing this on the pico would only leave about 10 KB of headroom in RAM
   # pico2 has twice the RAM, so this is feasible there and helps with execution speed
   pico_set_binary_type(host copy_to_ram)
@@ -49,7 +49,7 @@ target_include_directories(host
 # zero_host
 #
 add_executable(zero_host ${HOST_SRC})
-if (${PICO_BOARD} STREQUAL "pico2")
+if ("${PICO_BOARD}" STREQUAL "pico2")
   # Doing this on the pico would only leave about 10 KB of headroom in RAM
   # pico2 has twice the RAM, so this is feasible there and helps with execution speed
   pico_set_binary_type(zero_host copy_to_ram)

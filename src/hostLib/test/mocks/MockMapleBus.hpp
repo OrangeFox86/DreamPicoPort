@@ -38,7 +38,7 @@ class MockMapleBus : public MapleBusInterface
             (
                 const MaplePacket& packet,
                 bool expectResponse,
-                uint64_t readTimeoutUs,
+                uint32_t readTimeoutUs,
                 MaplePacket::ByteOrder rxByteOrder
             ),
             (override)
@@ -48,9 +48,9 @@ class MockMapleBus : public MapleBusInterface
 
         MOCK_METHOD(bool, isBusy, (), (override));
 
-        MOCK_METHOD(bool, startRead, (uint64_t readTimeoutUs, MaplePacket::ByteOrder rxByteOrder), (override));
+        MOCK_METHOD(bool, startRead, (uint32_t readTimeoutUs, MaplePacket::ByteOrder rxByteOrder), (override));
 
         MOCK_METHOD(void, setCallback, ((void (*fn)(void*, uint32_t, Phase)), void* context), (override));
 
-        MOCK_METHOD((const MapleStats), getStats, (), (const, override));
+        MOCK_METHOD((MapleStats), getStats, (), (const, override));
 };

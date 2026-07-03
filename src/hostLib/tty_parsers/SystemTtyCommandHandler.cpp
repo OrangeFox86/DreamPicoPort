@@ -156,18 +156,15 @@ void SystemTtyCommandHandler::submit(const char* chars, uint32_t len)
         case '$':
         {
             int idx = -1;
-            if (iter < eol)
+            if (iter < eol && *iter >= '0' && *iter <= '9')
             {
-                idx = *iter;
+                idx = *iter - '0';
             }
 
             std::map<uint8_t, DreamcastNodeData>::iterator dcNodeIter = mDcNodes.end();
             if (idx >= 0 && (dcNodeIter = mDcNodes.find(idx)) != mDcNodes.end())
             {
                 auto& node = *dcNodeIter->second.mainNode;
-
-                std::string response;
-                response.reserve(112);
 
                 // Keep reading status until last two reads are equal or total of 3 reads made
                 static constexpr uint32_t kMaxStatusReads = 3;

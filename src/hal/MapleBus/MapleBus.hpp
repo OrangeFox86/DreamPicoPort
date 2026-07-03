@@ -58,7 +58,7 @@ class MapleBus : public MapleBusInterface
         bool write(
             const MaplePacket& packet,
             bool autostartRead,
-            uint64_t readTimeoutUs=MAPLE_RESPONSE_TIMEOUT_US,
+            uint32_t readTimeoutUs=MAPLE_RESPONSE_TIMEOUT_US,
             MaplePacket::ByteOrder rxByteOrder = MaplePacket::ByteOrder::HOST
         ) override;
 
@@ -74,7 +74,7 @@ class MapleBus : public MapleBusInterface
         //! @param[in] rxByteOrder  The desired byte order of the received packet
         //! @returns true iff bus was not busy and read started
         bool startRead(
-            uint64_t readTimeoutUs=NO_TIMEOUT,
+            uint32_t readTimeoutUs=NO_TIMEOUT,
             MaplePacket::ByteOrder rxByteOrder = MaplePacket::ByteOrder::HOST
         ) override;
 
@@ -100,7 +100,7 @@ class MapleBus : public MapleBusInterface
         void setCallback(void (*fn)(void*, uint32_t, Phase), void* context) override;
 
         //! @return the current statistics of this maple bus
-        const MapleStats getStats() const override;
+        MapleStats getStats() const override;
 
     private:
         //! Ensures that the bus is open
@@ -142,7 +142,7 @@ class MapleBus : public MapleBusInterface
 
     public:
         //! Timeout value to use when no timeout is desired
-        static const uint64_t NO_TIMEOUT = std::numeric_limits<uint64_t>::max();
+        static const uint32_t NO_TIMEOUT = std::numeric_limits<uint32_t>::max();
 
     private:
         //! Pin A GPIO index for this bus
@@ -179,11 +179,13 @@ class MapleBus : public MapleBusInterface
         //! True if read should be started immediately after write has completed
         bool mExpectingResponse;
         //! The read timeout to use when mExpectingResponse is true
-        uint64_t mResponseTimeoutUs;
+        uint32_t mResponseTimeoutUs;
         //! The receive byte order of the last received packet
         MaplePacket::ByteOrder mRxByteOrder;
-        //! The time at which the next timeout will occur
-        volatile uint64_t mProcKillTime;
+        //! The last time a process was started
+        uint64_t mProcStartTime;
+        //! Duration from mProcStartTime that timeout will occur (atomic value)
+        volatile uint32_t mProcKillDuration;
         //! The last time which number of received words changed
         volatile uint64_t mLastReceivedWordTimeUs;
         //! The last sampled read word transfer count
