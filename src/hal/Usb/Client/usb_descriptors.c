@@ -50,6 +50,7 @@ static_assert(DPP_RELEASE_VERSION_PATCH < 10, "Cannot pack DPP_RELEASE_VERSION_P
 #define DPP_RELEASE_VERSION_BCD ((DPP_RELEASE_VERSION_MAJOR_UPPER << 12) | (DPP_RELEASE_VERSION_MAJOR_LOWER << 8) | (DPP_RELEASE_VERSION_MINOR << 4) | DPP_RELEASE_VERSION_PATCH)
 
 static uint8_t numberOfGamepads = 0;
+static uint8_t gamepadEnableMask = 0;
 static bool enabledGamepads[MAX_NUMBER_OF_USB_GAMEPADS] = {};
 
 void set_usb_descriptor_gamepad_en(uint8_t idx, bool en)
@@ -65,10 +66,12 @@ void set_usb_descriptor_gamepad_en(uint8_t idx, bool en)
         if (en)
         {
             ++numberOfGamepads;
+            gamepadEnableMask |= (1 << idx);
         }
         else
         {
             --numberOfGamepads;
+            gamepadEnableMask &= ~(1 << idx);
         }
     }
 }
@@ -487,7 +490,7 @@ TU_VERIFY_STATIC(sizeof(desc_ms_os_20) == MS_OS_20_DESC_LEN, "Incorrect size");
 
 // Serial is included in all product and interfaces to help link them together. This is because SDL doesn't always
 // expose the serial number of a device, depending on the operating system it's run on.
-#define DPP_BASE_PROD_DESC "DreamPicoPort-%s"
+#define DPP_BASE_PROD_DESC "DreamPicoPort%s-%s"
 
 // Array of pointer to string descriptors
 // In any of these, "%s" is replaced with the serial number
@@ -536,10 +539,38 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
 
         if (strstr(str, "%s"))
         {
-            // String contains %s tag - replace with serial
+            // String contains a %s tag - replace with extra info
             char serial[32];
             pico_get_unique_board_id_string(serial, sizeof(serial));
-            snprintf(buffer, sizeof(buffer), str, serial);
+
+            if (strstr(str, "%s-%s"))
+            {
+                // Available gamepads plus serial
+                char available[10] = {};
+
+                if (numberOfGamepads > 1)
+                {
+                    // Append _ABCD to the name, representing all currently enabled gamepads
+                    int charOffset = 0;
+                    available[charOffset++] = '_';
+                    for (uint8_t i = 0; i < MAX_NUMBER_OF_USB_GAMEPADS; ++i)
+                    {
+                        if (((1 << i) & gamepadEnableMask) > 0)
+                        {
+                            available[charOffset++] = 'A' + i;
+                        }
+                    }
+                }
+
+                // Set string
+                snprintf(buffer, sizeof(buffer), str, available, serial);
+            }
+            else
+            {
+                // Just serial
+                snprintf(buffer, sizeof(buffer), str, serial);
+            }
+
             str = buffer;
         }
 
