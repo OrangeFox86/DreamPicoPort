@@ -33,6 +33,7 @@
 #include <hardware/watchdog.h>
 #include <atomic>
 #include <string.h>
+#include <unordered_set>
 
 #include "CriticalSectionMutex.hpp"
 #include "Mutex.hpp"
@@ -206,6 +207,7 @@ int main()
 
     std::vector<PlayerDefinition> playerDefs;
     playerDefs.reserve(MAX_DEVICES);
+    std::unordered_set<int> autoDetectDevs;
     bool anyMapleAutoDetect = false;
 
     for (uint8_t i = 0; i < MAX_DEVICES; ++i)
@@ -227,6 +229,7 @@ int main()
 
             if (autoDetect)
             {
+                autoDetectDevs.insert(i);
                 anyMapleAutoDetect = true;
             }
 
@@ -278,18 +281,17 @@ int main()
 
     multicore_launch_core1(core1);
 
-    if (anyMapleAutoDetect && !rebootDetected && !dcNodes.empty())
+    if (!autoDetectDevs.empty() && !rebootDetected && !dcNodes.empty())
     {
         // Run for 3.5 seconds to see if anything is initially detected (older VMUs may have 3 second beep)
-        bool somethingDetected = false;
         uint64_t endTime = time_us_64() + 3500000;
-        while (time_us_64() < endTime && !somethingDetected)
+        while (time_us_64() < endTime && !autoDetectDevs.empty())
         {
             for (const std::pair<const uint8_t, DreamcastNodeData>& dcNode : dcNodes)
             {
                 if (dcNode.second.mainNode->isDeviceDetected())
                 {
-                    somethingDetected = true;
+                    autoDetectDevs.erase(dcNode.second.playerDef->index);
                 }
             }
 
