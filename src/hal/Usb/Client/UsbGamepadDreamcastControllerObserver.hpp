@@ -34,6 +34,43 @@
 class UsbGamepadDreamcastControllerObserver : public DreamcastControllerObserver
 {
     public:
+        //! Enumerates the locally assigned buttons
+        enum DreamcastGamepadButton : uint8_t
+        {
+            DREAMCAST_GAMEPAD_BUTTON_A = UsbGamepad::GAMEPAD_BUTTON_A,
+            DREAMCAST_GAMEPAD_BUTTON_B = UsbGamepad::GAMEPAD_BUTTON_B,
+            DREAMCAST_GAMEPAD_BUTTON_C = UsbGamepad::GAMEPAD_BUTTON_C,
+            DREAMCAST_GAMEPAD_BUTTON_X = UsbGamepad::GAMEPAD_BUTTON_X,
+            DREAMCAST_GAMEPAD_BUTTON_Y = UsbGamepad::GAMEPAD_BUTTON_Y,
+            DREAMCAST_GAMEPAD_BUTTON_Z = UsbGamepad::GAMEPAD_BUTTON_Z,
+            DREAMCAST_GAMEPAD_RIGHT_B = UsbGamepad::GAMEPAD_BUTTON_TL,
+            DREAMCAST_GAMEPAD_LEFT_B = UsbGamepad::GAMEPAD_BUTTON_TR,
+            DREAMCAST_GAMEPAD_DOWN_B = UsbGamepad::GAMEPAD_BUTTON_TL2,
+            DREAMCAST_GAMEPAD_UP_B = UsbGamepad::GAMEPAD_BUTTON_TR2,
+            DREAMCAST_GAMEPAD_BUTTON_D = UsbGamepad::GAMEPAD_BUTTON_SELECT,
+            DREAMCAST_GAMEPAD_BUTTON_START = UsbGamepad::GAMEPAD_BUTTON_START,
+            DREAMCAST_VMU1_BUTTON_A = UsbGamepad::GAMEPAD_BUTTON_MODE,
+            // UNASSIGNED = UsbGamepad::GAMEPAD_BUTTON_THUMBL,
+            // UNASSIGNED = UsbGamepad::GAMEPAD_BUTTON_THUMBR,
+            DREAMCAST_VMU1_BUTTON_B = UsbGamepad::BUTTON15,
+            DREAMCAST_VMU1_BUTTON_UP = UsbGamepad::BUTTON16,
+            DREAMCAST_VMU1_BUTTON_DOWN = UsbGamepad::BUTTON17,
+            DREAMCAST_VMU1_BUTTON_LEFT = UsbGamepad::BUTTON18,
+            DREAMCAST_VMU1_BUTTON_RIGHT = UsbGamepad::BUTTON19,
+            DREAMCAST_GAMEPAD_CHANGE_EVENT = UsbGamepad::BUTTON20,
+            // UNASSIGNED = UsbGamepad::BUTTON21,
+            // UNASSIGNED = UsbGamepad::BUTTON22,
+            // UNASSIGNED = UsbGamepad::BUTTON23,
+            DREAMCAST_GAMEPAD_ALT_UP = UsbGamepad::BUTTON24,
+            DREAMCAST_GAMEPAD_ALT_DOWN = UsbGamepad::BUTTON25,
+            DREAMCAST_GAMEPAD_ALT_LEFT = UsbGamepad::BUTTON26,
+            DREAMCAST_GAMEPAD_ALT_RIGHT = UsbGamepad::BUTTON27,
+            DREAMCAST_GAMEPAD_PLAYER_4 = UsbGamepad::BUTTON28,
+            DREAMCAST_GAMEPAD_PLAYER_3 = UsbGamepad::BUTTON29,
+            DREAMCAST_GAMEPAD_PLAYER_2 = UsbGamepad::BUTTON30,
+            DREAMCAST_GAMEPAD_PLAYER_1 = UsbGamepad::BUTTON31
+        };
+
         //! Constructor for UsbKeyboardGenesisControllerObserver
         //! @param[in] usbController  The USB controller to update when keys are pressed or released
         UsbGamepadDreamcastControllerObserver(UsbGamepad& usbController);
