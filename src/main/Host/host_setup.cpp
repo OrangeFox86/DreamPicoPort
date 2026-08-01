@@ -283,8 +283,14 @@ void dpp_hw_init(void (*core1Entry)(), std::map<uint8_t, DreamcastNodeData>& dcN
 
     const bool mapleRebootDetected = (watchdog_hw->scratch[0] == WATCHDOG_MAPLE_AUTO_DETECT_MAGIC);
     const bool settingsRebootDetected = (watchdog_hw->scratch[0] == DppSettings::WATCHDOG_SETTINGS_UPDATED_MAGIC);
-    const bool usbCommandRebootDetected = (watchdog_hw->scratch[0] == WATCHDOG_SETTINGS_USB_REBOOT);
+    const bool usbCommandRebootDetected = (watchdog_hw->scratch[0] == WATCHDOG_USB_REBOOT_MAGIC);
     const bool rebootDetected = (mapleRebootDetected || settingsRebootDetected || usbCommandRebootDetected);
+    // On reboot, check scratch[1] value for previously detected controllers
+    const int32_t prevDetectMask = rebootDetected ? watchdog_hw->scratch[1] : 0;
+
+    // These values are no longer needed
+    watchdog_hw->scratch[0] = 0;
+    watchdog_hw->scratch[1] = 0;
 
     // Ensure USB hardware is not active
     usb_stop();
@@ -301,8 +307,6 @@ void dpp_hw_init(void (*core1Entry)(), std::map<uint8_t, DreamcastNodeData>& dcN
     set_usb_msc_en(currentDppSettings.mscEn);
     usb_webusb_link_announce_enable(currentDppSettings.webUsbAnnounceEn);
 
-    // On reboot, check scratch[1] value for previously detected controllers
-    const int32_t prevDetectMask = rebootDetected ? watchdog_hw->scratch[1] : 0;
     // On auto detect reboot, use lower 8 bits of mask
     // On any other reboot use bits 8 to 15
     int32_t mask = mapleRebootDetected ? 1 : (1 << 8);
@@ -321,10 +325,6 @@ void dpp_hw_init(void (*core1Entry)(), std::map<uint8_t, DreamcastNodeData>& dcN
             set_usb_descriptor_gamepad_en(i, true);
         }
     }
-
-    // These values are no longer needed
-    watchdog_hw->scratch[0] = 0;
-    watchdog_hw->scratch[1] = 0;
 
     std::vector<PlayerDefinition> playerDefs;
     playerDefs.reserve(MAX_DEVICES);
