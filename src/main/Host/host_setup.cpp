@@ -332,8 +332,9 @@ void dpp_hw_init(void (*core1Entry)(), std::map<uint8_t, DreamcastNodeData>& dcN
 
     for (uint8_t i = 0; i < MAX_DEVICES; ++i)
     {
-        bool usbEnabled = is_usb_descriptor_gamepad_en(i);
-        bool autoDetect = (currentDppSettings.playerDetectionModes[i] > DppSettings::PlayerDetectionMode::kAutoThreshold);
+        const bool usbEnabled = is_usb_descriptor_gamepad_en(i);
+        const DppSettings::PlayerDetectionMode playerDetectionMode = currentDppSettings.playerDetectionModes[i];
+        const bool autoDetect = (playerDetectionMode > DppSettings::PlayerDetectionMode::kAutoThreshold);
 
         if (usbEnabled || autoDetect)
         {
@@ -344,7 +345,7 @@ void dpp_hw_init(void (*core1Entry)(), std::map<uint8_t, DreamcastNodeData>& dcN
             playerDef.gpioA = currentDppSettings.gpioA[i];
             playerDef.gpioDir =  currentDppSettings.gpioDir[i];
             playerDef.dirOutHigh = currentDppSettings.gpioDirOutputHigh[i];
-            playerDef.detectionMode = currentDppSettings.playerDetectionModes[i];
+            playerDef.detectionMode = playerDetectionMode;
             playerDef.autoDetectOnly = !usbEnabled;
 
             if (autoDetect)
@@ -352,10 +353,13 @@ void dpp_hw_init(void (*core1Entry)(), std::map<uint8_t, DreamcastNodeData>& dcN
                 if (!is_usb_descriptor_gamepad_en(i))
                 {
                     // Auto detect is enabled and the gamepad is currently disabled
-                    autoDetectDevs.insert(i);
+                    if (playerDetectionMode > DppSettings::PlayerDetectionMode::kAutoDynamicThreshold)
+                    {
+                        autoDetectDevs.insert(i);
+                    }
                     runtimeAutoDetect = true;
                 }
-                else if (currentDppSettings.playerDetectionModes[i] == DppSettings::PlayerDetectionMode::kAutoDynamic)
+                else if (playerDetectionMode == DppSettings::PlayerDetectionMode::kAutoDynamic)
                 {
                     // Auto, Dynamic detect is enabled and gamepad is currently enabled
                     runtimeAutoDetect = true;
