@@ -25,19 +25,26 @@
 
 #include <cstdint>
 #include <memory>
-#include <vector>
 #include <map>
 
 #include "DreamcastNodeData.hpp"
 #include "SerialStreamParser.hpp"
 
-#include "hal/System/DppSettings.hpp"
+//! Called periodically to signal aliveness (for watchdog reset)
+void heartbeat();
 
-#define MAX_DEVICES (DppSettings::kNumPlayers)
+//! Initializes the hardware (must be called from core0)
+//! @param[in] core1Entry The core1 function entrypoint
+//! @param[out] dcNodes The set of DreamcastNodeData [index] -> data
+//! @param[out] runtimeAutoDetect Set to true if auto detection must be checked during runtime
+void dpp_hw_init(void (*core1Entry)(), std::map<uint8_t, DreamcastNodeData>& dcNodes, bool& runtimeAutoDetect);
 
-const uint32_t WATCHDOG_MAPLE_AUTO_DETECT_MAGIC = 0xEA68D4;
-
-std::map<uint8_t, DreamcastNodeData> setup_dreamcast_nodes(const std::vector<PlayerDefinition>& playerDefs);
+//! Creates all WebUSB and TTY parsers
+//! @param[in] dcNodes All initialized DreamcastNodeData
+//! @return The created TTY SerialStreamParser
 std::unique_ptr<SerialStreamParser> make_parsers(const std::map<uint8_t, DreamcastNodeData>& dcNodes);
-void maple_detect_init(const std::map<uint8_t, DreamcastNodeData>& dcNodes);
-void maple_detect(std::map<uint8_t, DreamcastNodeData>& dcNodes, bool rebootNowOnDetect = false);
+
+//! Performs maple bus detect/reboot logic
+//! @param[in] dcNodes All initialized DreamcastNodeData
+//! @param[in] rebootNowOnDetect When true, reboot occurs immediately on detection; false to apply delay
+void maple_detect(const std::map<uint8_t, DreamcastNodeData>& dcNodes, bool rebootNowOnDetect = false);

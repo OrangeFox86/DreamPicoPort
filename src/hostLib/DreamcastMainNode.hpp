@@ -100,7 +100,7 @@ class DreamcastMainNode : public DreamcastNode
         MapleStatus getMapleStatus() const;
 
         //! @return true iff device detected on this node
-        inline bool isDeviceDetected()
+        inline bool isDeviceDetected() const
         {
             return mDeviceDetected;
         }

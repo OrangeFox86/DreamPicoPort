@@ -30,13 +30,16 @@
 #include <vector>
 #include <cstdint>
 
-static const uint32_t WATCHDOG_SETTINGS_USB_REBOOT = 0x4660DFDA;
+// The magic value to use when reboot is requested over USB
+static const uint32_t WATCHDOG_USB_REBOOT_MAGIC = 0x4660DFDA;
 
 //! @returns array of the USB controller observers
 DreamcastControllerObserver** get_usb_controller_observers();
+
 //! Sets the D-Pad output type for the controller
 //! @param[in] dpadType the D-Pad type to set
 void set_controller_dpad_type(DreamcastControllerObserver::DpadType dpadType);
+
 //! USB initialization
 void usb_init(
   MutexInterface* mscMutex,
@@ -45,13 +48,17 @@ void usb_init(
   int32_t usbLedGpio,
   int32_t simpleUsbLedGpio
 );
+
 //! Start USB execution
 void usb_start();
+
 //! Stop USB execution
 void usb_stop();
+
 //! Stop then schedule a restart of USB execution
 //! @param[in] extraDelayMs Extra amount of milliseconds to delay before restarting the USB
 void usb_restart(uint32_t extraDelayMs = 0);
+
 //! USB task that needs to be called constantly by main()
 void usb_task();
 

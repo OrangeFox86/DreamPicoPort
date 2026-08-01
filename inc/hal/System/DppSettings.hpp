@@ -45,6 +45,8 @@ struct DppSettings
         kAutoThreshold = kEnable,
         //! Initially disabled, switch to kEnable and save settings once detected
         kAutoStatic,
+        //! Any value greater than this value is automatic-dynamic detection
+        kAutoDynamicThreshold = kAutoStatic,
         //! Auto detection, disabling and enabling as device is detected or removed
         kAutoDynamic,
         //! Auto detection, enabling as device is detected, only disabled upon power loss

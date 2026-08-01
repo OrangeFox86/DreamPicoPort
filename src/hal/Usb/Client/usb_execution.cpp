@@ -406,7 +406,7 @@ bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_requ
         if (request->wValue == 0xFFFF)
         {
           // Special request: cause reboot in 250 ms (longer than any other reboot delay)
-          watchdog_hw->scratch[0] = WATCHDOG_SETTINGS_USB_REBOOT;
+          watchdog_hw->scratch[0] = WATCHDOG_USB_REBOOT_MAGIC;
           watchdog_reboot(0, 0, 250);
         }
         else if (request->wValue == 0xFFFE)
