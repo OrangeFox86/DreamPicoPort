@@ -25,13 +25,10 @@
 
 #include <cstdint>
 #include <memory>
-#include <vector>
 #include <map>
 
 #include "DreamcastNodeData.hpp"
 #include "SerialStreamParser.hpp"
-
-#include "hal/System/DppSettings.hpp"
 
 //! Called periodically to signal aliveness (for watchdog reset)
 void heartbeat();

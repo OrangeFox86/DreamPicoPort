@@ -48,6 +48,7 @@
 #include "Clock.hpp"
 
 #include <unordered_set>
+#include <atomic>
 
 #define MAX_DEVICES (DppSettings::kNumPlayers)
 const uint32_t WATCHDOG_MAPLE_AUTO_DETECT_MAGIC = 0xEA68D4;

@@ -24,20 +24,12 @@
 #ifndef ENABLE_UNIT_TEST
 
 #include <memory>
-#include <algorithm>
 
-#include "pico/stdlib.h"
-#include "hardware/exception.h"
+#include <pico/stdlib.h>
+#include <hardware/exception.h>
 #include <hardware/watchdog.h>
-#include <atomic>
-#include <string.h>
-#include <unordered_set>
-
-#include "CriticalSectionMutex.hpp"
-#include "Mutex.hpp"
 
 #include "hal/Usb/usb_interface.hpp"
-#include "hal/Usb/client_usb_interface.h"
 #include "hal/Usb/WebUsbCommandHandler.hpp"
 
 #include "host_setup.hpp"
