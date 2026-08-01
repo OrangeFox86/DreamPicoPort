@@ -211,7 +211,7 @@ int main()
     std::vector<PlayerDefinition> playerDefs;
     playerDefs.reserve(MAX_DEVICES);
     std::unordered_set<int> autoDetectDevs;
-    bool anyMapleAutoDetect = false;
+    bool runtimeAutoDetect = false;
 
     for (uint8_t i = 0; i < MAX_DEVICES; ++i)
     {
@@ -235,8 +235,12 @@ int main()
                 if ((prevDetectMask & (1 << i)) == 0)
                 {
                     autoDetectDevs.insert(i);
+                    runtimeAutoDetect = true;
                 }
-                anyMapleAutoDetect = true;
+                else if (currentDppSettings.playerDetectionModes[i] == DppSettings::PlayerDetectionMode::kAutoDynamic)
+                {
+                    runtimeAutoDetect = true;
+                }
             }
 
             playerDefs.push_back(std::move(playerDef));
@@ -334,7 +338,7 @@ int main()
         webusb_flush_outgoing();
 
         // Do any automatic detection of controllers (must be done on core 0)
-        if (anyMapleAutoDetect && (time_us_32() - lastMapleDetectTime) >= kMapleDetectPeriodUs)
+        if (runtimeAutoDetect && (time_us_32() - lastMapleDetectTime) >= kMapleDetectPeriodUs)
         {
             maple_detect(dcNodes);
 
