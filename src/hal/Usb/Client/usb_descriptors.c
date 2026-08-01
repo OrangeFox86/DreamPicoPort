@@ -102,11 +102,10 @@ int16_t usb_gamepad_instance_to_index(uint8_t instance)
     return idx;
 }
 
-#undef TUD_HID_REPORT_DESC_GAMEPAD
-
 #define GET_NUM_BUTTONS(numPlayers, playerIdx) ((numPlayers == 1 && playerIdx == 0) ? 32 : (31 - playerIdx))
 
-// Tweak the gamepad descriptor so that the minimum value on analog controls is -128 instead of -127
+// Contains some tweaks from normal gamepad definition
+#undef TUD_HID_REPORT_DESC_GAMEPAD
 #define TUD_HID_REPORT_DESC_GAMEPAD(numPlayers, playerIdx) \
   HID_USAGE_PAGE ( HID_USAGE_PAGE_DESKTOP     )                 ,\
   HID_USAGE      ( HID_USAGE_DESKTOP_GAMEPAD  )                 ,\

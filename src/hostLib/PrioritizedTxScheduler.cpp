@@ -136,14 +136,16 @@ uint32_t PrioritizedTxScheduler::add(
     return add(tx);
 }
 
-uint64_t PrioritizedTxScheduler::computeNextTimeCadence(uint64_t currentTime,
-                                                        uint64_t period,
-                                                        uint64_t offset)
+uint64_t PrioritizedTxScheduler::computeNextTimeCadence(uint64_t currentTime, uint64_t period, uint64_t offset)
 {
     // Cover the edge case where the offset is in the future for some reason
     if (offset > currentTime)
     {
         return offset;
+    }
+    else if (offset == 0)
+    {
+        return currentTime + period;
     }
     else
     {
