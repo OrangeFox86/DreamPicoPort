@@ -149,6 +149,8 @@ int main()
     set_usb_msc_en(currentDppSettings.mscEn);
     usb_webusb_link_announce_enable(currentDppSettings.webUsbAnnounceEn);
 
+    int32_t prevDetectMask = watchdog_hw->scratch[1];
+
     if (mapleRebootDetected)
     {
         // Reboot occurred because auto maple detect changed states
@@ -158,7 +160,7 @@ int main()
         {
             if (
                 currentDppSettings.playerDetectionModes[i] == DppSettings::PlayerDetectionMode::kEnable ||
-                (mask & watchdog_hw->scratch[1]) != 0
+                (mask & prevDetectMask) != 0
             )
             {
                 set_usb_descriptor_gamepad_en(i, true);
@@ -179,7 +181,7 @@ int main()
                 currentDppSettings.playerDetectionModes[i] == DppSettings::PlayerDetectionMode::kEnable ||
                 (
                     currentDppSettings.playerDetectionModes[i] != DppSettings::PlayerDetectionMode::kDisable &&
-                    (mask & watchdog_hw->scratch[1]) != 0
+                    (mask & prevDetectMask) != 0
                 )
             )
             {
@@ -192,6 +194,7 @@ int main()
     }
     else
     {
+        prevDetectMask = 0;
         for (uint8_t i = 0; i < DppSettings::kNumPlayers; ++i)
         {
             if (currentDppSettings.playerDetectionModes[i] == DppSettings::PlayerDetectionMode::kEnable)
@@ -229,7 +232,10 @@ int main()
 
             if (autoDetect)
             {
-                autoDetectDevs.insert(i);
+                if ((prevDetectMask & (1 << i)) == 0)
+                {
+                    autoDetectDevs.insert(i);
+                }
                 anyMapleAutoDetect = true;
             }
 
@@ -283,7 +289,7 @@ int main()
 
     if (!autoDetectDevs.empty() && !rebootDetected && !dcNodes.empty())
     {
-        // Run for 3.5 seconds to see if anything is initially detected (older VMUs may have 3 second beep)
+        // Run for 3.5 seconds or until all auto devices are detected (older VMUs may have 3 second beep)
         uint64_t endTime = time_us_64() + 3500000;
         while (time_us_64() < endTime && !autoDetectDevs.empty())
         {
