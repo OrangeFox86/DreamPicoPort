@@ -104,8 +104,10 @@ int main()
         for (auto& node : dcNodes)
         {
             auto& pd = node.second.playerData;
-            if (!pd) continue;
-            pd->gamepad.process();
+            if (pd)
+            {
+                pd->gamepad.process();
+            }
         }
 
         // Flush any outgoing WebUSB packets queued by other core (must be done on core 0)
