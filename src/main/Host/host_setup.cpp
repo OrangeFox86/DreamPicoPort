@@ -24,6 +24,10 @@
 #include "host_setup.hpp"
 
 #include <hardware/watchdog.h>
+#include <hardware/clocks.h>
+
+#include <pico/stdlib.h>
+#include <pico/multicore.h>
 
 #include "hal/Usb/usb_interface.hpp"
 #include "hal/Usb/client_usb_interface.h"
@@ -43,9 +47,51 @@
 #include "Mutex.hpp"
 #include "Clock.hpp"
 
+#include <unordered_set>
+
+#define MAX_DEVICES (DppSettings::kNumPlayers)
+const uint32_t WATCHDOG_MAPLE_AUTO_DETECT_MAGIC = 0xEA68D4;
+const uint8_t MAPLE_HOST_ADDRESSES[MAX_DEVICES] = {0x00, 0x40, 0x80, 0xC0};
+const uint32_t MAPLE_PINS[MAX_DEVICES] = {P1_BUS_START_PIN, P2_BUS_START_PIN, P3_BUS_START_PIN, P4_BUS_START_PIN};
+const uint32_t MAPLE_DIR_PINS[MAX_DEVICES] = {P1_DIR_PIN, P2_DIR_PIN, P3_DIR_PIN, P4_DIR_PIN};
+
 static Clock gClock;
 
-std::map<uint8_t, DreamcastNodeData> setup_dreamcast_nodes(const std::vector<PlayerDefinition>& playerDefs)
+// Initialize and enable the hardware watchdog for shared use between cores.
+static void heartbeat_setup()
+{
+    static constexpr uint32_t kSharedWatchdogTimeoutMs = 1000; // 1 second
+    watchdog_enable(kSharedWatchdogTimeoutMs, true);
+}
+
+void heartbeat()
+{
+    // Updated whenever core0 does a loop for watchdog check in core1
+    static std::atomic<bool> core0Alive = true;
+
+    switch(get_core_num())
+    {
+        case 0:
+            core0Alive.store(true, std::memory_order_relaxed);
+            break;
+
+        case 1:
+            // check value and reset to false in one operation
+            // (relaxed because it doesn't need to synchronize with other data)
+            if (core0Alive.exchange(false, std::memory_order_relaxed))
+            {
+                // We're both alive
+                watchdog_update();
+            }
+            break;
+
+        default:
+            // Invalid
+            break;
+    }
+}
+
+static std::map<uint8_t, DreamcastNodeData> setup_dreamcast_nodes(const std::vector<PlayerDefinition>& playerDefs)
 {
     std::map<uint8_t, DreamcastNodeData> dcNodeData;
 
@@ -139,7 +185,7 @@ static uint8_t mapleDetectedMask = 0;
 static DppSettings::PlayerDetectionMode mapleDetectUpdatedModes[DppSettings::kNumPlayers];
 static bool maplePlayerModesUpdated = false;
 
-void maple_detect_init(const std::map<uint8_t, DreamcastNodeData>& dcNodes)
+static void maple_detect_init(const std::map<uint8_t, DreamcastNodeData>& dcNodes)
 {
     for (uint8_t i = 0; i < DppSettings::kNumPlayers; ++i)
     {
@@ -155,7 +201,7 @@ void maple_detect_init(const std::map<uint8_t, DreamcastNodeData>& dcNodes)
     }
 }
 
-void maple_detect(std::map<uint8_t, DreamcastNodeData>& dcNodes, bool rebootNowOnDetect)
+void maple_detect(const std::map<uint8_t, DreamcastNodeData>& dcNodes, bool rebootNowOnDetect)
 {
     // Time markers for auto detect when anyMapleAutoDetect is true
     static uint64_t autoDetectReactionTimeUs = 0;
@@ -228,4 +274,163 @@ void maple_detect(std::map<uint8_t, DreamcastNodeData>& dcNodes, bool rebootNowO
 
         watchdog_reboot(0, 0, 0);
     }
+}
+
+void dpp_hw_init(void (*core1Entry)(), std::map<uint8_t, DreamcastNodeData>& dcNodes, bool& runtimeAutoDetect)
+{
+    set_sys_clock_khz(CPU_FREQ_KHZ, true);
+
+    const bool mapleRebootDetected = (watchdog_hw->scratch[0] == WATCHDOG_MAPLE_AUTO_DETECT_MAGIC);
+    const bool settingsRebootDetected = (watchdog_hw->scratch[0] == DppSettings::WATCHDOG_SETTINGS_UPDATED_MAGIC);
+    const bool usbCommandRebootDetected = (watchdog_hw->scratch[0] == WATCHDOG_SETTINGS_USB_REBOOT);
+    const bool rebootDetected = (mapleRebootDetected || settingsRebootDetected || usbCommandRebootDetected);
+
+    // Ensure USB hardware is not active
+    usb_stop();
+
+    // Wait for steady state
+    sleep_ms(100);
+
+    // Initialize settings from flash
+    // This needs to be done before interrupts are enabled
+    DppSettings currentDppSettings = DppSettings::initialize();
+    currentDppSettings.makeValid(true);
+
+    set_usb_cdc_en(currentDppSettings.cdcEn);
+    set_usb_msc_en(currentDppSettings.mscEn);
+    usb_webusb_link_announce_enable(currentDppSettings.webUsbAnnounceEn);
+
+    // On reboot, check scratch[1] value for previously detected controllers
+    const int32_t prevDetectMask = rebootDetected ? watchdog_hw->scratch[1] : 0;
+    // On auto detect reboot, use lower 8 bits of mask
+    // On any other reboot use bits 8 to 15
+    int32_t mask = mapleRebootDetected ? 1 : (1 << 8);
+
+    // Enable whatever USB gamepads that need to be enabled from settings or previousDetectMask
+    for (uint8_t i = 0; i < MAX_DEVICES; ++i, mask <<= 1)
+    {
+        if (
+            currentDppSettings.playerDetectionModes[i] == DppSettings::PlayerDetectionMode::kEnable ||
+            (
+                currentDppSettings.playerDetectionModes[i] != DppSettings::PlayerDetectionMode::kDisable &&
+                (mask & prevDetectMask) != 0
+            )
+        )
+        {
+            set_usb_descriptor_gamepad_en(i, true);
+        }
+    }
+
+    // These values are no longer needed
+    watchdog_hw->scratch[0] = 0;
+    watchdog_hw->scratch[1] = 0;
+
+    std::vector<PlayerDefinition> playerDefs;
+    playerDefs.reserve(MAX_DEVICES);
+    std::unordered_set<int> autoDetectDevs;
+    runtimeAutoDetect = false;
+
+    for (uint8_t i = 0; i < MAX_DEVICES; ++i)
+    {
+        bool usbEnabled = is_usb_descriptor_gamepad_en(i);
+        bool autoDetect = (currentDppSettings.playerDetectionModes[i] > DppSettings::PlayerDetectionMode::kAutoThreshold);
+
+        if (usbEnabled || autoDetect)
+        {
+            PlayerDefinition playerDef;
+
+            playerDef.index = i;
+            playerDef.mapleHostAddr = MAPLE_HOST_ADDRESSES[i];
+            playerDef.gpioA = currentDppSettings.gpioA[i];
+            playerDef.gpioDir =  currentDppSettings.gpioDir[i];
+            playerDef.dirOutHigh = currentDppSettings.gpioDirOutputHigh[i];
+            playerDef.detectionMode = currentDppSettings.playerDetectionModes[i];
+            playerDef.autoDetectOnly = !usbEnabled;
+
+            if (autoDetect)
+            {
+                if (!is_usb_descriptor_gamepad_en(i))
+                {
+                    // Auto detect is enabled and the gamepad is currently disabled
+                    autoDetectDevs.insert(i);
+                    runtimeAutoDetect = true;
+                }
+                else if (currentDppSettings.playerDetectionModes[i] == DppSettings::PlayerDetectionMode::kAutoDynamic)
+                {
+                    // Auto, Dynamic detect is enabled and gamepad is currently enabled
+                    runtimeAutoDetect = true;
+                }
+            }
+
+            playerDefs.push_back(std::move(playerDef));
+        }
+    }
+
+    // Convert DppSettings DpadType to DreamcastControllerObserver DpadType
+    DreamcastControllerObserver::DpadType dpadType = DreamcastControllerObserver::DpadType::HAT;
+    switch(currentDppSettings.dpadType)
+    {
+        case DppSettings::DpadType::kButtons:
+            dpadType = DreamcastControllerObserver::DpadType::BUTTONS;
+            break;
+
+        case DppSettings::DpadType::kBoth:
+            dpadType = DreamcastControllerObserver::DpadType::BOTH;
+            break;
+
+        case DppSettings::DpadType::kHat:
+        default:
+            dpadType = DreamcastControllerObserver::DpadType::HAT;
+            break;
+    }
+
+    set_controller_dpad_type(dpadType);
+
+    dcNodes = setup_dreamcast_nodes(playerDefs);
+
+    maple_detect_init(dcNodes);
+
+#if SHOW_DEBUG_MESSAGES
+    stdio_uart_init();
+#endif
+
+    // Create mutexes that persist past the end of this function call
+    static Mutex fileMutex;
+    static Mutex cdcStdioMutex;
+    static Mutex webusbMutex;
+    usb_init(
+        &fileMutex,
+        &cdcStdioMutex,
+        &webusbMutex,
+        currentDppSettings.usbLedGpio,
+        currentDppSettings.simpleUsbLedGpio
+    );
+
+    // Enable heartbeat watchdog
+    heartbeat_setup();
+
+    multicore_launch_core1(core1Entry);
+
+    if (!autoDetectDevs.empty() && !rebootDetected && !dcNodes.empty())
+    {
+        // Run for 3.5 seconds or until all auto devices are detected (older VMUs may have 3 second beep)
+        uint64_t endTime = time_us_64() + 3500000;
+        while (time_us_64() < endTime && !autoDetectDevs.empty())
+        {
+            for (const std::pair<const uint8_t, DreamcastNodeData>& dcNode : dcNodes)
+            {
+                if (dcNode.second.mainNode->isDeviceDetected())
+                {
+                    autoDetectDevs.erase(dcNode.second.playerDef->index);
+                }
+            }
+
+            // Signal core 0 liveness to shared watchdog
+            heartbeat();
+        }
+
+        maple_detect(dcNodes, true);
+    }
+
+    usb_start();
 }
