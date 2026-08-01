@@ -419,7 +419,7 @@ void dpp_hw_init(void (*core1Entry)(), std::map<uint8_t, DreamcastNodeData>& dcN
     if (!autoDetectDevs.empty() && !rebootDetected && !dcNodes.empty())
     {
         // Run for 3.5 seconds or until all auto devices are detected (older VMUs may have 3 second beep)
-        uint64_t endTime = time_us_64() + 3500000;
+        const uint64_t endTime = time_us_64() + 3500000;
         while (time_us_64() < endTime && !autoDetectDevs.empty())
         {
             for (const std::pair<const uint8_t, DreamcastNodeData>& dcNode : dcNodes)

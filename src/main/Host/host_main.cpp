@@ -55,7 +55,7 @@ void core1()
 #endif
 
     // Initialize TTY parsers
-    std::unique_ptr<SerialStreamParser> ttyParser = make_parsers(dcNodes);
+    const std::unique_ptr<SerialStreamParser> ttyParser = make_parsers(dcNodes);
 
     while(true)
     {
@@ -93,7 +93,7 @@ int main()
 
     // Callback to pass to DppSettings::processSaveRequests, to be called before save operations
     // This ensures the USB interface is properly stopped before reboot occurs
-    std::function<void()> hwStopFn = usb_stop;
+    const std::function<void()> hwStopFn = usb_stop;
 
     while(true)
     {
