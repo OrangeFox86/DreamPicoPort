@@ -207,7 +207,6 @@ int main()
     std::vector<PlayerDefinition> playerDefs;
     playerDefs.reserve(MAX_DEVICES);
     bool anyMapleAutoDetect = false;
-    bool allMapleAutoDetect = true;
 
     for (uint8_t i = 0; i < MAX_DEVICES; ++i)
     {
@@ -229,10 +228,6 @@ int main()
             if (autoDetect)
             {
                 anyMapleAutoDetect = true;
-            }
-            else
-            {
-                allMapleAutoDetect = false;
             }
 
             playerDefs.push_back(std::move(playerDef));
@@ -283,7 +278,7 @@ int main()
 
     multicore_launch_core1(core1);
 
-    if (allMapleAutoDetect && !rebootDetected && !dcNodes.empty())
+    if (anyMapleAutoDetect && !rebootDetected && !dcNodes.empty())
     {
         // Run for 3.5 seconds to see if anything is initially detected (older VMUs may have 3 second beep)
         bool somethingDetected = false;
