@@ -268,7 +268,7 @@ typedef struct TU_ATTR_PACKED
   int8_t  ry;        ///< Delta Ry movement of analog right trigger
   uint8_t hat;       ///< Buttons mask for currently pressed buttons in the DPad/hat
   uint32_t buttons;  ///< Buttons mask for currently pressed buttons
-  uint8_t pad;       ///< Vendor data (padding)
+  uint8_t pad;       ///< Vendor data (padding) (upper bit is media key)
 }hid_dc_gamepad_report_t;
 
 uint8_t UsbGamepad::getReportSize()
@@ -288,7 +288,7 @@ uint16_t UsbGamepad::getReport(uint8_t *buffer, uint16_t reqlen)
   report.ry = currentRightAnalog[1];
   report.hat = getHatValue();
   report.buttons = currentButtons;
-  report.pad = playerIdx; // Just put player index in this padding
+  report.pad = playerIdx & 0x7F; // Just put player index in this padding but keep media key 0
   // Copy report into buffer
   uint16_t setLen = (sizeof(report) <= reqlen) ? sizeof(report) : reqlen;
   memcpy(buffer, &report, setLen);
