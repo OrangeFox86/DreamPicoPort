@@ -106,8 +106,8 @@ int16_t usb_gamepad_instance_to_index(uint8_t instance)
 #define GET_FINGERPRINT_USAGE(playerIdx)  \
     ((playerIdx == 0) ? HID_USAGE_CONSUMER_PLAY_PAUSE \
         : (playerIdx == 1) ? HID_USAGE_CONSUMER_SCAN_NEXT \
-        : (playerIdx == 2) ? HID_USAGE_CONSUMER_SCAN_PREVIOUS \
-        : HID_USAGE_CONSUMER_STOP)
+            : (playerIdx == 2) ? HID_USAGE_CONSUMER_SCAN_PREVIOUS \
+                : HID_USAGE_CONSUMER_STOP)
 
 #define GET_NUM_BUTTONS(numPlayers, playerIdx) ((numPlayers == 1 && playerIdx == 0) ? 32 : (31 - playerIdx))
 
