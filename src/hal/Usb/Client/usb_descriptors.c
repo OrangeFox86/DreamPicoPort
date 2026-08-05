@@ -102,6 +102,13 @@ int16_t usb_gamepad_instance_to_index(uint8_t instance)
     return idx;
 }
 
+// Maps playerIdx to the specific media button usage
+#define GET_FINGERPRINT_USAGE(playerIdx)  \
+    ((playerIdx == 0) ? HID_USAGE_CONSUMER_PLAY_PAUSE \
+        : (playerIdx == 1) ? HID_USAGE_CONSUMER_SCAN_NEXT \
+            : (playerIdx == 2) ? HID_USAGE_CONSUMER_SCAN_PREVIOUS \
+                : HID_USAGE_CONSUMER_STOP)
+
 #define GET_NUM_BUTTONS(numPlayers, playerIdx) ((numPlayers == 1 && playerIdx == 0) ? 32 : (31 - playerIdx))
 
 // Contains some tweaks from normal gamepad definition
@@ -159,15 +166,22 @@ int16_t usb_gamepad_instance_to_index(uint8_t instance)
     HID_INPUT          ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ) ,\
     /* To pad things out to exactly 12 bytes */ \
     HID_USAGE_PAGE_N   ( HID_USAGE_PAGE_VENDOR, 2               ) ,\
-    HID_USAGE          ( 0x01                                   ) ,\
     HID_USAGE_MIN      ( 1                                      ) ,\
-    HID_USAGE_MAX      ( 8 + (32 - GET_NUM_BUTTONS(numPlayers, playerIdx))) ,\
+    HID_USAGE_MAX      ( 7 + (32 - GET_NUM_BUTTONS(numPlayers, playerIdx))) ,\
     HID_LOGICAL_MIN    ( 0                                      ) ,\
     HID_LOGICAL_MAX    ( 1                                      ) ,\
-    HID_REPORT_COUNT   ( 8 + (32 - GET_NUM_BUTTONS(numPlayers, playerIdx))) ,\
+    HID_REPORT_COUNT   ( 7 + (32 - GET_NUM_BUTTONS(numPlayers, playerIdx))) ,\
     HID_REPORT_SIZE    ( 1                                      ) ,\
     HID_INPUT          ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ) ,\
-  HID_COLLECTION_END \
+    /* 1 bit Consumer Media Key for Android Fingerprinting */ \
+    HID_USAGE_PAGE     ( HID_USAGE_PAGE_CONSUMER                ) ,\
+    HID_USAGE          ( GET_FINGERPRINT_USAGE(playerIdx)       ) ,\
+    HID_LOGICAL_MIN    ( 0                                      ) ,\
+    HID_LOGICAL_MAX    ( 1                                      ) ,\
+    HID_REPORT_COUNT   ( 1                                      ) ,\
+    HID_REPORT_SIZE    ( 1                                      ) ,\
+    HID_INPUT          ( HID_DATA | HID_VARIABLE | HID_ABSOLUTE ) ,\
+  HID_COLLECTION_END
 
 //--------------------------------------------------------------------+
 // Device Descriptors
