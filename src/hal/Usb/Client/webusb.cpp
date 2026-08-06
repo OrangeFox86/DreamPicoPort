@@ -69,11 +69,22 @@ public:
     //! Limit number of outgoing packets to 10 just in case there is a lockup on the processing core
     static constexpr std::size_t kMaxOutgoingSize = 10;
 
+    //! Maximum size of mIncomingBuffer before incoming data is thrown out
+    static constexpr std::size_t kMaxBufferSize = 1100;
+
 public:
+    //! Default constructor (deleted)
     WebUsbInterface() = delete;
 
+    //! Constructor
+    //! @param[in] itf The interface index
     WebUsbInterface(uint8_t itf) : mItf(itf) {}
 
+    //! Fully reset due to external event
+    //! @param[in] sendZeros When true, send at least 256 zeros or number of zeros equivalent to last send size.
+    //!                      This ensures that anything stuck in the USB output buffer is fully purged.
+    //! @param[in] sendNullPkt When true, sends a "null packet" with command of 0 and maximum address value.
+    //!                        The host may use this to synchronize to the beginning of the stream.
     void externalReset(bool sendZeros = false, bool sendNullPkt = false)
     {
         LockGuard lock(*webusb_mutex);
@@ -108,11 +119,15 @@ public:
         }
     }
 
+    //! Perform connection operations
+    //! @param[in] sendZeros See externalReset()
+    //! @param[in] sendNullPkt See externalReset()
     void connect(bool sendZeros, bool sendNullPkt)
     {
         externalReset(sendZeros, sendNullPkt);
     }
 
+    //! Perform disconnection operations
     void disconnect()
     {
         externalReset();
@@ -120,12 +135,15 @@ public:
         mLastSendSize = -1;
     }
 
+    //! Reset internal buffers
     void reset()
     {
         mRcvIdx = -kSizeMagic;
         mBuffer.clear();
     }
 
+    //! Add a parser to my static parser dictionary
+    //! @param[in] parser The parser to add
     static void addParser(const std::shared_ptr<WebUsbCommandHandler>& parser)
     {
         if (parser)
@@ -135,6 +153,9 @@ public:
         }
     }
 
+    //! Add data from the incoming stream
+    //! @param[in] buffer Pointer to the stream
+    //! @param[in] bufsize Number of bytes to read
     void addData(const uint8_t* buffer, uint16_t bufsize)
     {
         if (bufsize > 0)
@@ -152,6 +173,7 @@ public:
         }
     }
 
+    //! Called periodically to process all incoming data
     void process()
     {
         std::vector<std::uint8_t> newData;
@@ -174,7 +196,7 @@ public:
                 return;
             }
 
-            consumePayloadBytes(buffer, bufsize);
+            consumePacketBytes(buffer, bufsize);
 
             const std::uint16_t payloadIdx = mRcvIdx - kSizeSize;
             if (payloadIdx >= mRcvSize)
@@ -187,6 +209,7 @@ public:
         }
     }
 
+    //! Called periodically to ensure all waiting data is sent to the USB outgoing buffer
     void flushOutgoing()
     {
         while (true)
@@ -203,47 +226,16 @@ public:
                 mOutgoingQueue.pop_front();
             }
 
-            // Write packet via TinyUSB. We perform the same logic as the original vendorWrite
-            const uint8_t* buffer = pkt.data();
-            uint32_t bufsize = static_cast<uint32_t>(pkt.size());
-            uint32_t consecutiveFailures = 0;
-
-            while (bufsize > 0)
-            {
-                uint32_t written = tud_vendor_n_write(mItf, buffer, bufsize);
-
-                if (written == 0 && bufsize > 0)
-                {
-                    ++consecutiveFailures;
-                    if (consecutiveFailures >= 2)
-                    {
-                        // Give up on this packet
-                        break;
-                    }
-                }
-                else
-                {
-                    consecutiveFailures = 0;
-                }
-
-                uint32_t wrote = (written >= bufsize) ? bufsize : written;
-                bufsize -= wrote;
-                buffer += wrote;
-
-                if (bufsize > 0)
-                {
-                    tud_task();
-                    tud_vendor_n_write_flush(mItf);
-                }
-            }
-
-            // Ensure final flush
-            tud_task();
-            tud_vendor_n_write_flush(mItf);
+            vendorWrite(mItf, pkt.data(), static_cast<uint32_t>(pkt.size()), true, true);
         }
     }
 
 private:
+    //! Consume bytes until all data is consumed or until full header is read (magic + size bytes)
+    //! @param[in,out] buffer in: pointer to the beginning of the buffer to consume; out: incremented pointer
+    //! @param[in,out] bufsize in: number of bytes to consume; out: number of bytes left to consume
+    //! @return true if a full header is received
+    //! @return false if bufsize is 0 and a full header has not been received yet
     bool tryReadPacketHeader(const uint8_t*& buffer, std::size_t& bufsize)
     {
         while (mRcvIdx < kSizeSize)
@@ -285,7 +277,10 @@ private:
         return true;
     }
 
-    void consumePayloadBytes(const uint8_t*& buffer, std::size_t& bufsize)
+    //! Called after header bytes have been consumed in order to pull bytes into address/payload buffer
+    //! @param[in,out] buffer in: pointer to the beginning of the buffer to consume; out: incremented pointer
+    //! @param[in,out] bufsize in: number of bytes to consume; out: number of bytes left to consume
+    void consumePacketBytes(const uint8_t*& buffer, std::size_t& bufsize)
     {
         // mRcvIdx is guaranteed to be >= kSizeSize here.
         const std::uint16_t payloadIdx = mRcvIdx - kSizeSize;
@@ -302,6 +297,9 @@ private:
         bufsize -= bytesToConsume;
     }
 
+    //! Determines how many bytes in a packet are the address
+    //! @param[in] packet Packet data to check
+    //! @return number of bytes in the packet that are the address
     static std::uint8_t getAddressSize(const std::vector<std::uint8_t>& packet)
     {
         std::uint8_t addrSize = 0;
@@ -318,6 +316,10 @@ private:
         return addrSize;
     }
 
+    //! Processes a packet after header was received
+    //! @param[in] lock The lock to use while processing the packet
+    //! @return true if a full packet was processed
+    //! @return false if not enough bytes received yet
     bool tryProcessCompletedPacket(LockGuard& lock)
     {
         if (mBuffer.size() < (kMinSizeAddress + kSizeCommand + kSizeCrc))
@@ -345,8 +347,9 @@ private:
         const std::uint8_t addrSize = getAddressSize(mBuffer);
         if (mBuffer.size() < static_cast<std::size_t>(addrSize + kSizeCommand + kSizeCrc))
         {
-            // Not enough data for address, command, and CRC.
-            return false;
+            // Packet invalid: not enough data for address, command, and CRC.
+            reset();
+            return true;
         }
 
         // No need to process address into uint64 as it's not used internally
@@ -377,6 +380,11 @@ private:
         return true;
     }
 
+    //! Process a received packet
+    //! @param[in] address Address bytes
+    //! @param[in] cmd Packet's command byte
+    //! @param[in] payload Pointer to the beginning of the payload
+    //! @param[in] payloadLen
     void processPkt(const std::string& address, const uint8_t cmd, const uint8_t* payload, uint16_t payloadLen)
     {
         std::unordered_map<std::uint8_t, std::shared_ptr<WebUsbCommandHandler>>::iterator iter = mParsers.find(cmd);
@@ -399,7 +407,20 @@ private:
         }
     }
 
-    static std::uint32_t vendorWrite(std::uint8_t itf, const void* buffer, std::uint32_t bufsize, bool flush = false)
+    //! Perform vendor write to USB
+    //! @param[in] itf Interface index to write to
+    //! @param[in] buffer Buffer to write
+    //! @param[in] bufsize The number of bytes to write
+    //! @param[in] flush When true, perform flush
+    //! @param[in] task When true, perform usb task before flush (ignored when flush is false)
+    //! @return total number of bytes written
+    static std::uint32_t vendorWrite(
+        std::uint8_t itf,
+        const void* buffer,
+        std::uint32_t bufsize,
+        bool flush = false,
+        bool task = false
+    )
     {
         const std::uint8_t* buffer8 = reinterpret_cast<const std::uint8_t*>(buffer);
         std::uint32_t consecutiveFailures = 0;
@@ -428,15 +449,34 @@ private:
 
             if (bufsize > 0 || flush)
             {
+                if (task)
+                {
+                    tud_task();
+                }
                 tud_vendor_n_write_flush(itf);
             }
 
             totalWritten += written;
         }
 
+        if (flush)
+        {
+            // Ensure final flush
+            if (task)
+            {
+                tud_task();
+            }
+            tud_vendor_n_write_flush(itf);
+        }
+
         return totalWritten;
     }
 
+    //! Queues a packet for send which will actually be sent on next call to flushOutgoing()
+    //! @param[in] address The outgoing address (same as the address received which triggered this response)
+    //! @param[in] cmd The command to respond with
+    //! @param[in] payloadList A list buffers to stitch together and send (will be copied by this call)
+    //! @param[in] acquireLock True to acquire lock or false if lock was acquired by the caller
     void sendPkt(
         const std::string& address,
         const uint8_t cmd,
@@ -499,12 +539,18 @@ private:
         mOutgoingQueue.push_back(std::move(fullPkt));
     }
 
+    //! Converts 2 bytes from network order (big endian) to host order as uint16
+    //! @param[in] payload Pointer to the data in the stream
+    //! @return the converted uint16 value
     static std::uint16_t bytesToUint16(const void* payload)
     {
         const std::uint8_t* p8 = reinterpret_cast<const std::uint8_t*>(payload);
         return (static_cast<std::uint16_t>(p8[0]) << 8 | p8[1]);
     }
 
+    //! Converts uint16 from host order to 2 bytes in network order (big endian)
+    //! @param[out] out The buffer to write 2 bytes to
+    //! @param[in] data The uint16 value to write
     static void uint16ToBytes(void* out, std::uint16_t data)
     {
         std::uint8_t* p8 = reinterpret_cast<std::uint8_t*>(out);
@@ -512,6 +558,11 @@ private:
         *p8 = data & 0xFF;
     }
 
+    //! Compute crc16 value from data
+    //! @param[in] seed The input seed value; this should start with 0xFFFFU but may be crc of previous execution
+    //! @param[in] buffer The buffer to read
+    //! @param[in] bufLen Number of bytes in buffer to read
+    //! @return a crc16 value
     static std::uint16_t computeCrc16(std::uint16_t seed, const void* buffer, std::uint16_t bufLen)
     {
         std::uint16_t crc = seed;
@@ -536,11 +587,18 @@ private:
         return crc;
     }
 
+    //! Compute crc16 value from data
+    //! @param[in] buffer The buffer to read
+    //! @param[in] bufLen Number of bytes in buffer to read
+    //! @return a crc16 value
     static std::uint16_t computeCrc16(const void* buffer, std::uint16_t bufLen)
     {
         return computeCrc16(0xFFFFU, buffer, bufLen);
     }
 
+    //! Keep reading bytes until magic sequence is read or all bytes have been processed
+    //! @param[in,out] buffer in: pointer to the beginning of the buffer to consume; out: incremented pointer
+    //! @param[in,out] bufsize in: number of bytes to consume; out: number of bytes left to consume
     void parseMagic(const uint8_t*& buffer, std::size_t& bufsize)
     {
         while (mRcvIdx < 0 && bufsize > 0)
@@ -560,9 +618,6 @@ private:
         }
     }
 
-public:
-    static constexpr const std::size_t kMaxBufferSize = 1050;
-
 private:
     //! All parsers
     static std::unordered_map<std::uint8_t, std::shared_ptr<WebUsbCommandHandler>> mParsers;
@@ -570,7 +625,7 @@ private:
     //! The USB vendor interface number
     const uint8_t mItf;
 
-    //! Current receive index
+    //! Current receive index - this is negative while receiving size bytes
     std::int32_t mRcvIdx = -kSizeMagic;
 
     //! Received packet size
