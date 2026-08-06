@@ -57,17 +57,17 @@ MutexInterface* webusb_mutex = nullptr;
 class WebUsbInterface
 {
 public:
-    static constexpr const std::int8_t kSizeMagic = sizeof(k_webusb_magic_value);
-    static constexpr const std::int8_t kSizeSize = 4;
-    static constexpr const std::int8_t kMinSizeAddress = 1;
-    static constexpr const std::int8_t kMaxSizeAddress = 9;
-    static constexpr const std::int8_t kSizeCommand = 1;
-    static constexpr const std::int8_t kSizeCrc = 2;
+    static constexpr std::int8_t kSizeMagic = sizeof(k_webusb_magic_value);
+    static constexpr std::int8_t kSizeSize = 4;
+    static constexpr std::int8_t kMinSizeAddress = 1;
+    static constexpr std::int8_t kMaxSizeAddress = 9;
+    static constexpr std::int8_t kSizeCommand = 1;
+    static constexpr std::int8_t kSizeCrc = 2;
 
-    static constexpr const std::uint8_t kCmdBadCmd = 0xFF;
+    static constexpr std::uint8_t kCmdBadCmd = 0xFF;
 
     //! Limit number of outgoing packets to 10 just in case there is a lockup on the processing core
-    static constexpr const std::size_t kMaxOutgoingSize = 10;
+    static constexpr std::size_t kMaxOutgoingSize = 10;
 
 public:
     WebUsbInterface() = delete;
@@ -124,7 +124,6 @@ public:
     {
         mRcvIdx = -kSizeMagic;
         mBuffer.clear();
-        mBuffer.shrink_to_fit();
     }
 
     static void addParser(const std::shared_ptr<WebUsbCommandHandler>& parser)
@@ -153,8 +152,6 @@ public:
         }
     }
 
-    // TODO: this process() function is a mess and hard to follow
-
     void process()
     {
         std::vector<std::uint8_t> newData;
@@ -164,7 +161,6 @@ public:
         {
             newData = std::move(mIncomingBuffer);
             mIncomingBuffer.clear();
-            mIncomingBuffer.shrink_to_fit();
         }
 
         const uint8_t* buffer = newData.data();
@@ -172,131 +168,20 @@ public:
 
         while (bufsize > 0)
         {
-            if (mRcvIdx < kSizeSize)
+            if (!tryReadPacketHeader(buffer, bufsize))
             {
-                parseMagic(buffer, bufsize);
-
-                while (mRcvIdx < kSizeSize && bufsize > 0)
-                {
-                    mSizeBytes[mRcvIdx] = *buffer;
-
-                    ++mRcvIdx;
-                    ++buffer;
-                    --bufsize;
-                }
-
-                if (mRcvIdx < kSizeSize)
-                {
-                    // Consumed entire buffer without completing size bytes
-                    return;
-                }
-
-                mRcvSize = bytesToUint16(&mSizeBytes[0]);
-                std::uint16_t invRcvSize = bytesToUint16(&mSizeBytes[2]);
-
-                if ((mRcvSize ^ invRcvSize) != 0xFFFF || mRcvSize < (kMinSizeAddress + kSizeCommand + kSizeCrc))
-                {
-                    // Size bytes invalid - reset counter, parse size bytes for another magic, and continue
-                    reset();
-                    const uint8_t* tmpBuffer = mSizeBytes;
-                    std::size_t tmpBufSize = sizeof(mSizeBytes);
-                    parseMagic(tmpBuffer, tmpBufSize);
-                    continue;
-                }
-
-                mBuffer.clear(); // Should already be clear, done for good measure
-                mBuffer.reserve(mRcvSize);
-
-                if (bufsize == 0)
-                {
-                    // Consumed size bytes then ran out of bytes to parse
-                    return;
-                }
+                // Consumed entire buffer without completing packet header.
+                return;
             }
 
-            // mRcvIdx is guaranteed to be >= kSizeSize here
+            consumePayloadBytes(buffer, bufsize);
 
-            std::uint16_t payloadIdx = mRcvIdx - kSizeSize;
-            std::uint16_t bytesToConsume = mRcvSize - payloadIdx;
-            if (bufsize < bytesToConsume)
-            {
-                bytesToConsume = bufsize;
-            }
-
-            mBuffer.insert(mBuffer.end(), buffer, buffer + bytesToConsume);
-
-            mRcvIdx += bytesToConsume;
-            buffer += bytesToConsume;
-            bufsize -= bytesToConsume;
-
-            payloadIdx = mRcvIdx - kSizeSize;
-
+            const std::uint16_t payloadIdx = mRcvIdx - kSizeSize;
             if (payloadIdx >= mRcvSize)
             {
-                if (mBuffer.size() < (kMinSizeAddress + kSizeCommand + kSizeCrc))
+                if (!tryProcessCompletedPacket(lock))
                 {
-                    // Not enough data for address, cmd, and CRC
                     return;
-                }
-
-                // Calculate CRC over message address, command, and payload (excluding CRC itself)
-                uint16_t calc_crc = computeCrc16(
-                    mBuffer.data(),
-                    mBuffer.size() - kSizeCrc
-                );
-
-                // Extract CRC from last 2 bytes
-                uint16_t pkt_crc = bytesToUint16(&mBuffer[mBuffer.size() - 2]);
-
-                if (calc_crc == pkt_crc)
-                {
-                    // No need to process address into uint64 as it's not used internally
-                    std::string address;
-                    address.reserve(kMaxSizeAddress);
-                    uint8_t addrIdx = 0;
-                    do
-                    {
-                        address.push_back(mBuffer[addrIdx]);
-                    } while (
-                        (mBuffer[addrIdx++] & 0x80) != 0 &&
-                        addrIdx < kMaxSizeAddress &&
-                        addrIdx < mBuffer.size()
-                    );
-
-                    // addrIdx is now the number of bytes used by address
-                    const uint8_t addrSize = addrIdx;
-                    if (mBuffer.size() < static_cast<std::size_t>(addrSize + kSizeCommand + kSizeCrc))
-                    {
-                        // Not enough data for address, cmd, and CRC
-                        return;
-                    }
-
-                    std::vector<std::uint8_t> packet = std::move(mBuffer);
-                    reset();
-
-                    const bool releaseLock = lock.isLocked();
-
-                    if (releaseLock)
-                    {
-                        webusb_mutex->unlock();
-                    }
-
-                    processPkt(
-                        address,
-                        packet[addrSize],
-                        reinterpret_cast<const uint8_t*>(&packet[addrSize + kSizeCommand]),
-                        packet.size() - addrSize - kSizeCommand - kSizeCrc
-                    );
-
-                    if (releaseLock)
-                    {
-                        webusb_mutex->lock();
-                    }
-                }
-                else
-                {
-                    // Done processing this packet
-                    reset();
                 }
             }
         }
@@ -359,6 +244,139 @@ public:
     }
 
 private:
+    bool tryReadPacketHeader(const uint8_t*& buffer, std::size_t& bufsize)
+    {
+        while (mRcvIdx < kSizeSize)
+        {
+            parseMagic(buffer, bufsize);
+
+            while (mRcvIdx < kSizeSize && bufsize > 0)
+            {
+                mSizeBytes[mRcvIdx] = *buffer;
+
+                ++mRcvIdx;
+                ++buffer;
+                --bufsize;
+            }
+
+            if (mRcvIdx < kSizeSize)
+            {
+                return false;
+            }
+
+            mRcvSize = bytesToUint16(&mSizeBytes[0]);
+            const std::uint16_t invRcvSize = bytesToUint16(&mSizeBytes[2]);
+
+            if ((mRcvSize ^ invRcvSize) != 0xFFFF || mRcvSize < (kMinSizeAddress + kSizeCommand + kSizeCrc))
+            {
+                // Size bytes invalid - reset counter, parse size bytes for another magic, and continue.
+                reset();
+                const uint8_t* tmpBuffer = mSizeBytes;
+                std::size_t tmpBufSize = sizeof(mSizeBytes);
+                parseMagic(tmpBuffer, tmpBufSize);
+                continue;
+            }
+
+            mBuffer.clear();
+            mBuffer.reserve(mRcvSize);
+            return true;
+        }
+
+        return true;
+    }
+
+    void consumePayloadBytes(const uint8_t*& buffer, std::size_t& bufsize)
+    {
+        // mRcvIdx is guaranteed to be >= kSizeSize here.
+        const std::uint16_t payloadIdx = mRcvIdx - kSizeSize;
+        std::uint16_t bytesToConsume = mRcvSize - payloadIdx;
+        if (bufsize < bytesToConsume)
+        {
+            bytesToConsume = bufsize;
+        }
+
+        mBuffer.insert(mBuffer.end(), buffer, buffer + bytesToConsume);
+
+        mRcvIdx += bytesToConsume;
+        buffer += bytesToConsume;
+        bufsize -= bytesToConsume;
+    }
+
+    static std::uint8_t getAddressSize(const std::vector<std::uint8_t>& packet)
+    {
+        std::uint8_t addrSize = 0;
+        while (addrSize < kMaxSizeAddress && addrSize < packet.size())
+        {
+            const std::uint8_t b = packet[addrSize];
+            ++addrSize;
+            if ((b & 0x80) == 0)
+            {
+                break;
+            }
+        }
+
+        return addrSize;
+    }
+
+    bool tryProcessCompletedPacket(LockGuard& lock)
+    {
+        if (mBuffer.size() < (kMinSizeAddress + kSizeCommand + kSizeCrc))
+        {
+            // Not enough data for address, command, and CRC.
+            return false;
+        }
+
+        // Calculate CRC over message address, command, and payload (excluding CRC itself).
+        const std::uint16_t calcCrc = computeCrc16(
+            mBuffer.data(),
+            mBuffer.size() - kSizeCrc
+        );
+
+        // Extract CRC from last 2 bytes.
+        const std::uint16_t pktCrc = bytesToUint16(&mBuffer[mBuffer.size() - 2]);
+
+        if (calcCrc != pktCrc)
+        {
+            // Done processing this packet.
+            reset();
+            return true;
+        }
+
+        const std::uint8_t addrSize = getAddressSize(mBuffer);
+        if (mBuffer.size() < static_cast<std::size_t>(addrSize + kSizeCommand + kSizeCrc))
+        {
+            // Not enough data for address, command, and CRC.
+            return false;
+        }
+
+        // No need to process address into uint64 as it's not used internally
+        std::string address(reinterpret_cast<const char*>(mBuffer.data()), addrSize);
+
+        std::vector<std::uint8_t> packet = std::move(mBuffer);
+        reset();
+
+        // Now that buffers have been reset, process packet outside of lock context
+        const bool releaseLock = lock.isLocked();
+        if (releaseLock)
+        {
+            webusb_mutex->unlock();
+        }
+
+        processPkt(
+            address,
+            packet[addrSize],
+            reinterpret_cast<const uint8_t*>(&packet[addrSize + kSizeCommand]),
+            packet.size() - addrSize - kSizeCommand - kSizeCrc
+        );
+
+        if (releaseLock)
+        {
+            webusb_mutex->lock();
+        }
+
+        return true;
+    }
+
     void processPkt(const std::string& address, const uint8_t cmd, const uint8_t* payload, uint16_t payloadLen)
     {
         std::unordered_map<std::uint8_t, std::shared_ptr<WebUsbCommandHandler>>::iterator iter = mParsers.find(cmd);
