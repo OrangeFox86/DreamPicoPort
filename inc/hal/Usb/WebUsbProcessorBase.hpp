@@ -21,6 +21,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#pragma once
+
 #include "hal/System/LockGuard.hpp"
 #include "WebUsbCommandHandler.hpp"
 #include "utils.h"
@@ -386,7 +388,6 @@ protected:
     ) = 0;
 
     //! Perform vendor write to USB
-    //! @param[in] itf Interface index to write to
     //! @param[in] buffer Buffer to write
     //! @param[in] bufsize The number of bytes to write
     //! @param[in] flush When true, perform flush

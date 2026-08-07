@@ -90,7 +90,6 @@ private:
     }
 
     //! Perform vendor write to USB
-    //! @param[in] itf Interface index to write to
     //! @param[in] buffer Buffer to write
     //! @param[in] bufsize The number of bytes to write
     //! @param[in] flush When true, perform flush
