@@ -262,3 +262,37 @@ TEST_F(WebUsbProcessorTest, multi_packet_added_crc_invalid__process__one_ignored
     const std::list<std::vector<std::uint8_t>> expectedPayloads{{0x01, 0x02, 0x10, 0x20}, {}};
     EXPECT_EQ(receivedPayloads, expectedPayloads);
 }
+
+TEST_F(WebUsbProcessorTest, invalid_size_restart__process__one_processed)
+{
+    // Arrange
+    std::vector<std::uint8_t> data = {
+        0xDB, 0x8B, 0xAF, 0xD5, // Magic
+        0xDB, 0x8B, 0xAF, 0xD5, // Magic (invalid size, restart)
+        0x00, 0x08, // Size
+        0xFF, 0xF7, // Inverse Size
+        0x5A, // Address
+        0xA5, // Command
+        0x01, 0x02, 0x10, 0x20, // Payload
+        0xCE, 0x70 // CRC
+    };
+    mTestWebUsbProcessor.addData(data.data(), data.size());
+
+    std::vector<std::uint8_t> receivedPayload;
+    EXPECT_CALL(
+        mTestWebUsbProcessor, processPkt(std::string("\x5a", 1), 0xA5, _, _)
+    ).Times(1).WillOnce(::testing::Invoke(
+        [&receivedPayload]
+        (const std::string& address, const uint8_t cmd, const uint8_t* payload, uint16_t payloadLen)
+        {
+            receivedPayload.assign(payload, payload + payloadLen);
+        }
+    ));
+
+    // Act
+    mTestWebUsbProcessor.process();
+
+    // Assert
+    const std::vector<std::uint8_t> expectedPayload{0x01, 0x02, 0x10, 0x20};
+    EXPECT_EQ(receivedPayload, expectedPayload);
+}

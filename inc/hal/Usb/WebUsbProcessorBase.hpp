@@ -180,17 +180,17 @@ public:
         }
 
         const uint8_t* buffer = newData.data();
-        std::size_t bufsize = newData.size();
+        const uint8_t* const bufferEnd = newData.data() + newData.size();
 
-        while (bufsize > 0)
+        while (buffer < bufferEnd)
         {
-            if (!tryReadPacketHeader(buffer, bufsize))
+            if (!tryReadPacketHeader(buffer, bufferEnd))
             {
                 // Consumed entire buffer without completing packet header.
                 return;
             }
 
-            consumePacketBytes(buffer, bufsize);
+            consumePacketBytes(buffer, bufferEnd);
 
             const std::uint16_t payloadIdx = mRcvIdx - kSizeSize;
             if (payloadIdx >= mRcvSize)
@@ -227,22 +227,21 @@ public:
 protected:
     //! Consume bytes until all data is consumed or until full header is read (magic + size bytes)
     //! @param[in,out] buffer in: pointer to the beginning of the buffer to consume; out: incremented pointer
-    //! @param[in,out] bufsize in: number of bytes to consume; out: number of bytes left to consume
+    //! @param[in] bufferEnd Pointer to the end of the buffer
     //! @return true if a full header is received
     //! @return false if bufsize is 0 and a full header has not been received yet
-    bool tryReadPacketHeader(const uint8_t*& buffer, std::size_t& bufsize)
+    bool tryReadPacketHeader(const uint8_t*& buffer, const uint8_t* const bufferEnd)
     {
         while (mRcvIdx < kSizeSize)
         {
-            parseMagic(buffer, bufsize);
+            parseMagic(buffer, bufferEnd);
 
-            while (mRcvIdx < kSizeSize && bufsize > 0)
+            while (mRcvIdx < kSizeSize && buffer < bufferEnd)
             {
                 mSizeBytes[mRcvIdx] = *buffer;
 
                 ++mRcvIdx;
                 ++buffer;
-                --bufsize;
             }
 
             if (mRcvIdx < kSizeSize)
@@ -258,8 +257,8 @@ protected:
                 // Size bytes invalid - reset counter, parse size bytes for another magic, and continue.
                 reset();
                 const uint8_t* tmpBuffer = mSizeBytes;
-                std::size_t tmpBufSize = sizeof(mSizeBytes);
-                parseMagic(tmpBuffer, tmpBufSize);
+                const uint8_t* const tmpBufferEnd = tmpBuffer + sizeof(mSizeBytes);
+                parseMagic(tmpBuffer, tmpBufferEnd);
                 continue;
             }
 
@@ -273,12 +272,13 @@ protected:
 
     //! Called after header bytes have been consumed in order to pull bytes into address/payload buffer
     //! @param[in,out] buffer in: pointer to the beginning of the buffer to consume; out: incremented pointer
-    //! @param[in,out] bufsize in: number of bytes to consume; out: number of bytes left to consume
-    void consumePacketBytes(const uint8_t*& buffer, std::size_t& bufsize)
+    //! @param[in] bufferEnd Pointer to the end of the buffer
+    void consumePacketBytes(const uint8_t*& buffer, const uint8_t* const bufferEnd)
     {
         // mRcvIdx is guaranteed to be >= kSizeSize here.
         const std::uint16_t payloadIdx = mRcvIdx - kSizeSize;
         std::uint16_t bytesToConsume = mRcvSize - payloadIdx;
+        const std::size_t bufsize = (bufferEnd > buffer) ? (bufferEnd - buffer) : 0;
         if (bufsize < bytesToConsume)
         {
             bytesToConsume = bufsize;
@@ -288,7 +288,6 @@ protected:
 
         mRcvIdx += bytesToConsume;
         buffer += bytesToConsume;
-        bufsize -= bytesToConsume;
     }
 
     //! Determines how many bytes in a packet are the address
@@ -526,10 +525,10 @@ protected:
 
     //! Keep reading bytes until magic sequence is read or all bytes have been processed
     //! @param[in,out] buffer in: pointer to the beginning of the buffer to consume; out: incremented pointer
-    //! @param[in,out] bufsize in: number of bytes to consume; out: number of bytes left to consume
-    void parseMagic(const uint8_t*& buffer, std::size_t& bufsize)
+    //! @param[in] bufferEnd Pointer to the end of the buffer
+    void parseMagic(const uint8_t*& buffer, const uint8_t* const bufferEnd)
     {
-        while (mRcvIdx < 0 && bufsize > 0)
+        while (mRcvIdx < 0 && buffer < bufferEnd)
         {
             if (*buffer != k_webusb_magic_value[kSizeMagic + mRcvIdx])
             {
@@ -542,7 +541,6 @@ protected:
             }
 
             ++buffer;
-            --bufsize;
         }
     }
 
